@@ -130,6 +130,39 @@
     function ordinal(n){ if(n%100>=11&&n%100<=13)return n+'th'; return n+(n%10===1?'st':n%10===2?'nd':n%10===3?'rd':'th'); }
     function opt(id){ return options.find(o=>o.id===id); }
 
+    function rosterSlug(name){
+      let s=String(name||'').toLowerCase().trim()
+        .replace(/[’']/g,'')
+        .replace(/\bmega\b/g,'')
+        .replace(/\bex\b/g,'')
+        .trim();
+      const aliases={
+        'n s zoroark':'zoroark',
+        'ns zoroark':'zoroark',
+        'lillies clefairy':'clefairy',
+        'crushing hammers':'',
+        'crushing hammer':'',
+        'teal mask ogerpon':'ogerpon',
+        'wellspring ogerpon':'ogerpon'
+      };
+      if(aliases[s]!==undefined)s=aliases[s];
+      return s.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    }
+    function rosterFallbackSprite(name){
+      const slug=rosterSlug(name);
+      return slug ? 'https://img.pokemondb.net/sprites/scarlet-violet/icon/'+slug+'.png' : '';
+    }
+    function spriteFor(opt){
+      return opt?.sprite_url || rosterFallbackSprite(opt?.name);
+    }
+    function safeImg(url,name){
+      if(!url) return '<span class="mq-sprite-fallback">CARD</span>';
+      const u=esc(url);
+      const n=esc(name||'');
+      return '<img src="'+u+'" alt="'+n+'" title="'+n+'" onerror="this.outerHTML=&quot;<span class=\\'mq-sprite-fallback\\'>CARD</span>&quot;">';
+    }
+
+
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
     async function showApp(){ $('auth').classList.add('hidden'); $('app').classList.remove('hidden'); await loadOptions(); await loadTournaments(); }
 
@@ -137,7 +170,7 @@
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
 
-    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); }
+    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); }
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
     async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
@@ -202,11 +235,11 @@ function fallbackSprite(name){
   return 'https://img.pokemondb.net/sprites/scarlet-violet/icon/' + slug + '.png';
 }
 
-function spriteFor(opt){
+function pickerSpriteFor(opt){
   return opt.sprite_url || fallbackSprite(opt.name);
 }
 
-function safeImg(url, name){
+function pickerSafeImg(url, name){
   if (!url) return '<span class="mq-sprite-fallback">CARD</span>';
   return '<img src="'+url+'" alt="" onerror="this.outerHTML=\'<span class=&quot;mq-sprite-fallback&quot;>CARD</span>\'">';
 }
@@ -234,7 +267,7 @@ function makePicker(selectId, label, allowNone){
 
   const current = pickerOptions.find(x => x.id === select.value);
   const display = current
-    ? '<span class="mq-picker-value">'+safeImg(spriteFor(current), current.name)+'<span>'+current.name+'</span></span>'
+    ? '<span class="mq-picker-value">'+pickerSafeImg(pickerSpriteFor(current), current.name)+'<span>'+current.name+'</span></span>'
     : '<span class="mq-picker-placeholder">'+(allowNone ? 'None' : 'Choose Main...')+'</span>';
 
   wrap.innerHTML =
@@ -255,7 +288,7 @@ function makePicker(selectId, label, allowNone){
     let out = '';
     if (allowNone) out += '<button type="button" class="mq-picker-row" data-id=""><span class="mq-sprite-fallback">—</span><span>None</span></button>';
     out += rows.map(x =>
-      '<button type="button" class="mq-picker-row" data-id="'+x.id+'">'+safeImg(spriteFor(x), x.name)+'<span>'+x.name+'</span></button>'
+      '<button type="button" class="mq-picker-row" data-id="'+x.id+'">'+pickerSafeImg(pickerSpriteFor(x), x.name)+'<span>'+x.name+'</span></button>'
     ).join('');
     list.innerHTML = out || '<div class="muted" style="padding:8px">No matches.</div>';
     list.querySelectorAll('.mq-picker-row').forEach(row => {
