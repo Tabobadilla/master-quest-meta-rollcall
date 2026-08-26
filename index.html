@@ -157,11 +157,16 @@
     }
     function safeImg(url,name){
       if(!url) return '<span class="mq-sprite-fallback">CARD</span>';
-      const u=esc(url);
-      const n=esc(name||'');
-      return '<img src="'+u+'" alt="'+n+'" title="'+n+'" onerror="this.outerHTML=&quot;<span class=\\'mq-sprite-fallback\\'>CARD</span>&quot;">';
+      return '<img class="mq-player-sprite" src="'+esc(url)+'" alt="'+esc(name||'')+'">';
     }
 
+
+    document.addEventListener('error', function(ev){
+      const img=ev.target;
+      if(img && img.tagName==='IMG' && img.classList.contains('mq-player-sprite')){
+        img.style.display='none';
+      }
+    }, true);
 
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
     async function showApp(){ $('auth').classList.add('hidden'); $('app').classList.remove('hidden'); await loadOptions(); await loadTournaments(); }
