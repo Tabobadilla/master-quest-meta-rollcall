@@ -286,39 +286,128 @@ document.addEventListener('click', (e) => {
 
 async function parseWorkbook(file){
   const data = await file.arrayBuffer();
-  const wb = XLSX.read(data, {type:'array'});
-  const target = wb.SheetNames.find(n => n.trim().toUpperCase() === 'POKEMON LIBRARY');
+  const wb = XLSX.read(data, {type:'array', cellDates:false});
+
+  const target = wb.SheetNames.find(n => {
+    const clean = String(n || '').trim().toUpperCase().replace(/\s+/g,' ');
+    return clean === 'POKEMON LIBRARY' || clean === 'POKÉMON LIBRARY';
+  });
   if (!target) throw new Error('Could not find a sheet named POKEMON LIBRARY.');
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[target], {header:1, defval:''});
+
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[target], {
+    header: 1,
+    defval: '',
+    raw: false,
+    blankrows: true
+  });
+
+  const norm = (v) => String(v ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/\u00a0/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+    .toLowerCase();
 
   let headerRow = -1;
-  for (let i=0; i<Math.min(rows.length,20); i++){
-    const joined = rows[i].map(x => String(x).toLowerCase()).join('|');
-    if ((joined.includes('pokémon') || joined.includes('pokemon')) && joined.includes('discord')){
-      headerRow = i; break;
+  let nameIdx = -1;
+  let codeIdx = -1;
+  let spriteIdx = -1;
+
+  // Scan generously because Excel Online may preserve title/instruction rows,
+  // merged cells, or an extra index column before the real headers.
+  for (let i = 0; i < Math.min(rows.length, 40); i++){
+    const cells = (rows[i] || []).map(norm);
+
+    const candidateNameIdx = cells.findIndex(h =>
+      h === 'pokemon' ||
+      h === 'pokemon / card' ||
+      h === 'pokemon/card' ||
+      h.startsWith('pokemon ') ||
+      h.includes('pokemon name')
+    );
+
+    const candidateCodeIdx = cells.findIndex(h =>
+      h.includes('full discord emoji code') ||
+      (h.includes('discord') && h.includes('emoji') && h.includes('code'))
+    );
+
+    const candidateSpriteIdx = cells.findIndex(h =>
+      h === 'sprite url' ||
+      h.includes('sprite url') ||
+      (h.includes('sprite') && h.includes('url')) ||
+      h.includes('image url')
+    );
+
+    if (candidateNameIdx >= 0 && candidateCodeIdx >= 0){
+      headerRow = i;
+      nameIdx = candidateNameIdx;
+      codeIdx = candidateCodeIdx;
+      spriteIdx = candidateSpriteIdx;
+      break;
     }
   }
-  if (headerRow < 0) throw new Error('Could not locate the Pokémon Library header row.');
 
-  const headers = rows[headerRow].map(x => String(x).trim().toLowerCase());
-  const nameIdx = headers.findIndex(h => h === 'pokémon' || h === 'pokemon');
-  const codeIdx = headers.findIndex(h => h.includes('full discord emoji code'));
-  const spriteIdx = headers.findIndex(h => h === 'sprite url' || h.includes('sprite url'));
-  if (nameIdx < 0 || codeIdx < 0) throw new Error('Pokémon and Full Discord Emoji Code columns are required.');
+  // Final fallback for the Master Quest workbook layout:
+  // find a row containing "Full Discord Emoji Code", then locate the nearest
+  // Pokémon header to its left.
+  if (headerRow < 0){
+    for (let i = 0; i < Math.min(rows.length, 40); i++){
+      const cells = (rows[i] || []).map(norm);
+      const cIdx = cells.findIndex(h => h.includes('full discord emoji code'));
+      if (cIdx >= 0){
+        let nIdx = -1;
+        for (let c = 0; c < cells.length; c++){
+          if (cells[c].includes('pokemon')) { nIdx = c; break; }
+        }
+        if (nIdx >= 0){
+          headerRow = i;
+          nameIdx = nIdx;
+          codeIdx = cIdx;
+          spriteIdx = cells.findIndex(h => h.includes('sprite') && h.includes('url'));
+          break;
+        }
+      }
+    }
+  }
+
+  if (headerRow < 0 || nameIdx < 0 || codeIdx < 0){
+    const preview = rows.slice(0,8).map(r => (r || []).filter(Boolean).join(' | ')).filter(Boolean).join(' / ');
+    throw new Error('Could not recognize the Pokémon Library headers. Found: ' + (preview || 'no readable headers'));
+  }
 
   const items = [];
   const seen = new Set();
-  for (let r=headerRow+1; r<rows.length; r++){
-    const name = String(rows[r][nameIdx] ?? '').trim();
+
+  for (let r = headerRow + 1; r < rows.length; r++){
+    const row = rows[r] || [];
+    const name = String(row[nameIdx] ?? '').trim();
     if (!name) continue;
-    const key = name.toLowerCase();
+
+    // Ignore repeated header rows if Excel duplicated them.
+    const normalizedName = norm(name);
+    if (normalizedName === 'pokemon' || normalizedName.includes('pokemon / discord emoji library')) continue;
+
+    const key = normalizedName;
     if (seen.has(key)) continue;
     seen.add(key);
-    let code = String(rows[r][codeIdx] ?? '').trim();
+
+    let code = String(row[codeIdx] ?? '').trim();
     if (code.startsWith('\\<:')) code = code.slice(1);
-    const sprite = spriteIdx >= 0 ? String(rows[r][spriteIdx] ?? '').trim() : '';
-    items.push({name, discord_emoji_code: code || null, sprite_url: sprite || null});
+
+    const sprite = spriteIdx >= 0 ? String(row[spriteIdx] ?? '').trim() : '';
+
+    items.push({
+      name,
+      discord_emoji_code: code || null,
+      sprite_url: sprite || null
+    });
   }
+
+  if (!items.length){
+    throw new Error('The POKEMON LIBRARY sheet was found, but no Pokémon/Card rows were detected.');
+  }
+
   return items;
 }
 
