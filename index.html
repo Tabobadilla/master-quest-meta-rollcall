@@ -32,7 +32,7 @@
 .mq-picker-row:hover,.mq-picker-row:focus{background:#edf6f0}
 .mq-picker-row .mq-sprite-fallback{width:34px;height:34px;border-radius:8px;background:#edf3ef;display:grid;place-items:center;font-size:11px;color:#617369;flex:none}
 .mq-picker-clear{font-size:13px;color:#667a70}
-#main,#support{display:none!important}
+#mainOption,#supportOption{display:none!important}
 .sync-summary{margin-top:10px;font-size:13px;color:#65786e}
 </style>
 
@@ -273,8 +273,8 @@ function makePicker(selectId, label, allowNone){
 }
 
 function buildPickers(){
-  makePicker('main','Main Pokémon / Card',false);
-  makePicker('support','Support / Variant',true);
+  makePicker('mainOption','Main Pokémon / Card',false);
+  makePicker('supportOption','Support / Variant',true);
 }
 
 document.addEventListener('click', (e) => {
