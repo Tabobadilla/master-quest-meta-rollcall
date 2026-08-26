@@ -18,6 +18,24 @@
     .discord{background:#101914;color:#dbf4e5;border-radius:10px;padding:12px;white-space:pre-wrap;min-height:90px;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}.auth{max-width:430px;margin:54px auto}.full{width:100%}
     @media(max-width:560px){.row{grid-template-columns:1fr}.wrap{padding:9px}.tabs button{font-size:12px;padding:8px 4px}.player{align-items:flex-start}.actions{flex-direction:column}}
   </style>
+
+<style>
+.mq-picker-wrap{position:relative}
+.mq-picker-btn{width:100%;min-height:48px;border:1px solid var(--line,#d8e4dc);background:#fff;border-radius:10px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:16px;text-align:left;color:var(--ink,#143326)}
+.mq-picker-value{display:flex;align-items:center;gap:10px;min-width:0}
+.mq-picker-value img,.mq-picker-row img{width:34px;height:34px;object-fit:contain;image-rendering:auto;flex:none}
+.mq-picker-placeholder{color:#7a8a82}
+.mq-picker-menu{position:absolute;z-index:50;left:0;right:0;top:calc(100% + 5px);background:#fff;border:1px solid var(--line,#d8e4dc);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);padding:8px;max-height:320px;overflow:auto}
+.mq-picker-menu.hidden{display:none!important}
+.mq-picker-search{width:100%;min-height:42px;margin:0 0 7px!important}
+.mq-picker-row{width:100%;border:0;background:#fff;border-radius:8px;padding:7px 8px;display:flex;align-items:center;gap:10px;text-align:left;font-size:15px;color:var(--ink,#143326);cursor:pointer}
+.mq-picker-row:hover,.mq-picker-row:focus{background:#edf6f0}
+.mq-picker-row .mq-sprite-fallback{width:34px;height:34px;border-radius:8px;background:#edf3ef;display:grid;place-items:center;font-size:11px;color:#617369;flex:none}
+.mq-picker-clear{font-size:13px;color:#667a70}
+#main,#support{display:none!important}
+.sync-summary{margin-top:10px;font-size:13px;color:#65786e}
+</style>
+
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -78,17 +96,16 @@
 <section class="card" id="librarySyncCard">
   <h3 style="margin-top:0">Excel Pokémon Library Sync</h3>
   <div class="muted">
-    Choose your Master Quest Excel workbook. The app reads the <b>POKEMON LIBRARY</b> sheet
-    locally in your browser and syncs Pokémon/Card names + Discord emoji codes to Supabase.
-    Your Excel file is not uploaded anywhere.
+    Choose your Master Quest Excel workbook. The app reads the <b>POKEMON LIBRARY</b> sheet locally
+    and syncs Pokémon/Card names, Discord emoji codes, and an optional <b>Sprite URL</b> column.
   </div>
   <div class="field">
     <label for="excelLibraryFile">Excel Workbook (.xlsx)</label>
-    <input id="excelLibraryFile" type="file" accept=".xlsx,.xls" />
+    <input id="excelLibraryFile" type="file" accept=".xlsx,.xls">
   </div>
   <button id="syncExcelLibrary" class="btn alt full">Sync Pokémon Library</button>
   <div id="syncLibraryMsg"></div>
-  <div id="syncLibraryPreview" class="muted" style="margin-top:10px"></div>
+  <div id="syncLibraryPreview" class="sync-summary"></div>
 </section>
 
 </main>
@@ -141,175 +158,240 @@
     document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>$(t+'Tab').classList.toggle('hidden',t!==b.dataset.tab)); });
     boot();
   </script>
-
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script>
-(function(){
-  const fileInput = document.getElementById('excelLibraryFile');
-  const syncBtn = document.getElementById('syncExcelLibrary');
-  const msgEl = document.getElementById('syncLibraryMsg');
-  const previewEl = document.getElementById('syncLibraryPreview');
 
-  if (!fileInput || !syncBtn || !msgEl || !previewEl) return;
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-  function showSyncMsg(text, ok){
-    msgEl.innerHTML = text ? '<div class="msg ' + (ok ? 'good' : '') + '">' + text + '</div>' : '';
+const SUPABASE_URL = 'https://njulnumhkxvtdfrjoigx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_31ke9sSB-21M8MXDWZm1lA_p_sYct8Z';
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $q = (id) => document.getElementById(id);
+let pickerOptions = [];
+
+function normalizePokemonSlug(name){
+  let s = String(name || '').toLowerCase().trim();
+  s = s.replace(/[’']/g,'');
+  s = s.replace(/\bmega\b/g,'').replace(/\bex\b/g,'').trim();
+  const aliases = {
+    'n s zoroark':'zoroark',
+    'ns zoroark':'zoroark',
+    'clefairy':'clefairy',
+    'lillies clefairy':'clefairy',
+    'crushing hammers':'',
+    'crushing hammer':'',
+    'ogerpon':'ogerpon',
+    'teal mask ogerpon':'ogerpon',
+    'wellspring ogerpon':'ogerpon'
+  };
+  if (aliases[s] !== undefined) s = aliases[s];
+  s = s.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  return s;
+}
+
+function fallbackSprite(name){
+  const slug = normalizePokemonSlug(name);
+  if (!slug) return '';
+  return 'https://img.pokemondb.net/sprites/scarlet-violet/icon/' + slug + '.png';
+}
+
+function spriteFor(opt){
+  return opt.sprite_url || fallbackSprite(opt.name);
+}
+
+function safeImg(url, name){
+  if (!url) return '<span class="mq-sprite-fallback">CARD</span>';
+  return '<img src="'+url+'" alt="" onerror="this.outerHTML=\'<span class=&quot;mq-sprite-fallback&quot;>CARD</span>\'">';
+}
+
+async function loadPickerOptions(){
+  const {data, error} = await db.from('deck_options')
+    .select('id,name,discord_emoji_code,sprite_url,active')
+    .eq('active', true)
+    .order('name');
+  if (error) return;
+  pickerOptions = data || [];
+  buildPickers();
+}
+
+function makePicker(selectId, label, allowNone){
+  const select = $q(selectId);
+  if (!select) return;
+  let wrap = document.getElementById(selectId + 'CustomPicker');
+  if (!wrap){
+    wrap = document.createElement('div');
+    wrap.id = selectId + 'CustomPicker';
+    wrap.className = 'mq-picker-wrap';
+    select.insertAdjacentElement('afterend', wrap);
   }
 
-  function cleanName(v){
-    return String(v ?? '').trim();
+  const current = pickerOptions.find(x => x.id === select.value);
+  const display = current
+    ? '<span class="mq-picker-value">'+safeImg(spriteFor(current), current.name)+'<span>'+current.name+'</span></span>'
+    : '<span class="mq-picker-placeholder">'+(allowNone ? 'None' : 'Choose Main...')+'</span>';
+
+  wrap.innerHTML =
+    '<button type="button" class="mq-picker-btn"><span>'+display+'</span><span>⌄</span></button>'+
+    '<div class="mq-picker-menu hidden">'+
+      '<input class="mq-picker-search" type="search" placeholder="Search Pokémon / card...">'+
+      '<div class="mq-picker-list"></div>'+
+    '</div>';
+
+  const btn = wrap.querySelector('.mq-picker-btn');
+  const menu = wrap.querySelector('.mq-picker-menu');
+  const search = wrap.querySelector('.mq-picker-search');
+  const list = wrap.querySelector('.mq-picker-list');
+
+  function renderList(term=''){
+    const q = term.toLowerCase().trim();
+    const rows = pickerOptions.filter(x => !q || x.name.toLowerCase().includes(q));
+    let out = '';
+    if (allowNone) out += '<button type="button" class="mq-picker-row" data-id=""><span class="mq-sprite-fallback">—</span><span>None</span></button>';
+    out += rows.map(x =>
+      '<button type="button" class="mq-picker-row" data-id="'+x.id+'">'+safeImg(spriteFor(x), x.name)+'<span>'+x.name+'</span></button>'
+    ).join('');
+    list.innerHTML = out || '<div class="muted" style="padding:8px">No matches.</div>';
+    list.querySelectorAll('.mq-picker-row').forEach(row => {
+      row.onclick = () => {
+        select.value = row.dataset.id || '';
+        select.dispatchEvent(new Event('change', {bubbles:true}));
+        makePicker(selectId, label, allowNone);
+      };
+    });
   }
 
-  function cleanCode(v){
-    let s = String(v ?? '').trim();
-    if (s.startsWith('\\<:')) s = s.slice(1);
-    return s;
-  }
-
-  async function parseWorkbook(file){
-    const data = await file.arrayBuffer();
-    const wb = XLSX.read(data, {type:'array'});
-    const targetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'POKEMON LIBRARY');
-    if (!targetName) throw new Error('Could not find a sheet named POKEMON LIBRARY.');
-
-    const ws = wb.Sheets[targetName];
-    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-
-    let headerRow = -1;
-    for (let i = 0; i < Math.min(rows.length, 15); i++) {
-      const joined = rows[i].map(x => String(x).toLowerCase()).join('|');
-      if (joined.includes('pokémon') && joined.includes('discord') && joined.includes('emoji')) {
-        headerRow = i;
-        break;
-      }
+  btn.onclick = () => {
+    menu.classList.toggle('hidden');
+    if (!menu.classList.contains('hidden')){
+      renderList('');
+      setTimeout(()=>search.focus(),0);
     }
-    if (headerRow < 0) throw new Error('Could not locate the Pokémon Library header row.');
+  };
+  search.oninput = () => renderList(search.value);
+  renderList('');
+}
 
-    const headers = rows[headerRow].map(x => String(x).trim().toLowerCase());
-    const nameIdx = headers.findIndex(h => h === 'pokémon' || h === 'pokemon');
-    const codeIdx = headers.findIndex(h => h.includes('full discord emoji code'));
+function buildPickers(){
+  makePicker('main','Main Pokémon / Card',false);
+  makePicker('support','Support / Variant',true);
+}
 
-    if (nameIdx < 0 || codeIdx < 0) {
-      throw new Error('The POKEMON LIBRARY sheet must contain Pokémon and Full Discord Emoji Code columns.');
-    }
-
-    const items = [];
-    const seen = new Set();
-
-    for (let r = headerRow + 1; r < rows.length; r++) {
-      const name = cleanName(rows[r][nameIdx]);
-      const code = cleanCode(rows[r][codeIdx]);
-      if (!name) continue;
-
-      const key = name.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      items.push({name, discord_emoji_code: code || null});
-    }
-
-    return items;
-  }
-
-  fileInput.addEventListener('change', async () => {
-    showSyncMsg('');
-    previewEl.textContent = '';
-    const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    try {
-      const items = await parseWorkbook(file);
-      const coded = items.filter(x => x.discord_emoji_code).length;
-      previewEl.textContent = items.length + ' library entries found • ' + coded + ' with Discord codes';
-    } catch (e) {
-      showSyncMsg(e.message || String(e), false);
-    }
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.mq-picker-menu').forEach(menu => {
+    const wrap = menu.closest('.mq-picker-wrap');
+    if (wrap && !wrap.contains(e.target)) menu.classList.add('hidden');
   });
+});
 
+async function parseWorkbook(file){
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, {type:'array'});
+  const target = wb.SheetNames.find(n => n.trim().toUpperCase() === 'POKEMON LIBRARY');
+  if (!target) throw new Error('Could not find a sheet named POKEMON LIBRARY.');
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[target], {header:1, defval:''});
+
+  let headerRow = -1;
+  for (let i=0; i<Math.min(rows.length,20); i++){
+    const joined = rows[i].map(x => String(x).toLowerCase()).join('|');
+    if ((joined.includes('pokémon') || joined.includes('pokemon')) && joined.includes('discord')){
+      headerRow = i; break;
+    }
+  }
+  if (headerRow < 0) throw new Error('Could not locate the Pokémon Library header row.');
+
+  const headers = rows[headerRow].map(x => String(x).trim().toLowerCase());
+  const nameIdx = headers.findIndex(h => h === 'pokémon' || h === 'pokemon');
+  const codeIdx = headers.findIndex(h => h.includes('full discord emoji code'));
+  const spriteIdx = headers.findIndex(h => h === 'sprite url' || h.includes('sprite url'));
+  if (nameIdx < 0 || codeIdx < 0) throw new Error('Pokémon and Full Discord Emoji Code columns are required.');
+
+  const items = [];
+  const seen = new Set();
+  for (let r=headerRow+1; r<rows.length; r++){
+    const name = String(rows[r][nameIdx] ?? '').trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    let code = String(rows[r][codeIdx] ?? '').trim();
+    if (code.startsWith('\\<:')) code = code.slice(1);
+    const sprite = spriteIdx >= 0 ? String(rows[r][spriteIdx] ?? '').trim() : '';
+    items.push({name, discord_emoji_code: code || null, sprite_url: sprite || null});
+  }
+  return items;
+}
+
+const fileInput = $q('excelLibraryFile');
+const syncBtn = $q('syncExcelLibrary');
+const syncMsg = $q('syncLibraryMsg');
+const syncPreview = $q('syncLibraryPreview');
+
+function showSync(text, ok=false){
+  if (!syncMsg) return;
+  syncMsg.innerHTML = text ? '<div class="msg '+(ok?'good':'')+'">'+text+'</div>' : '';
+}
+
+if (fileInput){
+  fileInput.addEventListener('change', async () => {
+    showSync('');
+    const f = fileInput.files?.[0];
+    if (!f) return;
+    try{
+      const items = await parseWorkbook(f);
+      const codes = items.filter(x=>x.discord_emoji_code).length;
+      const sprites = items.filter(x=>x.sprite_url).length;
+      syncPreview.textContent = items.length+' entries found • '+codes+' Discord codes • '+sprites+' custom sprite URLs';
+    }catch(e){ showSync(e.message || String(e)); }
+  });
+}
+
+if (syncBtn){
   syncBtn.addEventListener('click', async () => {
-    showSyncMsg('');
-    const file = fileInput.files && fileInput.files[0];
-    if (!file) {
-      showSyncMsg('Choose your Excel workbook first.', false);
-      return;
-    }
+    const f = fileInput.files?.[0];
+    if (!f) return showSync('Choose your Excel workbook first.');
+    syncBtn.disabled = true; syncBtn.textContent = 'Syncing...'; showSync('');
+    try{
+      const items = await parseWorkbook(f);
+      const {data: existing, error: e0} = await db.from('deck_options')
+        .select('id,name,discord_emoji_code,sprite_url,active');
+      if (e0) throw e0;
+      const byName = new Map((existing||[]).map(x=>[x.name.toLowerCase(),x]));
+      let added=0,updated=0,unchanged=0,failed=0;
 
-    if (typeof sb === 'undefined') {
-      showSyncMsg('Supabase is not ready. Sign in first, then try again.', false);
-      return;
-    }
-
-    syncBtn.disabled = true;
-    syncBtn.textContent = 'Syncing...';
-
-    try {
-      const items = await parseWorkbook(file);
-      if (!items.length) throw new Error('No Pokémon/Card entries were found.');
-
-      let added = 0, updated = 0, unchanged = 0, failed = 0;
-
-      const {data: existing, error: loadErr} = await sb
-        .from('deck_options')
-        .select('id,name,discord_emoji_code,active');
-
-      if (loadErr) throw loadErr;
-
-      const byName = new Map((existing || []).map(x => [String(x.name).toLowerCase(), x]));
-
-      for (const item of items) {
-        const current = byName.get(item.name.toLowerCase());
-
-        if (current) {
-          const currentCode = (current.discord_emoji_code || '').trim();
-          const newCode = (item.discord_emoji_code || '').trim();
-
-          if (currentCode === newCode && current.active !== false) {
-            unchanged++;
-            continue;
-          }
-
-          const {error} = await sb
-            .from('deck_options')
-            .update({
-              discord_emoji_code: item.discord_emoji_code,
-              active: true
-            })
-            .eq('id', current.id);
-
-          if (error) failed++;
-          else updated++;
-        } else {
-          const {error} = await sb
-            .from('deck_options')
-            .insert({
-              name: item.name,
-              discord_emoji_code: item.discord_emoji_code,
-              active: true,
-              kind: 'main',
-              option_type: 'card_or_pokemon'
-            });
-
-          if (error) failed++;
-          else added++;
+      for (const item of items){
+        const cur = byName.get(item.name.toLowerCase());
+        if (cur){
+          const next = {
+            discord_emoji_code: item.discord_emoji_code,
+            sprite_url: item.sprite_url || cur.sprite_url || null,
+            active: true
+          };
+          const same = (cur.discord_emoji_code||'') === (next.discord_emoji_code||'') &&
+                       (cur.sprite_url||'') === (next.sprite_url||'') && cur.active !== false;
+          if (same){ unchanged++; continue; }
+          const {error} = await db.from('deck_options').update(next).eq('id',cur.id);
+          if (error) failed++; else updated++;
+        }else{
+          const {error} = await db.from('deck_options').insert({
+            name:item.name,
+            discord_emoji_code:item.discord_emoji_code,
+            sprite_url:item.sprite_url,
+            active:true,
+            kind:'main',
+            option_type:'card_or_pokemon'
+          });
+          if (error) failed++; else added++;
         }
       }
-
-      if (typeof loadOpts === 'function') await loadOpts();
-
-      const coded = items.filter(x => x.discord_emoji_code).length;
-      previewEl.textContent = items.length + ' library entries processed • ' + coded + ' with Discord codes';
-      showSyncMsg(
-        'Sync complete — ' + added + ' added, ' + updated + ' updated, ' +
-        unchanged + ' unchanged' + (failed ? ', ' + failed + ' failed' : '') + '.',
-        failed === 0
-      );
-    } catch (e) {
-      showSyncMsg(e.message || String(e), false);
-    } finally {
-      syncBtn.disabled = false;
-      syncBtn.textContent = 'Sync Pokémon Library';
-    }
+      await loadPickerOptions();
+      showSync('Sync complete — '+added+' added, '+updated+' updated, '+unchanged+' unchanged'+(failed?', '+failed+' failed':'')+'.', failed===0);
+    }catch(e){ showSync(e.message || String(e)); }
+    finally{ syncBtn.disabled=false; syncBtn.textContent='Sync Pokémon Library'; }
   });
-})();
+}
+
+setTimeout(loadPickerOptions, 600);
 </script>
 
 </body>
