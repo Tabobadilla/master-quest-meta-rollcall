@@ -286,21 +286,9 @@ document.addEventListener('click', (e) => {
 
 async function parseWorkbook(file){
   const data = await file.arrayBuffer();
-  const wb = XLSX.read(data, {type:'array', cellDates:false});
+  const wb = XLSX.read(data, {type:'array', raw:false});
 
-  const target = wb.SheetNames.find(n => {
-    const clean = String(n || '').trim().toUpperCase().replace(/\s+/g,' ');
-    return clean === 'POKEMON LIBRARY' || clean === 'POKÉMON LIBRARY';
-  });
-  if (!target) throw new Error('Could not find a sheet named POKEMON LIBRARY.');
-
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[target], {
-    header: 1,
-    defval: '',
-    raw: false,
-    blankrows: true
-  });
-
+  // Find the Pokémon Library sheet regardless of accent/case/spacing.
   const norm = (v) => String(v ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g,'')
@@ -309,17 +297,28 @@ async function parseWorkbook(file){
     .trim()
     .toLowerCase();
 
+  const target = wb.SheetNames.find(n => norm(n) === 'pokemon library');
+  if (!target) throw new Error('Could not find the POKEMON LIBRARY sheet.');
+
+  const ws = wb.Sheets[target];
+  const rows = XLSX.utils.sheet_to_json(ws, {
+    header: 1,
+    defval: '',
+    raw: false,
+    blankrows: true
+  });
+
   let headerRow = -1;
   let nameIdx = -1;
   let codeIdx = -1;
   let spriteIdx = -1;
 
-  // Scan generously because Excel Online may preserve title/instruction rows,
-  // merged cells, or an extra index column before the real headers.
-  for (let i = 0; i < Math.min(rows.length, 40); i++){
-    const cells = (rows[i] || []).map(norm);
+  // Your workbook currently has the real headers on row 3, but we scan
+  // the first 50 rows so future formatting changes do not break sync.
+  for (let r = 0; r < Math.min(rows.length, 50); r++){
+    const cells = (rows[r] || []).map(norm);
 
-    const candidateNameIdx = cells.findIndex(h =>
+    const nIdx = cells.findIndex(h =>
       h === 'pokemon' ||
       h === 'pokemon / card' ||
       h === 'pokemon/card' ||
@@ -327,53 +326,53 @@ async function parseWorkbook(file){
       h.includes('pokemon name')
     );
 
-    const candidateCodeIdx = cells.findIndex(h =>
-      h.includes('full discord emoji code') ||
+    const cIdx = cells.findIndex(h =>
+      h === 'full discord emoji code' ||
       (h.includes('discord') && h.includes('emoji') && h.includes('code'))
     );
 
-    const candidateSpriteIdx = cells.findIndex(h =>
+    const sIdx = cells.findIndex(h =>
       h === 'sprite url' ||
-      h.includes('sprite url') ||
       (h.includes('sprite') && h.includes('url')) ||
-      h.includes('image url')
+      h === 'image url'
     );
 
-    if (candidateNameIdx >= 0 && candidateCodeIdx >= 0){
-      headerRow = i;
-      nameIdx = candidateNameIdx;
-      codeIdx = candidateCodeIdx;
-      spriteIdx = candidateSpriteIdx;
+    if (nIdx >= 0 && cIdx >= 0){
+      headerRow = r;
+      nameIdx = nIdx;
+      codeIdx = cIdx;
+      spriteIdx = sIdx;
       break;
     }
   }
 
-  // Final fallback for the Master Quest workbook layout:
-  // find a row containing "Full Discord Emoji Code", then locate the nearest
-  // Pokémon header to its left.
   if (headerRow < 0){
-    for (let i = 0; i < Math.min(rows.length, 40); i++){
-      const cells = (rows[i] || []).map(norm);
-      const cIdx = cells.findIndex(h => h.includes('full discord emoji code'));
-      if (cIdx >= 0){
-        let nIdx = -1;
-        for (let c = 0; c < cells.length; c++){
-          if (cells[c].includes('pokemon')) { nIdx = c; break; }
-        }
-        if (nIdx >= 0){
-          headerRow = i;
-          nameIdx = nIdx;
-          codeIdx = cIdx;
-          spriteIdx = cells.findIndex(h => h.includes('sprite') && h.includes('url'));
-          break;
-        }
-      }
-    }
+    const preview = rows.slice(0,10)
+      .map(r => (r || []).filter(v => String(v).trim()).join(' | '))
+      .filter(Boolean)
+      .join(' / ');
+    throw new Error('Could not recognize the Pokémon Library headers. Found: ' + (preview || 'no readable header rows'));
   }
 
-  if (headerRow < 0 || nameIdx < 0 || codeIdx < 0){
-    const preview = rows.slice(0,8).map(r => (r || []).filter(Boolean).join(' | ')).filter(Boolean).join(' / ');
-    throw new Error('Could not recognize the Pokémon Library headers. Found: ' + (preview || 'no readable headers'));
+  function directImageUrl(value){
+    let s = String(value ?? '').trim();
+    if (!s) return null;
+
+    // If a full HTML snippet was pasted, extract img src.
+    const htmlSrc = s.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (htmlSrc) return htmlSrc[1].trim();
+
+    // If Markdown was pasted: ![name](url)
+    const md = s.match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/i);
+    if (md) return md[1].trim();
+
+    // If BBCode was pasted: [IMG]url[/IMG]
+    const bb = s.match(/\[IMG\](https?:\/\/[^\[]+)\[\/IMG\]/i);
+    if (bb) return bb[1].trim();
+
+    // Otherwise accept a normal direct http(s) URL.
+    const direct = s.match(/https?:\/\/[^\s"'<>]+/i);
+    return direct ? direct[0].trim() : null;
   }
 
   const items = [];
@@ -384,18 +383,16 @@ async function parseWorkbook(file){
     const name = String(row[nameIdx] ?? '').trim();
     if (!name) continue;
 
-    // Ignore repeated header rows if Excel duplicated them.
-    const normalizedName = norm(name);
-    if (normalizedName === 'pokemon' || normalizedName.includes('pokemon / discord emoji library')) continue;
-
-    const key = normalizedName;
+    const key = norm(name);
+    if (!key || key === 'pokemon') continue;
     if (seen.has(key)) continue;
     seen.add(key);
 
     let code = String(row[codeIdx] ?? '').trim();
     if (code.startsWith('\\<:')) code = code.slice(1);
 
-    const sprite = spriteIdx >= 0 ? String(row[spriteIdx] ?? '').trim() : '';
+    const rawSprite = spriteIdx >= 0 ? row[spriteIdx] : '';
+    const sprite = directImageUrl(rawSprite);
 
     items.push({
       name,
@@ -405,7 +402,7 @@ async function parseWorkbook(file){
   }
 
   if (!items.length){
-    throw new Error('The POKEMON LIBRARY sheet was found, but no Pokémon/Card rows were detected.');
+    throw new Error('POKEMON LIBRARY was found, but no Pokémon/Card rows were detected.');
   }
 
   return items;
