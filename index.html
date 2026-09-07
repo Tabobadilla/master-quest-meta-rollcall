@@ -36,12 +36,26 @@
 .sync-summary{margin-top:10px;font-size:13px;color:#65786e}
 </style>
 
+
 <style>
-.mq-player-mainline{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.mq-roster-sprites{display:inline-flex;align-items:center;gap:3px;flex:none}
-.mq-roster-sprites img{width:32px;height:32px;object-fit:contain}
-.mq-roster-sprites .mq-sprite-fallback{width:32px;height:32px;border-radius:8px;background:#edf3ef;display:grid;place-items:center;font-size:9px;color:#617369}
+.mq-roster-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mq-roster-icon-strip{display:inline-flex;align-items:center;gap:3px}
+.mq-roster-icon-strip img{width:30px;height:30px;object-fit:contain}
 </style>
+
+
+<style>
+.role-badge{display:inline-block;padding:4px 9px;border-radius:999px;background:#e8f2ec;color:#1d5d3b;font-size:12px;font-weight:800}
+.pending-deck{display:inline-block;margin-top:3px;padding:3px 8px;border-radius:999px;background:#fff3cd;color:#755b00;font-size:12px;font-weight:750}
+.owner-only.hidden,.staff-only.hidden{display:none!important}
+.hub-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;border-top:1px solid #e4ebe6}
+.hub-row:first-child{border-top:0}
+.hub-title{font-weight:800}
+.hub-meta{font-size:13px;color:#65786e;margin-top:3px}
+.hub-actions{display:flex;gap:6px;flex-wrap:wrap}
+.hub-actions button{width:auto;min-height:36px}
+</style>
+
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -59,7 +73,7 @@
       <section class="card">
         <div class="head"><div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div><button id="signOut" class="btn alt" style="width:auto">Sign Out</button></div>
         <div class="field"><label>Current Tournament</label><select id="tournamentSelect"></select></div>
-        <button id="newTournamentToggle" class="btn alt full">+ New Tournament</button>
+        <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
         <div id="newTournament" class="hidden">
           <div class="field"><label>Event / Store</label><input id="eventName" placeholder="GuuBuu Hobby"></div>
           <div class="row"><div class="field"><label>Date</label><input id="eventDate" type="date"></div><div class="field"><label>Location</label><input id="location" placeholder="Snellville, GA"></div></div>
@@ -67,10 +81,10 @@
         </div>
       </section>
 
-      <section class="card"><div class="tabs"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button></div></section>
+      <section class="card"><div class="tabs" style="grid-template-columns:repeat(5,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button><button type="button" data-tab="professor" class="staff-only">Professor</button><button type="button" data-tab="hub" class="owner-only">Master Hub</button></div></section>
 
       <section id="entryTab" class="card">
-        <div class="head"><h3 style="margin:0">Add Player</h3><span id="playerCount" class="pill">0 Players</span></div>
+        <div class="head"><div><h3 style="margin:0">Add Player</h3><div class="muted">Only the player name is required. Deck can be added later with Edit.</div></div><span id="playerCount" class="pill">0 Players</span></div>
         <div class="field"><label>Player Name</label><input id="playerName" placeholder="Enter player name"></div>
         <div class="row">
           <div class="field"><label>Main Pokémon / Card</label><select id="mainOption"></select></div>
@@ -90,6 +104,17 @@
         <h3 style="margin-top:0">Discord Output</h3><div class="muted" style="margin-bottom:10px">Placement + player name + Main/Support Discord emoji codes.</div>
         <div id="discordText" class="discord">Complete standings to generate output.</div>
         <button id="copyDiscord" class="btn full" style="margin-top:10px">Copy Discord Code</button>
+      </section>
+
+      <section id="professorTab" class="card hidden staff-only">
+        <div class="head"><div><h3 style="margin:0">Professor Check-In</h3><div class="muted">Decklist submissions and trainer check-in will live here.</div></div><span class="pill">V2</span></div>
+        <div id="professorSubmissions" class="muted" style="margin-top:12px">No decklist submissions yet.</div>
+      </section>
+
+      <section id="hubTab" class="card hidden owner-only">
+        <div class="head"><div><h3 style="margin:0">Master Hub</h3><div class="muted">Owner-only view of all tournaments and results.</div></div><button id="refreshHub" class="btn alt" style="width:auto">Refresh</button></div>
+        <div id="hubMsg"></div>
+        <div id="masterHubList" style="margin-top:12px"></div>
       </section>
 
       <section class="card">
@@ -123,74 +148,58 @@
     const SUPABASE_KEY = 'sb_publishable_31ke9sSB-21M8MXDWZm1lA_p_sYct8Z';
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const $ = (id) => document.getElementById(id);
-    let currentTournament = null, options = [], entries = [];
+    let currentTournament = null, options = [], entries = [], currentRole = 'trainer';
 
     function showMsg(id, text, type='') { $(id).innerHTML = text ? '<div class="msg '+type+'">'+text+'</div>' : ''; }
     function esc(s=''){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
     function ordinal(n){ if(n%100>=11&&n%100<=13)return n+'th'; return n+(n%10===1?'st':n%10===2?'nd':n%10===3?'rd':'th'); }
     function opt(id){ return options.find(o=>o.id===id); }
 
-    function rosterSlug(name){
-      let s=String(name||'').toLowerCase().trim()
-        .replace(/[’']/g,'')
-        .replace(/\bmega\b/g,'')
-        .replace(/\bex\b/g,'')
-        .trim();
-      const aliases={
-        'n s zoroark':'zoroark',
-        'ns zoroark':'zoroark',
-        'lillies clefairy':'clefairy',
-        'crushing hammers':'',
-        'crushing hammer':'',
-        'teal mask ogerpon':'ogerpon',
-        'wellspring ogerpon':'ogerpon'
-      };
-      if(aliases[s]!==undefined)s=aliases[s];
-      return s.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-    }
-    function rosterFallbackSprite(name){
-      const slug=rosterSlug(name);
-      return slug ? 'https://img.pokemondb.net/sprites/scarlet-violet/icon/'+slug+'.png' : '';
-    }
-    function spriteFor(opt){
-      return opt?.sprite_url || rosterFallbackSprite(opt?.name);
-    }
-    function safeImg(url,name){
-      if(!url) return '<span class="mq-sprite-fallback">CARD</span>';
-      return '<img class="mq-player-sprite" src="'+esc(url)+'" alt="'+esc(name||'')+'">';
+    async function loadRole(){
+      const {data:{user}} = await sb.auth.getUser();
+      if(!user){ currentRole='trainer'; return; }
+      const {data,error} = await sb.from('profiles').select('role').eq('user_id',user.id).single();
+      if(!error && data?.role) currentRole=data.role;
     }
 
-
-    document.addEventListener('error', function(ev){
-      const img=ev.target;
-      if(img && img.tagName==='IMG' && img.classList.contains('mq-player-sprite')){
-        img.style.display='none';
-      }
-    }, true);
+    function applyRoleUI(){
+      const label = currentRole === 'owner' ? 'Owner' : currentRole === 'professor' ? 'Professor' : 'Trainer';
+      if($('roleBadge')) $('roleBadge').textContent = label;
+      document.querySelectorAll('.owner-only').forEach(el => el.classList.toggle('hidden', currentRole !== 'owner'));
+      document.querySelectorAll('.staff-only').forEach(el => el.classList.toggle('hidden', !['professor','owner'].includes(currentRole)));
+    }
 
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
-    async function showApp(){ $('auth').classList.add('hidden'); $('app').classList.remove('hidden'); await loadOptions(); await loadTournaments(); }
+    async function showApp(){
+      $('auth').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      await loadRole();
+      applyRoleUI();
+      await loadOptions();
+      await loadTournaments();
+      if(currentRole === 'owner') await loadMasterHub();
+    }
 
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
 
-    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); }
+    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); }
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
     async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
-    $('tournamentSelect').onchange = async () => { const id=$('tournamentSelect').value; if(!id){ currentTournament=null; entries=[]; renderEntries(); return; } const {data}=await sb.from('tournaments').select('*').eq('id',id).single(); currentTournament=data; await loadEntries(); };
+    $('tournamentSelect').onchange = async () => { const id=$('tournamentSelect').value; if(!id){ currentTournament=null; entries=[]; renderEntries(); if(['professor','owner'].includes(currentRole)) await loadProfessorSubmissions(); return; } const {data}=await sb.from('tournaments').select('*').eq('id',id).single(); currentTournament=data; await loadEntries(); if(['professor','owner'].includes(currentRole)) await loadProfessorSubmissions(); };
     $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
     $('createTournament').onclick = async () => { const event_name=$('eventName').value.trim(),event_date=$('eventDate').value,location=$('location').value.trim(); if(!event_name||!event_date) return alert('Enter event/store and date.'); const {error}=await sb.from('tournaments').insert({event_name,event_date,location,status:'registration'}); if(error) return alert(error.message); $('newTournament').classList.add('hidden'); await loadTournaments(); };
 
-    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); }
+    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); }
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="mq-player-mainline"><span class="mq-roster-sprites">'+(m?safeImg(spriteFor(m),m.name):'<span class="mq-sprite-fallback">?</span>')+(s?safeImg(spriteFor(s),s.name):'')+'</span><span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+esc(m?.name||'Unknown')+(s?' • '+esc(s.name):'')+'</div></div><div class="actions"><button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="name">'+esc(e.player_name)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><div class="actions"><button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
       document.querySelectorAll('.remove').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this player?')) return; const {error}=await sb.from('entries').delete().eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
-      document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e)return; $('playerName').value=e.player_name; $('mainOption').value=e.main_option_id; $('supportOption').value=e.support_option_id||''; $('addPlayer').dataset.editId=e.id; $('addPlayer').textContent='Save Player'; });
-      $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player"><div><div class="mq-player-mainline"><span class="mq-roster-sprites">'+(m?safeImg(spriteFor(m),m.name):'<span class="mq-sprite-fallback">?</span>')+(s?safeImg(spriteFor(s),s.name):'')+'</span><span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+esc(m?.name||'Unknown')+(s?' • '+esc(s.name):'')+'</div></div><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
+      document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e)return; $('playerName').value=e.player_name; $('mainOption').value=e.main_option_id||''; $('supportOption').value=e.support_option_id||''; $('addPlayer').dataset.editId=e.id; $('addPlayer').textContent='Save Player'; });
+      $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player"><div><div class="name">'+esc(e.player_name)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
 
-    $('addPlayer').onclick = async () => { showMsg('entryMsg',''); if(!currentTournament) return showMsg('entryMsg','Create or select a tournament first.','bad'); const player_name=$('playerName').value.trim(),main_option_id=$('mainOption').value,support_option_id=$('supportOption').value||null; if(!player_name||!main_option_id) return showMsg('entryMsg','Enter a player name and Main Pokémon/Card.','bad'); const editId=$('addPlayer').dataset.editId; const payload={tournament_id:currentTournament.id,player_name,main_option_id,support_option_id}; let error; if(editId){ ({error}=await sb.from('entries').update(payload).eq('id',editId)); delete $('addPlayer').dataset.editId; $('addPlayer').textContent='Add Player'; } else { ({error}=await sb.from('entries').insert(payload)); } if(error) return showMsg('entryMsg',error.message,'bad'); $('playerName').value=''; $('mainOption').value=''; $('supportOption').value=''; showMsg('entryMsg',editId?'Player updated.':'Player added.','good'); await loadEntries(); };
+    $('addPlayer').onclick = async () => { showMsg('entryMsg',''); if(!currentTournament) return showMsg('entryMsg','Create or select a tournament first.','bad'); const player_name=$('playerName').value.trim(),main_option_id=$('mainOption').value||null,support_option_id=$('supportOption').value||null; if(!player_name) return showMsg('entryMsg','Enter a player name.','bad'); const editId=$('addPlayer').dataset.editId; const payload={tournament_id:currentTournament.id,player_name,main_option_id,support_option_id,deck_status:main_option_id?'confirmed':'pending'}; let error; if(editId){ ({error}=await sb.from('entries').update(payload).eq('id',editId)); delete $('addPlayer').dataset.editId; $('addPlayer').textContent='Add Player'; } else { ({error}=await sb.from('entries').insert(payload)); } if(error) return showMsg('entryMsg',error.message,'bad'); $('playerName').value=''; $('mainOption').value=''; $('supportOption').value=''; showMsg('entryMsg',editId?'Player updated.':'Player added.','good'); await loadEntries(); };
 
     $('saveStandings').onclick = async () => { showMsg('standingMsg',''); const sels=[...document.querySelectorAll('.stand')], vals=sels.map(s=>s.value).filter(Boolean); if(vals.length!==entries.length) return showMsg('standingMsg','Assign a standing to every player.','bad'); if(new Set(vals).size!==vals.length) return showMsg('standingMsg','Each finishing position can only be used once.','bad'); for(const s of sels){ const {error}=await sb.from('entries').update({standing:Number(s.value)}).eq('id',s.dataset.entry); if(error) return showMsg('standingMsg',error.message,'bad'); } await sb.from('tournaments').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',currentTournament.id); showMsg('standingMsg','Final standings saved.','good'); await loadEntries(); };
 
@@ -199,7 +208,7 @@
 
     $('addOption').onclick = async () => { showMsg('optionMsg',''); const name=$('optionName').value.trim(),discord_emoji_code=$('emojiCode').value.trim()||null; if(!name) return showMsg('optionMsg','Enter a Pokémon/card name.','bad'); const {error}=await sb.from('deck_options').insert({name,discord_emoji_code,active:true,kind:'main',option_type:'card_or_pokemon'}); if(error) return showMsg('optionMsg',error.message,'bad'); $('optionName').value=''; $('emojiCode').value=''; showMsg('optionMsg','Added to Main and Support selectors.','good'); await loadOptions(); };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>$(t+'Tab').classList.toggle('hidden',t!==b.dataset.tab)); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord','professor','hub'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='professor') await loadProfessorSubmissions(); if(b.dataset.tab==='hub') await loadMasterHub(); });
     boot();
   </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -213,6 +222,65 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const $q = (id) => document.getElementById(id);
 let pickerOptions = [];
+
+let rosterDecorating = false;
+
+function decorateRosterSprites(){
+  if(rosterDecorating) return;
+  rosterDecorating = true;
+  try{
+    document.querySelectorAll('.player').forEach(row => {
+      const nameEl = row.querySelector('.name');
+      const deckEl = row.querySelector('.deck');
+      if(!nameEl || !deckEl) return;
+
+      // Remove old decoration before rebuilding.
+      const old = row.querySelector('.mq-roster-icon-strip');
+      if(old) old.remove();
+
+      const parts = deckEl.textContent.split('•').map(x=>x.trim()).filter(Boolean);
+      if(!parts.length) return;
+
+      const strip = document.createElement('span');
+      strip.className = 'mq-roster-icon-strip';
+
+      for(const deckName of parts.slice(0,2)){
+        const opt = pickerOptions.find(o => String(o.name).trim().toLowerCase() === deckName.toLowerCase());
+        if(!opt) continue;
+        const url = pickerSpriteFor(opt);
+        if(!url) continue;
+
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = opt.name;
+        img.title = opt.name;
+        img.onerror = () => img.remove();
+        strip.appendChild(img);
+      }
+
+      if(strip.children.length){
+        let nameRow = nameEl.parentElement;
+        if(!nameRow.classList.contains('mq-roster-name-row')){
+          const wrapper = document.createElement('div');
+          wrapper.className = 'mq-roster-name-row';
+          nameEl.parentNode.insertBefore(wrapper, nameEl);
+          wrapper.appendChild(strip);
+          wrapper.appendChild(nameEl);
+        }else{
+          nameRow.insertBefore(strip, nameEl);
+        }
+      }
+    });
+  } finally {
+    rosterDecorating = false;
+  }
+}
+
+const rosterObserver = new MutationObserver(() => {
+  setTimeout(decorateRosterSprites, 0);
+});
+rosterObserver.observe(document.body, {childList:true, subtree:true});
+
 
 function normalizePokemonSlug(name){
   let s = String(name || '').toLowerCase().trim();
@@ -240,11 +308,11 @@ function fallbackSprite(name){
   return 'https://img.pokemondb.net/sprites/scarlet-violet/icon/' + slug + '.png';
 }
 
-function pickerSpriteFor(opt){
+function spriteFor(opt){
   return opt.sprite_url || fallbackSprite(opt.name);
 }
 
-function pickerSafeImg(url, name){
+function safeImg(url, name){
   if (!url) return '<span class="mq-sprite-fallback">CARD</span>';
   return '<img src="'+url+'" alt="" onerror="this.outerHTML=\'<span class=&quot;mq-sprite-fallback&quot;>CARD</span>\'">';
 }
@@ -257,6 +325,7 @@ async function loadPickerOptions(){
   if (error) return;
   pickerOptions = data || [];
   buildPickers();
+  setTimeout(decorateRosterSprites, 0);
 }
 
 function makePicker(selectId, label, allowNone){
@@ -272,7 +341,7 @@ function makePicker(selectId, label, allowNone){
 
   const current = pickerOptions.find(x => x.id === select.value);
   const display = current
-    ? '<span class="mq-picker-value">'+pickerSafeImg(pickerSpriteFor(current), current.name)+'<span>'+current.name+'</span></span>'
+    ? '<span class="mq-picker-value">'+safeImg(spriteFor(current), current.name)+'<span>'+current.name+'</span></span>'
     : '<span class="mq-picker-placeholder">'+(allowNone ? 'None' : 'Choose Main...')+'</span>';
 
   wrap.innerHTML =
@@ -293,7 +362,7 @@ function makePicker(selectId, label, allowNone){
     let out = '';
     if (allowNone) out += '<button type="button" class="mq-picker-row" data-id=""><span class="mq-sprite-fallback">—</span><span>None</span></button>';
     out += rows.map(x =>
-      '<button type="button" class="mq-picker-row" data-id="'+x.id+'">'+pickerSafeImg(pickerSpriteFor(x), x.name)+'<span>'+x.name+'</span></button>'
+      '<button type="button" class="mq-picker-row" data-id="'+x.id+'">'+safeImg(spriteFor(x), x.name)+'<span>'+x.name+'</span></button>'
     ).join('');
     list.innerHTML = out || '<div class="muted" style="padding:8px">No matches.</div>';
     list.querySelectorAll('.mq-picker-row').forEach(row => {
