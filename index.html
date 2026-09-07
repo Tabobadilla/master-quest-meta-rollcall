@@ -81,7 +81,15 @@
         </div>
       </section>
 
-      <section class="card"><div class="tabs" style="grid-template-columns:repeat(5,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button><button type="button" data-tab="professor" class="staff-only">Professor</button><button type="button" data-tab="hub" class="owner-only">Master Hub</button></div></section>
+      <section class="card"><div class="tabs" style="grid-template-columns:repeat(3,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button></div></section>
+
+      <section id="adminNavCard" class="card hidden">
+        <div class="head"><div><h3 style="margin:0">Admin Tools</h3><div class="muted">Professor and Owner tools are kept separate from tournament entry.</div></div></div>
+        <div class="tabs" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+          <button type="button" data-admin-tab="professor" class="staff-only">Professor</button>
+          <button type="button" data-admin-tab="hub" class="owner-only">Master Hub</button>
+        </div>
+      </section>
 
       <section id="entryTab" class="card">
         <div class="head"><div><h3 style="margin:0">Add Player</h3><div class="muted">Only the player name is required. Deck can be added later with Edit.</div></div><span id="playerCount" class="pill">0 Players</span></div>
@@ -167,6 +175,7 @@
       if($('roleBadge')) $('roleBadge').textContent = label;
       document.querySelectorAll('.owner-only').forEach(el => el.classList.toggle('hidden', currentRole !== 'owner'));
       document.querySelectorAll('.staff-only').forEach(el => el.classList.toggle('hidden', !['professor','owner'].includes(currentRole)));
+      if($('adminNavCard')) $('adminNavCard').classList.toggle('hidden', !['professor','owner'].includes(currentRole));
     }
 
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
@@ -208,7 +217,9 @@
 
     $('addOption').onclick = async () => { showMsg('optionMsg',''); const name=$('optionName').value.trim(),discord_emoji_code=$('emojiCode').value.trim()||null; if(!name) return showMsg('optionMsg','Enter a Pokémon/card name.','bad'); const {error}=await sb.from('deck_options').insert({name,discord_emoji_code,active:true,kind:'main',option_type:'card_or_pokemon'}); if(error) return showMsg('optionMsg',error.message,'bad'); $('optionName').value=''; $('emojiCode').value=''; showMsg('optionMsg','Added to Main and Support selectors.','good'); await loadOptions(); };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord','professor','hub'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='professor') await loadProfessorSubmissions(); if(b.dataset.tab==='hub') await loadMasterHub(); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if($('professorTab')) $('professorTab').classList.add('hidden'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+
+    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('professorTab')) $('professorTab').classList.toggle('hidden', b.dataset.adminTab!=='professor'); if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); if(b.dataset.adminTab==='professor') await loadProfessorSubmissions(); if(b.dataset.adminTab==='hub') await loadMasterHub(); });
     boot();
   </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
