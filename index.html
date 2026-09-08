@@ -428,6 +428,7 @@
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const $ = (id) => document.getElementById(id);
     let currentTournament = null, options = [], entries = [], currentRole = 'trainer';
+    window.__mqOpenHubTournament = window.__mqOpenHubTournament || function(){ alert('Tournament viewer is still loading. Refresh the page and try again.'); };
 
     function showMsg(id, text, type='') { $(id).innerHTML = text ? '<div class="msg '+type+'">'+text+'</div>' : ''; }
     function esc(s=''){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -861,7 +862,7 @@
           '<div class="hub-mini"><b>'+s.checked+'</b><span>CHECKED IN</span></div>'+
         '</div>'+
         '<div class="hub-card-actions">'+
-          '<button type="button" class="btn hub-open-tournament" data-id="'+tour.id+'">Open Tournament</button>'+
+          '<button type="button" class="btn hub-open-tournament" data-id="'+tour.id+'" onclick="window.__mqOpenHubTournament(this.dataset.id)">Open Tournament</button>'+
         '</div>'+
       '</div>';
     }
@@ -915,7 +916,6 @@
       }
 
       renderHubMeta(tours,rows);
-      bindHubOpenButtons();
     }
 
     function renderHubMeta(tours,rows){
@@ -959,9 +959,6 @@
       }).join(''):'<div class="muted">No classified entries in this date range.</div>';
     }
 
-    function bindHubOpenButtons(){
-      document.querySelectorAll('.hub-open-tournament').forEach(b=>b.onclick=()=>openHubTournament(b.dataset.id));
-    }
 
     async function openHubTournament(id){
       const tour=hubTournaments.find(t=>t.id===id);
@@ -1023,6 +1020,7 @@
         setTimeout(()=>$('hubCopyDiscordDetail').textContent='Copy Discord',1000);
       };
     }
+    window.__mqOpenHubTournament = openHubTournament;
 
     async function loadMasterHub(){
       if(currentRole!=='owner') return;
