@@ -169,6 +169,12 @@
   .hub-standings-row{grid-template-columns:45px 1fr}
 }
 </style>
+
+<style>
+@media(max-width:760px){
+  .meta-filter-grid{grid-template-columns:1fr!important}
+}
+</style>
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -283,13 +289,13 @@
     <div class="head">
       <div>
         <h3 style="margin:0">Master Quest Meta</h3>
-        <div class="muted">Compare one tournament against broader monthly/all-event trends.</div>
+        <div class="muted">Filter the meta by one specific tournament or combine tournaments across a date range.</div>
       </div>
     </div>
 
-    <div class="hub-filter-row" style="grid-template-columns:1fr 1fr 1fr">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px" class="meta-filter-grid">
       <div class="field">
-        <label>Scope</label>
+        <label>Meta Scope</label>
         <select id="hubMetaScope">
           <option value="all">All Tournaments</option>
           <option value="single">Specific Tournament</option>
@@ -306,7 +312,7 @@
       </div>
 
       <div class="field">
-        <label>Tournament</label>
+        <label>Specific Tournament</label>
         <select id="hubMetaTournament" disabled>
           <option value="">Choose tournament...</option>
         </select>
@@ -1012,7 +1018,7 @@
         }
       }
 
-      renderHubMeta(tours,rows);
+      populateHubMetaTournamentFilter(); renderHubMetaFromFilters();
     }
 
     function renderHubMeta(tours,rows){
