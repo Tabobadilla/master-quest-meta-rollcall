@@ -83,40 +83,30 @@
 
 
 <style>
-.submission-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
-.public-submit.hidden{display:none!important}
-.submit-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
-.submit-summary>div{background:#eef5f0;border-radius:10px;padding:10px;text-align:center}
-.submit-summary strong{display:block;font-size:18px}
-.submit-warning{background:#fff3cd;color:#735c00;border-radius:10px;padding:10px;margin-top:8px;font-weight:700}
-.submit-good{background:#e4f4e9;color:#17653c;border-radius:10px;padding:10px;margin-top:8px;font-weight:700}
 .deck-modal{position:fixed;inset:0;background:rgba(0,0,0,.48);display:grid;place-items:center;padding:18px;z-index:200}
 .deck-modal.hidden{display:none!important}
 .deck-modal-card{background:#fff;width:min(860px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:18px}
 .deck-modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .decklist-pre{white-space:pre-wrap;background:#f5f7f6;border:1px solid #dce7e0;border-radius:12px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.45}
-.view-deck{width:auto!important}
+.submit-good{background:#e4f4e9;color:#17653c;border-radius:10px;padding:10px;margin-top:8px;font-weight:700}
+.submit-warning{background:#fff3cd;color:#735c00;border-radius:10px;padding:10px;margin-top:8px;font-weight:700}
 </style>
-
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
   <div class="wrap">
     <section id="auth" class="card auth">
-      <h2 style="margin-top:0">Professor / Organizer Sign In</h2>
-      <div class="muted">Sign in to create tournaments, manage check-in, review decklists, standings, and Discord output.</div>
+      <h2 style="margin-top:0">Sign in</h2>
+      <div class="muted">Use your Master Quest account to access tournament data.</div>
       <div id="authMsg"></div>
       <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div>
       <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
-      <div class="row"><button class="btn" id="signIn">Sign In</button><button class="btn alt" id="signUp">Create Professor Account</button></div>
-      <div class="muted" style="margin-top:12px">
-        Trainers do not sign in here. Use the public Trainer Decklist Submission page.
-      </div>
+      <div class="row"><button class="btn" id="signIn">Sign In</button><button class="btn alt" id="signUp">Create Account</button></div>
     </section>
 
     <main id="app" class="hidden">
       <section class="card">
-        <div class="head"><div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div><div style="margin-top:6px"><a id="trainerPageLink" href="trainer.html" target="_blank" style="font-size:12px;font-weight:800;color:#0f7a49">Open Trainer Submission Page</a></div></div><button id="signOut" class="btn alt" style="width:auto">Sign Out</button></div>
+        <div class="head"><div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div><button id="signOut" class="btn alt" style="width:auto">Sign Out</button></div>
         <div class="field"><label>Current Tournament</label><select id="tournamentSelect"></select></div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
           <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
@@ -198,8 +188,6 @@
     const SUPABASE_KEY = 'sb_publishable_31ke9sSB-21M8MXDWZm1lA_p_sYct8Z';
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const $ = (id) => document.getElementById(id);
-    let publicOptions = [], publicDetectedMain = null, publicDetectedSupport = null, activeDeckSubmission = null;
-
     let currentTournament = null, options = [], entries = [], currentRole = 'trainer';
 
     function showMsg(id, text, type='') { $(id).innerHTML = text ? '<div class="msg '+type+'">'+text+'</div>' : ''; }
@@ -268,127 +256,31 @@
     }
 
 
-    function publicMsg(text,type=''){
-      const el=$('trainerSubmitMsg');
-      if(el) el.innerHTML=text?'<div class="msg '+type+'">'+esc(text)+'</div>':'';
-    }
-
-    async function loadPublicSubmissionData(){
-      const [{data:tours,error:tErr},{data:opts,error:oErr}] = await Promise.all([
-        sb.rpc('list_open_tournaments'),
-        sb.rpc('list_public_deck_options')
-      ]);
-      if(tErr) publicMsg(tErr.message,'bad');
-      const t=tours||[];
-      if($('publicTournament')) $('publicTournament').innerHTML='<option value="">Choose tournament...</option>'+t.map(x=>'<option value="'+x.id+'">'+esc(x.event_name)+' — '+x.event_date+(x.location?' • '+esc(x.location):'')+'</option>').join('');
-      publicOptions=oErr?[]:(opts||[]);
-      analyzePublicDecklist();
-    }
-
-    function parseCardTotal(text){
-      let total=0;
-      String(text||'').split(/\r?\n/).forEach(line=>{
-        const m=line.trim().match(/^(\d+)\s+\S/);
-        if(m) total+=Number(m[1]);
-      });
-      return total;
-    }
-
-    function sectionPokemonText(text){
-      const raw=String(text||'');
-      const trainerPos=raw.search(/^\s*Trainer\b/im);
-      if(trainerPos>0) return raw.slice(0,trainerPos);
-      return raw;
-    }
-
-    function countOptionMentions(text,optName){
-      const hay=String(text||'').toLowerCase();
-      let name=String(optName||'').toLowerCase().trim();
-      const variants=[name];
-      if(name.endsWith(' ex')) variants.push(name.slice(0,-3).trim());
-      if(name.startsWith('mega ')) variants.push(name.replace(/^mega\s+/,'').replace(/\s+ex$/,'').trim());
-      let best=0;
-      for(const v of variants){
-        if(!v || v.length<4) continue;
-        const escaped=v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-        const re=new RegExp('^(\\\\d+)\\\\s+.*\\\\b'+escaped+'\\\\b','gim');
-        let m;
-        while((m=re.exec(hay))!==null) best+=Number(m[1]||1);
-      }
-      return best;
-    }
-
-    function analyzePublicDecklist(){
-      if(!$('publicDecklist')) return;
-      const text=$('publicDecklist').value;
-      const total=parseCardTotal(text);
-      $('publicCardTotal').textContent=total;
-
-      const pokemonText=sectionPokemonText(text);
-      const scores=publicOptions.map(o=>({o,score:countOptionMentions(pokemonText,o.name)}))
-        .filter(x=>x.score>0)
-        .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
-
-      publicDetectedMain=scores[0]?.o||null;
-      publicDetectedSupport=scores[1]?.o||null;
-
-      $('publicDetectedMain').textContent=publicDetectedMain?.name||'—';
-      $('publicDetectedSupport').textContent=publicDetectedSupport?.name||'—';
-
-      if(!$('publicDeckWarning')) return;
-      if(!text.trim()) $('publicDeckWarning').innerHTML='';
-      else if(total===60) $('publicDeckWarning').innerHTML='<div class="submit-good">✓ Decklist totals 60 cards.</div>';
-      else $('publicDeckWarning').innerHTML='<div class="submit-warning">Decklist currently totals '+total+' cards. A Professor will need to review it.</div>';
-    }
-
-    async function submitTrainerDecklist(){
-      publicMsg('');
-      const tournament_id=$('publicTournament').value;
-      const trainer_name=$('publicTrainerName').value.trim();
-      const player_id=$('publicPlayerId').value.trim();
-      const birthdate=$('publicBirthdate').value||null;
-      const division=$('publicDivision').value;
-      const format=$('publicFormat').value||'Standard';
-      const decklist_text=$('publicDecklist').value.trim();
-      const card_total=parseCardTotal(decklist_text);
-
-      if(!tournament_id||!trainer_name||!player_id||!birthdate||!division||!decklist_text){
-        return publicMsg('Tournament, Player Name, Player ID, Birthdate, Division, and Decklist are required.','bad');
-      }
-
-      const confidence=publicDetectedMain ? (publicDetectedSupport ? 85 : 70) : 0;
-      const {data,error}=await sb.rpc('submit_public_decklist',{
-        p_tournament_id:tournament_id,
-        p_trainer_name:trainer_name,
-        p_player_id:player_id,
-        p_birthdate:birthdate,
-        p_division:division,
-        p_format:format,
-        p_decklist_text:decklist_text,
-        p_card_total:card_total,
-        p_main_option_id:publicDetectedMain?.id||null,
-        p_support_option_id:publicDetectedSupport?.id||null,
-        p_parser_confidence:confidence
-      });
-
-      if(error) return publicMsg(error.message,'bad');
-      publicMsg('Decklist submitted successfully. You can now check in with the Professor.','good');
-      $('publicDecklist').value='';
-      analyzePublicDecklist();
-    }
-
     async function openDeckSubmission(entryId){
-      const entry=entries.find(e=>e.id===entryId);
-      if(!entry) return;
-      let q=sb.from('decklist_submissions').select('*').eq('linked_entry_id',entryId).order('submitted_at',{ascending:false}).limit(1);
-      const {data,error}=await q;
+      const {data,error}=await sb.from('decklist_submissions')
+        .select('*')
+        .eq('linked_entry_id',entryId)
+        .order('submitted_at',{ascending:false})
+        .limit(1);
       if(error) return alert(error.message);
       const sub=(data||[])[0];
-      if(!sub) return alert('No digital decklist was found for this player.');
+      if(!sub) return alert('No digital decklist found.');
       activeDeckSubmission=sub;
+
+      const dob=sub.birthdate
+        ? new Date(sub.birthdate+'T00:00:00').toLocaleDateString('en-US')
+        : '—';
+
       $('deckModalTitle').textContent=sub.trainer_name+' — Decklist';
-      const dob=sub.birthdate?new Date(sub.birthdate+'T00:00:00').toLocaleDateString('en-US'):'—'; $('deckModalMeta').textContent=(sub.player_id?'Player ID '+sub.player_id+' • ':'')+(sub.division||'')+' • DOB '+dob+' • '+(sub.format||'Standard');
-      $('deckModalStatus').innerHTML=(sub.card_total===60?'<div class="submit-good">60/60 cards</div>':'<div class="submit-warning">'+(sub.card_total??'Unknown')+'/60 cards — Review required</div>');
+      $('deckModalMeta').textContent=
+        (sub.player_id?'Player ID '+sub.player_id+' • ':'')+
+        (sub.division||'')+' • DOB '+dob+' • '+(sub.format||'Standard');
+
+      $('deckModalStatus').innerHTML=
+        sub.card_total===60
+          ? '<div class="submit-good">60/60 cards</div>'
+          : '<div class="submit-warning">'+(sub.card_total??'Unknown')+'/60 cards — Review required</div>';
+
       $('deckModalText').textContent=sub.decklist_text||'';
       $('deckModal').classList.remove('hidden');
     }
@@ -399,10 +291,36 @@
       const w=window.open('','_blank');
       if(!w) return alert('Allow pop-ups to print the decklist.');
       const safeText=esc(s.decklist_text||'');
-      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">Player ID: '+esc(s.player_id||'')+' | Division: '+esc(s.division||'')+' | Birthdate: '+esc(s.birthdate||'')+' | Format: '+esc(s.format||'Standard')+' | Total: '+esc(s.card_total??'')+'</div><pre>'+safeText+'</pre></body></html>');
+      const meta='Player ID: '+esc(s.player_id||'')+
+        ' | Division: '+esc(s.division||'')+
+        ' | Birthdate: '+esc(s.birthdate||'')+
+        ' | Format: '+esc(s.format||'Standard')+
+        ' | Total: '+esc(s.card_total??'');
+      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">'+meta+'</div><pre>'+safeText+'</pre></body></html>');
       w.document.close();
       w.focus();
       setTimeout(()=>w.print(),250);
+    }
+
+    async function verifyActiveDecklist(){
+      if(!activeDeckSubmission) return;
+      const {error}=await sb.from('decklist_submissions')
+        .update({professor_status:'verified'})
+        .eq('id',activeDeckSubmission.id);
+      if(error) return alert(error.message);
+
+      const entry=entries.find(e=>e.id===activeDeckSubmission.linked_entry_id);
+      const {error:entryError}=await sb.from('entries')
+        .update({
+          decklist_verified:true,
+          deck_status:entry?.main_option_id?'confirmed':'submitted'
+        })
+        .eq('id',activeDeckSubmission.linked_entry_id);
+      if(entryError) return alert(entryError.message);
+
+      $('deckModal').classList.add('hidden');
+      activeDeckSubmission=null;
+      await loadEntries();
     }
 
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
@@ -421,20 +339,7 @@
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
     $('closeDeckModal').onclick = () => { $('deckModal').classList.add('hidden'); activeDeckSubmission=null; };
     $('printDecklist').onclick = printActiveDecklist;
-    $('markDeckVerified').onclick = async () => {
-      if(!activeDeckSubmission) return;
-      const {error}=await sb.from('decklist_submissions').update({professor_status:'verified'}).eq('id',activeDeckSubmission.id);
-      if(error) return alert(error.message);
-      const entry=entries.find(e=>e.id===activeDeckSubmission.linked_entry_id);
-      const {error:entryError}=await sb.from('entries').update({
-        decklist_verified:true,
-        deck_status:entry?.main_option_id?'confirmed':'submitted'
-      }).eq('id',activeDeckSubmission.linked_entry_id);
-      if(entryError) return alert(entryError.message);
-      $('deckModal').classList.add('hidden');
-      activeDeckSubmission=null;
-      await loadEntries();
-    };
+    $('markDeckVerified').onclick = verifyActiveDecklist;
 
     async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); }
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
@@ -444,7 +349,7 @@
     $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
     $('createTournament').onclick = async () => { const event_name=$('eventName').value.trim(),event_date=$('eventDate').value,location=$('location').value.trim(); if(!event_name||!event_date) return alert('Enter event/store and date.'); const {error}=await sb.from('tournaments').insert({event_name,event_date,location,status:'registration'}); if(error) return alert(error.message); $('newTournament').classList.add('hidden'); await loadTournaments(); };
 
-    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,player_id,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); }
+    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,player_id,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); }
 
     function decklistBadge(e){
       if(e.decklist_method==='paper') return '<span class="status-badge status-paper">📄 Paper Received</span>';
@@ -885,10 +790,13 @@ setTimeout(loadPickerOptions, 600);
   <div id="deckModal" class="deck-modal hidden">
     <div class="deck-modal-card">
       <div class="deck-modal-head">
-        <div><h3 id="deckModalTitle" style="margin:0">Decklist</h3><div id="deckModalMeta" class="muted"></div></div>
+        <div>
+          <h3 id="deckModalTitle" style="margin:0">Decklist</h3>
+          <div id="deckModalMeta" class="muted"></div>
+        </div>
         <button id="closeDeckModal" class="btn alt" style="width:auto">Close</button>
       </div>
-      <div id="deckModalStatus" style="margin:10px 0"></div>
+      <div id="deckModalStatus"></div>
       <pre id="deckModalText" class="decklist-pre"></pre>
       <div class="row" style="margin-top:10px">
         <button id="printDecklist" class="btn">Print Decklist</button>
@@ -896,6 +804,5 @@ setTimeout(loadPickerOptions, 600);
       </div>
     </div>
   </div>
-
 </body>
 </html>
