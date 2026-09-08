@@ -206,25 +206,38 @@ Example:
       return raw;
     }
 
-    function mentionCount(text,name){
-      const hay=String(text||'').toLowerCase();
-      let n=String(name||'').toLowerCase().trim();
-      const variants=[n];
+    function normalizedName(s){
+      return String(s||'').toLowerCase()
+        .replace(/[’']/g,"'")
+        .replace(/[^a-z0-9']+/g,' ')
+        .replace(/\s+/g,' ')
+        .trim();
+    }
 
-      if(n.endsWith(' ex')) variants.push(n.slice(0,-3).trim());
-      if(n.startsWith('mega ')){
-        variants.push(n.replace(/^mega\s+/,'').replace(/\s+ex$/,'').trim());
-      }
+    function optionLineScore(text,opt){
+      const lines=String(text||'').split(/\r?\n/);
+      let total=0;
+      let name=normalizedName(opt.name);
+      const variants=new Set([name]);
 
-      let best=0;
-      for(const v of variants){
-        if(!v || v.length<4) continue;
-        const safe=v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-        const re=new RegExp('^(\\\\d+)\\\\s+.*\\\\b'+safe+'\\\\b','gim');
-        let m;
-        while((m=re.exec(hay))!==null) best += Number(m[1]||1);
+      if(name.endsWith(' ex')) variants.add(name.slice(0,-3).trim());
+      if(name.endsWith('s')) variants.add(name.slice(0,-1));
+      if(name==='crushing hammers') variants.add('crushing hammer');
+      if(name==='n s zoroark ex') variants.add("n's zoroark");
+      if(name==='teal mask ogerpon ex') variants.add('teal mask ogerpon');
+
+      for(const line of lines){
+        const qtyMatch=line.trim().match(/^(\d+)\s+(.+)$/);
+        if(!qtyMatch) continue;
+        const qty=Number(qtyMatch[1]||0);
+        const body=normalizedName(qtyMatch[2]);
+        for(const v of variants){
+          if(v.length>=4 && (body===v || body.includes(v))){
+            total=Math.max(total,qty);
+          }
+        }
       }
-      return best;
+      return total;
     }
 
     function analyze(){
@@ -232,13 +245,15 @@ Example:
       const total=countCards(text);
       $('cardTotal').textContent=total+' / 60';
 
-      const pokemonText=pokemonSection(text);
-      const scores=options.map(o=>({o,score:mentionCount(pokemonText,o.name)}))
-        .filter(x=>x.score>0)
+      const scored=options.map(o=>({o,score:optionLineScore(text,o)})).filter(x=>x.score>0);
+
+      const mains=scored.filter(x=>x.o.kind==='main')
+        .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
+      const supports=scored.filter(x=>x.o.kind==='support' || x.o.kind==='variant')
         .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
 
-      detectedMain=scores[0]?.o||null;
-      detectedSupport=scores[1]?.o||null;
+      detectedMain=mains[0]?.o||null;
+      detectedSupport=supports[0]?.o||null;
 
       $('detectedMain').textContent=detectedMain?.name||'—';
       $('detectedSupport').textContent=detectedSupport?.name||'—';
