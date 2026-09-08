@@ -103,53 +103,20 @@
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
   <div class="wrap">
     <section id="auth" class="card auth">
-      <h2 style="margin-top:0">Master Quest Meta Rollcall</h2>
-      <div class="muted">Choose how you are entering the tournament system.</div>
-
-      <div class="submission-choice">
-        <button class="btn" id="showTrainerSubmit">Trainer — Submit Decklist</button>
-        <button class="btn alt" id="showStaffLogin">Professor / Organizer — Sign In</button>
-      </div>
-
-      <div id="staffLogin">
-        <div id="authMsg"></div>
-        <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div>
-        <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
-        <div class="row"><button class="btn" id="signIn">Sign In</button><button class="btn alt" id="signUp">Create Account</button></div>
-      </div>
-
-      <div id="trainerSubmit" class="public-submit hidden">
-        <div class="head"><div><h3 style="margin:0">Trainer Decklist Submission</h3><div class="muted">Submit your information and complete 60-card decklist before check-in.</div></div></div>
-        <div id="trainerSubmitMsg"></div>
-
-        <div class="field"><label>Tournament</label><select id="publicTournament"></select></div>
-        <div class="row">
-          <div class="field"><label>Player Name</label><input id="publicTrainerName" placeholder="Full name"></div>
-          <div class="field"><label>Player ID</label><input id="publicPlayerId" inputmode="numeric" placeholder="Player ID"></div>
-        </div>
-        <div class="row">
-          <div class="field"><label>Birthdate</label><input id="publicBirthdate" type="date"></div>
-          <div class="field"><label>Division</label><select id="publicDivision"><option value="">Choose...</option><option>Junior</option><option>Senior</option><option>Masters</option></select></div>
-        </div>
-        <div class="field"><label>Format</label><select id="publicFormat"><option selected>Standard</option><option>Expanded</option></select></div>
-        <div class="field">
-          <label>Complete Decklist</label>
-          <textarea id="publicDecklist" rows="18" placeholder="Paste the full decklist here. Example:&#10;4 Dreepy ASC-247&#10;3 Drakloak ASC-248&#10;3 Dragapult ex TWM-130&#10;..."></textarea>
-        </div>
-
-        <div class="submit-summary">
-          <div><span class="muted">Card Total</span><strong id="publicCardTotal">0</strong></div>
-          <div><span class="muted">Detected Main</span><strong id="publicDetectedMain" style="font-size:14px">—</strong></div>
-          <div><span class="muted">Detected Support</span><strong id="publicDetectedSupport" style="font-size:14px">—</strong></div>
-        </div>
-        <div id="publicDeckWarning"></div>
-        <button id="submitPublicDecklist" class="btn full">Submit Decklist</button>
+      <h2 style="margin-top:0">Professor / Organizer Sign In</h2>
+      <div class="muted">Sign in to create tournaments, manage check-in, review decklists, standings, and Discord output.</div>
+      <div id="authMsg"></div>
+      <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div>
+      <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
+      <div class="row"><button class="btn" id="signIn">Sign In</button><button class="btn alt" id="signUp">Create Professor Account</button></div>
+      <div class="muted" style="margin-top:12px">
+        Trainers do not sign in here. Use the public Trainer Decklist Submission page.
       </div>
     </section>
 
     <main id="app" class="hidden">
       <section class="card">
-        <div class="head"><div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div><button id="signOut" class="btn alt" style="width:auto">Sign Out</button></div>
+        <div class="head"><div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div><div style="margin-top:6px"><a id="trainerPageLink" href="trainer.html" target="_blank" style="font-size:12px;font-weight:800;color:#0f7a49">Open Trainer Submission Page</a></div></div><button id="signOut" class="btn alt" style="width:auto">Sign Out</button></div>
         <div class="field"><label>Current Tournament</label><select id="tournamentSelect"></select></div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
           <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
@@ -438,7 +405,7 @@
       setTimeout(()=>w.print(),250);
     }
 
-    async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); else await loadPublicSubmissionData(); }
+    async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
     async function showApp(){
       $('auth').classList.add('hidden');
       $('app').classList.remove('hidden');
@@ -452,17 +419,6 @@
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
-    $('showTrainerSubmit').onclick = async () => {
-      $('staffLogin').classList.add('hidden');
-      $('trainerSubmit').classList.remove('hidden');
-      await loadPublicSubmissionData();
-    };
-    $('showStaffLogin').onclick = () => {
-      $('trainerSubmit').classList.add('hidden');
-      $('staffLogin').classList.remove('hidden');
-    };
-    $('publicDecklist').addEventListener('input', analyzePublicDecklist);
-    $('submitPublicDecklist').onclick = submitTrainerDecklist;
     $('closeDeckModal').onclick = () => { $('deckModal').classList.add('hidden'); activeDeckSubmission=null; };
     $('printDecklist').onclick = printActiveDecklist;
     $('markDeckVerified').onclick = async () => {
