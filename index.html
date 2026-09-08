@@ -113,6 +113,15 @@
 .played-ribbon{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;background:#efe7ff;color:#5a3c8a;font-size:11px;font-weight:850;margin-top:5px}
 .played-toggle{width:auto!important;min-height:34px!important;padding:7px 10px!important;font-size:12px!important}
 </style>
+
+<style>
+.ribbon-player-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-top:1px solid #e4ebe6}
+.ribbon-player-row:first-child{border-top:0}
+.ribbon-player-name{font-weight:850}
+.ribbon-player-deck{font-size:12px;color:#667a70;margin-top:2px}
+.ribbon-player-state{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#efe7ff;color:#5a3c8a;font-size:11px;font-weight:850;margin-top:5px}
+.ribbon-player-actions .btn{width:auto;min-height:34px;padding:7px 10px;font-size:12px}
+</style>
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -287,6 +296,23 @@
     <button id="syncExcelLibrary" class="btn alt full">Sync Pokémon Library</button>
     <div id="syncLibraryMsg"></div>
     <div id="syncLibraryPreview" class="sync-summary"></div>
+  </div>
+
+  <div id="playedAgainstManager" style="margin-top:24px;padding-top:20px;border-top:2px solid var(--line)">
+    <h3 style="margin:0">Played Against Ribbon</h3>
+    <div class="muted">Private Owner-only opponent tracking. These pins never appear in Discord output.</div>
+
+    <div class="field">
+      <label>Tournament</label>
+      <select id="ribbonTournamentSelect">
+        <option value="">Choose tournament...</option>
+      </select>
+    </div>
+
+    <div id="ribbonPlayerMsg"></div>
+    <div id="ribbonPlayerList" style="margin-top:10px">
+      <div class="muted">Choose a tournament to see its players.</div>
+    </div>
   </div>
 </section>
 
@@ -598,6 +624,97 @@
       await loadMetaLibrary();
     }
 
+
+    let ribbonPlayers = [];
+
+    async function loadRibbonTournaments(){
+      if(currentRole!=='owner' || !$('ribbonTournamentSelect')) return;
+
+      const {data,error}=await sb.from('tournaments')
+        .select('id,event_name,event_date,location,status')
+        .order('event_date',{ascending:false});
+
+      if(error){
+        showMsg('ribbonPlayerMsg',error.message,'bad');
+        return;
+      }
+
+      const rows=data||[];
+      $('ribbonTournamentSelect').innerHTML=
+        '<option value="">Choose tournament...</option>'+
+        rows.map(x=>'<option value="'+x.id+'">'+esc(x.event_name)+' — '+esc(x.event_date)+(x.location?' • '+esc(x.location):'')+'</option>').join('');
+
+      if(currentTournament?.id){
+        $('ribbonTournamentSelect').value=currentTournament.id;
+        await loadRibbonPlayers(currentTournament.id);
+      }
+    }
+
+    async function loadRibbonPlayers(tournamentId){
+      if(currentRole!=='owner' || !$('ribbonPlayerList')) return;
+
+      if(!tournamentId){
+        ribbonPlayers=[];
+        $('ribbonPlayerList').innerHTML='<div class="muted">Choose a tournament to see its players.</div>';
+        return;
+      }
+
+      const {data,error}=await sb.from('entries')
+        .select('id,player_name,main_option_id,support_option_id,owner_played_against')
+        .eq('tournament_id',tournamentId)
+        .order('player_name');
+
+      if(error){
+        showMsg('ribbonPlayerMsg',error.message,'bad');
+        return;
+      }
+
+      ribbonPlayers=data||[];
+
+      $('ribbonPlayerList').innerHTML=ribbonPlayers.length
+        ? ribbonPlayers.map(e=>{
+            const m=opt(e.main_option_id);
+            const s=opt(e.support_option_id);
+            return '<div class="ribbon-player-row">'+
+              '<div>'+
+                '<div class="ribbon-player-name">'+esc(e.player_name)+'</div>'+
+                '<div class="ribbon-player-deck">'+
+                  esc(m?.name||'Deck Pending')+
+                  (s?' • '+esc(s.name):'')+
+                '</div>'+
+                (e.owner_played_against?'<div class="ribbon-player-state">🎗 Played Against</div>':'')+
+              '</div>'+
+              '<div class="ribbon-player-actions">'+
+                '<button type="button" class="btn alt ribbon-toggle" data-id="'+e.id+'" data-value="'+(e.owner_played_against?'false':'true')+'">'+
+                  (e.owner_played_against?'Unpin':'Pin Opponent')+
+                '</button>'+
+              '</div>'+
+            '</div>';
+          }).join('')
+        : '<div class="muted">No players found for this tournament.</div>';
+
+      document.querySelectorAll('.ribbon-toggle').forEach(b=>b.onclick=async()=>{
+        const newValue=b.dataset.value==='true';
+        const {error}=await sb.rpc('set_owner_played_against',{
+          p_entry_id:b.dataset.id,
+          p_value:newValue
+        });
+
+        if(error){
+          showMsg('ribbonPlayerMsg',error.message,'bad');
+          return;
+        }
+
+        showMsg('ribbonPlayerMsg',newValue?'Opponent pinned.':'Opponent unpinned.','good');
+        await loadRibbonPlayers($('ribbonTournamentSelect').value);
+
+        // Keep Player Entry in sync if this is the active tournament.
+        if(currentTournament?.id === $('ribbonTournamentSelect').value){
+          await loadEntries();
+        }
+      });
+    }
+
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
     async function showApp(){
       $('auth').classList.add('hidden');
@@ -606,12 +723,16 @@
       applyRoleUI();
       await loadOptions();
       await loadTournaments();
-      if(currentRole === 'owner') await loadMasterHub();
+      if(currentRole === 'owner'){ await loadMasterHub(); await loadRibbonTournaments(); }
     }
 
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    if($('ribbonTournamentSelect')) $('ribbonTournamentSelect').onchange=async()=>{
+      showMsg('ribbonPlayerMsg','');
+      await loadRibbonPlayers($('ribbonTournamentSelect').value);
+    };
     if($('editOptionSelect')) $('editOptionSelect').onchange=()=>{
       const o=options.find(x=>x.id===$('editOptionSelect').value);
       if(!o){ clearOptionEditor(); return; }
@@ -785,7 +906,7 @@ $('addPlayer').onclick = async () => { showMsg('entryMsg',''); if(!currentTourna
       b.classList.add('on'); 
       ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); 
       if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); 
-      if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); } 
+      if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); await loadRibbonTournaments(); } 
     });
 
     boot();
