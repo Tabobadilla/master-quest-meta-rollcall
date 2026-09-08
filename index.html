@@ -225,11 +225,18 @@
 
   <div id="deckOptionsMaster" style="margin-top:26px;padding-top:20px;border-top:2px solid var(--line)">
     <h3 style="margin-top:0">Deck / Card Options</h3>
-    <div class="muted">Add Pokémon, support cards, variants, and Discord emoji codes to the shared Supabase library.</div>
+    <div class="muted">Add new options or edit an existing Pokémon/card's Discord emoji code and Sprite URL.</div>
 
     <div class="field">
-      <label>New Pokémon / Card</label>
-      <input id="optionName" placeholder="Example: Mega Kangaskhan ex">
+      <label>Edit Existing Pokémon / Card</label>
+      <select id="editOptionSelect">
+        <option value="">Choose existing option...</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Pokémon / Card Name</label>
+      <input id="optionName" placeholder="Example: Dundunsparce">
     </div>
 
     <div class="field">
@@ -237,8 +244,22 @@
       <input id="emojiCode" placeholder="<:Dragapult_:123456789>">
     </div>
 
-    <button id="addOption" class="btn alt full">Add Option</button>
+    <div class="field">
+      <label>Sprite URL (optional)</label>
+      <input id="spriteUrl" placeholder="https://.../dundunsparce.png">
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+      <button id="addOption" class="btn alt full">Add Option</button>
+      <button id="clearOptionEditor" class="btn alt" style="width:auto">Clear</button>
+    </div>
+
     <div id="optionMsg"></div>
+
+    <div id="spritePreviewWrap" class="hidden" style="margin-top:12px">
+      <div class="muted" style="margin-bottom:6px">Sprite Preview</div>
+      <img id="spritePreview" alt="Sprite preview" style="width:64px;height:64px;object-fit:contain">
+    </div>
   </div>
 
   <div id="librarySyncCard" style="margin-top:26px;padding-top:20px;border-top:2px solid var(--line)">
@@ -581,13 +602,25 @@
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    if($('editOptionSelect')) $('editOptionSelect').onchange=()=>{
+      const o=options.find(x=>x.id===$('editOptionSelect').value);
+      if(!o){ clearOptionEditor(); return; }
+      $('optionName').value=o.name||'';
+      $('emojiCode').value=o.discord_emoji_code||'';
+      $('spriteUrl').value=o.sprite_url||'';
+      $('addOption').dataset.editId=o.id;
+      $('addOption').textContent='Save Changes';
+      refreshSpritePreview();
+    };
+    if($('clearOptionEditor')) $('clearOptionEditor').onclick=clearOptionEditor;
+    if($('spriteUrl')) $('spriteUrl').addEventListener('input',refreshSpritePreview);
     if($('saveLibraryProfile')) $('saveLibraryProfile').onclick=saveMetaLibraryProfile;
     if($('refreshLibrary')) $('refreshLibrary').onclick=loadMetaLibrary;
     $('closeDeckModal').onclick = () => { $('deckModal').classList.add('hidden'); activeDeckSubmission=null; if($('markDeckVerified')){ $('markDeckVerified').disabled=false; $('markDeckVerified').textContent='Mark Verified'; } };
     $('printDecklist').onclick = printActiveDecklist;
     $('markDeckVerified').onclick = verifyActiveDecklist;
 
-    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); if(currentRole==='owner') fillLibraryOptionMenus(); }
+    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); populateOptionEditor(); if(currentRole==='owner') fillLibraryOptionMenus(); }
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
     async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
@@ -657,7 +690,58 @@ $('addPlayer').onclick = async () => { showMsg('entryMsg',''); if(!currentTourna
     function renderDiscord(){ const sorted=[...entries].filter(e=>e.standing).sort((a,b)=>a.standing-b.standing); $('discordText').textContent = sorted.length ? sorted.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); const place=e.standing===1?'🥇':e.standing===2?'🥈':e.standing===3?'🥉':e.standing+'.'; return place+' **'+e.player_name+'**'+(m?.discord_emoji_code?' '+m.discord_emoji_code:'')+(s?.discord_emoji_code?' '+s.discord_emoji_code:''); }).join('\n') : 'Complete standings to generate output.'; }
     $('copyDiscord').onclick = async () => { await navigator.clipboard.writeText($('discordText').textContent); $('copyDiscord').textContent='Copied!'; setTimeout(()=>$('copyDiscord').textContent='Copy Discord Code',1000); };
 
-    $('addOption').onclick = async () => { showMsg('optionMsg',''); const name=$('optionName').value.trim(),discord_emoji_code=$('emojiCode').value.trim()||null; if(!name) return showMsg('optionMsg','Enter a Pokémon/card name.','bad'); const {error}=await sb.from('deck_options').insert({name,discord_emoji_code,active:true,kind:'main',option_type:'card_or_pokemon'}); if(error) return showMsg('optionMsg',error.message,'bad'); $('optionName').value=''; $('emojiCode').value=''; showMsg('optionMsg','Added to Main and Support selectors.','good'); await loadOptions(); };
+    function populateOptionEditor(){
+      if(!$('editOptionSelect')) return;
+      $('editOptionSelect').innerHTML='<option value="">Choose existing option...</option>'+
+        options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
+    }
+
+    function refreshSpritePreview(){
+      if(!$('spritePreviewWrap') || !$('spritePreview')) return;
+      const url=$('spriteUrl')?.value.trim()||'';
+      if(!url){
+        $('spritePreviewWrap').classList.add('hidden');
+        $('spritePreview').removeAttribute('src');
+        return;
+      }
+      $('spritePreview').src=url;
+      $('spritePreviewWrap').classList.remove('hidden');
+    }
+
+    function clearOptionEditor(){
+      if($('editOptionSelect')) $('editOptionSelect').value='';
+      $('optionName').value='';
+      $('emojiCode').value='';
+      if($('spriteUrl')) $('spriteUrl').value='';
+      delete $('addOption').dataset.editId;
+      $('addOption').textContent='Add Option';
+      if($('spritePreviewWrap')) $('spritePreviewWrap').classList.add('hidden');
+    }
+
+    $('addOption').onclick = async () => {
+      showMsg('optionMsg','');
+      const name=$('optionName').value.trim();
+      const discord_emoji_code=$('emojiCode').value.trim()||null;
+      const sprite_url=$('spriteUrl')?.value.trim()||null;
+      const editId=$('addOption').dataset.editId;
+
+      if(!name) return showMsg('optionMsg','Enter a Pokémon/card name.','bad');
+
+      let error;
+      if(editId){
+        ({error}=await sb.from('deck_options').update({name,discord_emoji_code,sprite_url}).eq('id',editId));
+      }else{
+        ({error}=await sb.from('deck_options').insert({
+          name,discord_emoji_code,sprite_url,active:true,kind:'main',option_type:'card_or_pokemon'
+        }));
+      }
+
+      if(error) return showMsg('optionMsg',error.message,'bad');
+
+      await loadOptions();
+      clearOptionEditor();
+      showMsg('optionMsg',editId?'Option updated.':'Option added.','good');
+    };
 
     document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab);  if($('hubTab')) $('hubTab').classList.add('hidden'); });  if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
@@ -666,7 +750,7 @@ $('addPlayer').onclick = async () => { showMsg('entryMsg',''); if(!currentTourna
       b.classList.add('on'); 
       ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); 
       if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); 
-      if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); } 
+      if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); } 
     });
 
     boot();
