@@ -283,9 +283,37 @@
     <div class="head">
       <div>
         <h3 style="margin:0">Master Quest Meta</h3>
-        <div class="muted">Aggregated Main + Support/Variant usage across tournaments in the selected date range.</div>
+        <div class="muted">Compare one tournament against broader monthly/all-event trends.</div>
       </div>
     </div>
+
+    <div class="hub-filter-row" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="field">
+        <label>Scope</label>
+        <select id="hubMetaScope">
+          <option value="all">All Tournaments</option>
+          <option value="single">Specific Tournament</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Date Range</label>
+        <select id="hubMetaDateRange">
+          <option value="month">This Month</option>
+          <option value="30">Last 30 Days</option>
+          <option value="all">All Time</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Tournament</label>
+        <select id="hubMetaTournament" disabled>
+          <option value="">Choose tournament...</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="hubMetaScopeLabel" class="muted" style="margin-top:8px"></div>
     <div id="hubMetaSummary" class="hub-kpi-grid"></div>
     <div id="hubMetaList" style="margin-top:12px"></div>
   </div>
@@ -915,6 +943,75 @@
         $('hubTournamentList').innerHTML=hubTournaments.length?hubTournaments.map(hubTournamentCard).join(''):'<div class="muted">No tournaments found.</div>';
       }
 
+      populateHubMetaTournamentFilter();
+      renderHubMetaFromFilters();
+    }
+
+
+    function hubMetaDateIncluded(dateStr){
+      if(!$('hubMetaDateRange')) return true;
+      const mode=$('hubMetaDateRange').value;
+      if(mode==='all') return true;
+
+      const d=new Date(dateStr+'T00:00:00');
+      const now=new Date();
+
+      if(mode==='30'){
+        const cutoff=new Date(now);
+        cutoff.setDate(cutoff.getDate()-30);
+        cutoff.setHours(0,0,0,0);
+        return d>=cutoff && d<=now;
+      }
+
+      return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+    }
+
+    function hubMetaFilteredData(){
+      const scope=$('hubMetaScope')?.value||'all';
+
+      if(scope==='single'){
+        const id=$('hubMetaTournament')?.value||'';
+        const tours=id ? hubTournaments.filter(t=>t.id===id) : [];
+        const rows=id ? hubEntries.filter(e=>e.tournament_id===id) : [];
+        return {tours,rows};
+      }
+
+      const tours=hubTournaments.filter(t=>hubMetaDateIncluded(t.event_date));
+      const ids=new Set(tours.map(t=>t.id));
+      const rows=hubEntries.filter(e=>ids.has(e.tournament_id));
+      return {tours,rows};
+    }
+
+    function populateHubMetaTournamentFilter(){
+      if(!$('hubMetaTournament')) return;
+
+      const current=$('hubMetaTournament').value;
+      $('hubMetaTournament').innerHTML=
+        '<option value="">Choose tournament...</option>'+
+        hubTournaments.map(t=>
+          '<option value="'+t.id+'">'+esc(t.event_name)+' — '+esc(t.event_date)+(t.location?' • '+esc(t.location):'')+'</option>'
+        ).join('');
+
+      if(current && hubTournaments.some(t=>t.id===current)){
+        $('hubMetaTournament').value=current;
+      }
+    }
+
+    function renderHubMetaFromFilters(){
+      const {tours,rows}=hubMetaFilteredData();
+
+      if($('hubMetaScopeLabel')){
+        if(($('hubMetaScope')?.value||'all')==='single'){
+          const tour=tours[0];
+          $('hubMetaScopeLabel').textContent=tour
+            ? 'Showing meta for '+tour.event_name+' — '+tour.event_date
+            : 'Choose a tournament to view its meta.';
+        }else{
+          const label=$('hubMetaDateRange')?.selectedOptions?.[0]?.textContent||'Selected Range';
+          $('hubMetaScopeLabel').textContent='Showing combined meta for '+label+'.';
+        }
+      }
+
       renderHubMeta(tours,rows);
     }
 
@@ -1052,6 +1149,15 @@
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    if($('hubMetaScope')) $('hubMetaScope').onchange=()=>{
+      const single=$('hubMetaScope').value==='single';
+      $('hubMetaTournament').disabled=!single;
+      $('hubMetaDateRange').disabled=single;
+      renderHubMetaFromFilters();
+    };
+
+    if($('hubMetaDateRange')) $('hubMetaDateRange').onchange=renderHubMetaFromFilters;
+    if($('hubMetaTournament')) $('hubMetaTournament').onchange=renderHubMetaFromFilters;
     document.querySelectorAll('[data-hub-view]').forEach(b=>b.onclick=async()=>{
       document.querySelectorAll('[data-hub-view]').forEach(x=>x.classList.remove('on'));
       b.classList.add('on');
@@ -1060,6 +1166,7 @@
         const el=$('hub'+v.charAt(0).toUpperCase()+v.slice(1)+'Pane');
         if(el) el.classList.toggle('hidden',v!==view);
       });
+      if(view==='meta'){ populateHubMetaTournamentFilter(); renderHubMetaFromFilters(); }
       if(view==='played') await loadRibbonTournaments();
       if(view==='library'){ await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); }
     });
