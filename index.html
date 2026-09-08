@@ -168,69 +168,97 @@
         <div id="discordText" class="discord">Complete standings to generate output.</div>
         <button id="copyDiscord" class="btn full" style="margin-top:10px">Copy Discord Code</button>
       </section>
+
 <section id="hubTab" class="card hidden owner-only">
-        <div class="head"><div><h3 style="margin:0">Master Hub</h3><div class="muted">Owner-only view of all tournaments and results.</div></div><button id="refreshHub" class="btn alt" style="width:auto">Refresh</button></div>
-        <div id="hubMsg"></div>
-        <div id="masterHubList" style="margin-top:12px"></div>
-      
-      <div id="libraryTab" class="owner-only">
-        <div class="head">
-          <div>
-            <h3 style="margin:0">Meta Archetype Library</h3>
-            <div class="muted">Define how submitted decklists should be classified. Main is required; Support/Variant can be None.</div>
-          </div>
-          <button id="refreshLibrary" class="btn alt" style="width:auto">Refresh</button>
-        </div>
-
-        <div class="library-form">
-          <div class="field">
-            <label>Profile Name</label>
-            <input id="libraryName" placeholder="Dragapult / Dusknoir">
-          </div>
-          <div class="field">
-            <label>Main Pokémon / Card</label>
-            <select id="libraryMain"></select>
-          </div>
-          <div class="field">
-            <label>Support / Variant</label>
-            <select id="librarySupport"></select>
-          </div>
-          <div class="field">
-            <label>Relationship</label>
-            <select id="libraryRelationship">
-              <option value="support">Support</option>
-              <option value="variant">Variant</option>
-            </select>
-          </div>
-          <div class="full">
-            <button id="saveLibraryProfile" class="btn full">Add Profile</button>
-            <div id="libraryMsg"></div>
-          </div>
-        </div>
-
-        <div id="libraryList" style="margin-top:14px"></div>
-      </div>
-      <div class="owner-only" id="deckOptionsMaster" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
-        <h3 style="margin-top:0">Deck / Card Options</h3><div class="muted">Every option can be used as Main or Support / Variant.</div>
-        <div class="field"><label>New Pokémon / Card</label><input id="optionName" placeholder="Example: Mega Kangaskhan ex"></div>
-        <div class="field"><label>Discord Emoji Code (optional)</label><input id="emojiCode" placeholder="<:Dragapult_:123456789>"></div>
-        <button id="addOption" class="btn alt full">Add Option</button><div id="optionMsg"></div>
-      </div>
-<div class="owner-only" id="librarySyncCard" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
-  <h3 style="margin-top:0">Excel Pokémon Library Sync</h3>
-  <div class="muted">
-    Choose your Master Quest Excel workbook. The app reads the <b>POKEMON LIBRARY</b> sheet locally
-    and syncs Pokémon/Card names, Discord emoji codes, and an optional <b>Sprite URL</b> column.
+  <div class="head">
+    <div>
+      <h3 style="margin:0">Master Hub</h3>
+      <div class="muted">Owner-only tournament overview and configuration tools.</div>
+    </div>
+    <button id="refreshHub" class="btn alt" style="width:auto">Refresh</button>
   </div>
-  <div class="field">
-    <label for="excelLibraryFile">Excel Workbook (.xlsx)</label>
-    <input id="excelLibraryFile" type="file" accept=".xlsx,.xls">
+
+  <div id="hubMsg"></div>
+  <div id="masterHubList" style="margin-top:12px"></div>
+
+  <div style="margin-top:24px;padding-top:20px;border-top:2px solid var(--line)">
+    <div class="head">
+      <div>
+        <h3 style="margin:0">Main / Support Profile Editor</h3>
+        <div class="muted">Control how Trainer decklists are classified. Main is required. Support/Variant can be None.</div>
+      </div>
+      <button id="refreshLibrary" class="btn alt" style="width:auto">Refresh Profiles</button>
+    </div>
+
+    <div class="library-form">
+      <div class="field">
+        <label>Profile Name</label>
+        <input id="libraryName" placeholder="Example: Dragapult / Dusknoir">
+      </div>
+
+      <div class="field">
+        <label>Main Pokémon / Card</label>
+        <select id="libraryMain"></select>
+      </div>
+
+      <div class="field">
+        <label>Support / Variant</label>
+        <select id="librarySupport"></select>
+      </div>
+
+      <div class="field">
+        <label>Relationship Type</label>
+        <select id="libraryRelationship">
+          <option value="support">Support</option>
+          <option value="variant">Variant</option>
+        </select>
+      </div>
+
+      <div class="full">
+        <button id="saveLibraryProfile" class="btn full">Add Profile</button>
+        <div id="libraryMsg"></div>
+      </div>
+    </div>
+
+    <div id="libraryList" style="margin-top:14px"></div>
   </div>
-  <button id="syncExcelLibrary" class="btn alt full">Sync Pokémon Library</button>
-  <div id="syncLibraryMsg"></div>
-  <div id="syncLibraryPreview" class="sync-summary"></div>
-</div>
+
+  <div id="deckOptionsMaster" style="margin-top:26px;padding-top:20px;border-top:2px solid var(--line)">
+    <h3 style="margin-top:0">Deck / Card Options</h3>
+    <div class="muted">Add Pokémon, support cards, variants, and Discord emoji codes to the shared Supabase library.</div>
+
+    <div class="field">
+      <label>New Pokémon / Card</label>
+      <input id="optionName" placeholder="Example: Mega Kangaskhan ex">
+    </div>
+
+    <div class="field">
+      <label>Discord Emoji Code (optional)</label>
+      <input id="emojiCode" placeholder="<:Dragapult_:123456789>">
+    </div>
+
+    <button id="addOption" class="btn alt full">Add Option</button>
+    <div id="optionMsg"></div>
+  </div>
+
+  <div id="librarySyncCard" style="margin-top:26px;padding-top:20px;border-top:2px solid var(--line)">
+    <h3 style="margin-top:0">Excel Pokémon Library Sync</h3>
+    <div class="muted">
+      Optional legacy/import tool. The live app no longer depends on Excel. Use this only when you want to import Pokémon/Card names,
+      Discord emoji codes, or Sprite URLs from your workbook into Supabase.
+    </div>
+
+    <div class="field">
+      <label for="excelLibraryFile">Excel Workbook (.xlsx)</label>
+      <input id="excelLibraryFile" type="file" accept=".xlsx,.xls">
+    </div>
+
+    <button id="syncExcelLibrary" class="btn alt full">Sync Pokémon Library</button>
+    <div id="syncLibraryMsg"></div>
+    <div id="syncLibraryPreview" class="sync-summary"></div>
+  </div>
 </section>
+
 
 
     
@@ -614,9 +642,16 @@
 
     $('addOption').onclick = async () => { showMsg('optionMsg',''); const name=$('optionName').value.trim(),discord_emoji_code=$('emojiCode').value.trim()||null; if(!name) return showMsg('optionMsg','Enter a Pokémon/card name.','bad'); const {error}=await sb.from('deck_options').insert({name,discord_emoji_code,active:true,kind:'main',option_type:'card_or_pokemon'}); if(error) return showMsg('optionMsg',error.message,'bad'); $('optionName').value=''; $('emojiCode').value=''; showMsg('optionMsg','Added to Main and Support selectors.','good'); await loadOptions(); };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); });  if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab);  if($('hubTab')) $('hubTab').classList.add('hidden'); });  if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
-    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub');  if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); } });
+    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ 
+      document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); 
+      b.classList.add('on'); 
+      ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); 
+      if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); 
+      if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); } 
+    });
+
     boot();
   </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
