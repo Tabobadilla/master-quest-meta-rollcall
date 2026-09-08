@@ -262,14 +262,30 @@
 
 
     async function openDeckSubmission(entryId){
-      const {data,error}=await sb.from('decklist_submissions')
-        .select('*')
-        .eq('linked_entry_id',entryId)
-        .order('submitted_at',{ascending:false})
-        .limit(1);
+      const entry=entries.find(e=>e.id===entryId);
+      if(!entry) return alert('Player entry not found.');
+
+      let data=null, error=null;
+
+      if(entry.source_submission_id){
+        ({data,error}=await sb.from('decklist_submissions')
+          .select('*')
+          .eq('id',entry.source_submission_id)
+          .single());
+      }else{
+        const res=await sb.from('decklist_submissions')
+          .select('*')
+          .eq('linked_entry_id',entryId)
+          .order('submitted_at',{ascending:false})
+          .limit(1);
+        error=res.error;
+        data=(res.data||[])[0]||null;
+      }
+
       if(error) return alert(error.message);
-      const sub=(data||[])[0];
-      if(!sub) return alert('No digital decklist found.');
+      const sub=data;
+      if(!sub) return alert('No digital decklist found for this player.');
+
       activeDeckSubmission=sub;
 
       const dob=sub.birthdate
@@ -282,15 +298,19 @@
         (sub.division||'')+' • DOB '+dob+' • '+(sub.format||'Standard');
 
       $('deckModalStatus').innerHTML=
-        sub.card_total===60
-          ? '<div class="submit-good">60/60 cards</div>'
-          : '<div class="submit-warning">'+(sub.card_total??'Unknown')+'/60 cards — Review required</div>';
+        sub.professor_status==='verified'
+          ? '<div class="submit-good">✓ Professor Verified • '+(sub.card_total??'Unknown')+'/60 cards</div>'
+          : (sub.card_total===60
+              ? '<div class="submit-good">60/60 cards</div>'
+              : '<div class="submit-warning">'+(sub.card_total??'Unknown')+'/60 cards — Review required</div>');
 
       $('deckModalText').textContent=sub.decklist_text||'';
+
       if($('markDeckVerified')){
         $('markDeckVerified').textContent = sub.professor_status==='verified' ? 'Verified' : 'Mark Verified';
         $('markDeckVerified').disabled = sub.professor_status==='verified';
       }
+
       $('deckModal').classList.remove('hidden');
     }
 
@@ -352,6 +372,12 @@
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    document.addEventListener('click', async (ev) => {
+      const btn=ev.target.closest('.view-deck');
+      if(!btn) return;
+      ev.preventDefault();
+      await openDeckSubmission(btn.dataset.id);
+    });
     $('closeDeckModal').onclick = () => { $('deckModal').classList.add('hidden'); activeDeckSubmission=null; if($('markDeckVerified')){ $('markDeckVerified').disabled=false; $('markDeckVerified').textContent='Mark Verified'; } };
     $('printDecklist').onclick = printActiveDecklist;
     $('markDeckVerified').onclick = verifyActiveDecklist;
@@ -364,7 +390,7 @@
     $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
     $('createTournament').onclick = async () => { const event_name=$('eventName').value.trim(),event_date=$('eventDate').value,location=$('location').value.trim(); if(!event_name||!event_date) return alert('Enter event/store and date.'); const {error}=await sb.from('tournaments').insert({event_name,event_date,location,status:'registration'}); if(error) return alert(error.message); $('newTournament').classList.add('hidden'); await loadTournaments(); };
 
-    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,player_id,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); }
+    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,player_id,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); }
 
     function decklistBadge(e){
       if(e.decklist_method==='paper') return '<span class="status-badge status-paper">📄 Paper Received</span>';
@@ -394,7 +420,6 @@
 
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
       $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<button class="btn alt view-deck" data-id="'+e.id+'">View Decklist</button>':'')+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
-      document.querySelectorAll('.view-deck').forEach(b=>b.onclick=()=>openDeckSubmission(b.dataset.id));
       document.querySelectorAll('.remove').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this player?')) return; const {error}=await sb.from('entries').delete().eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.mark-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'paper',decklist_received_at:new Date().toISOString(),decklist_verified:true}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.undo-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'none',decklist_received_at:null,decklist_verified:false}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
