@@ -122,6 +122,53 @@
 .ribbon-player-state{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#efe7ff;color:#5a3c8a;font-size:11px;font-weight:850;margin-top:5px}
 .ribbon-player-actions .btn{width:auto;min-height:34px;padding:7px 10px;font-size:12px}
 </style>
+
+<style>
+.hub-subnav{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:14px}
+.hub-subnav button{border:0;border-radius:10px;background:#e8f0eb;color:#244c3a;min-height:42px;font-weight:800;cursor:pointer}
+.hub-subnav button.on{background:#0f7a49;color:#fff}
+.hub-pane.hidden{display:none!important}
+.hub-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin:14px 0}
+.hub-kpi{background:#eef5f0;border:1px solid #dce7e0;border-radius:12px;padding:12px}
+.hub-kpi-label{font-size:11px;font-weight:800;color:#667a70;text-transform:uppercase;letter-spacing:.03em}
+.hub-kpi-value{font-size:23px;font-weight:900;margin-top:3px;color:#143326}
+.hub-filter-row{display:grid;grid-template-columns:220px 1fr 1fr;gap:9px;align-items:end;margin-top:12px}
+.hub-section{margin-top:22px;padding-top:18px;border-top:1px solid #d8e4dc}
+.hub-tournament-card{border:1px solid #d8e4dc;border-radius:14px;padding:14px;margin-top:10px;background:#fff}
+.hub-tournament-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.hub-tournament-title{font-size:16px;font-weight:900}
+.hub-mini-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:10px}
+.hub-mini{background:#f4f8f5;border-radius:9px;padding:8px;text-align:center}
+.hub-mini b{display:block;font-size:16px}
+.hub-mini span{font-size:10px;color:#667a70;font-weight:750}
+.hub-card-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.hub-card-actions .btn{width:auto;min-height:36px;padding:7px 11px;font-size:12px}
+.hub-alert{border-radius:11px;padding:10px 12px;margin-top:8px;background:#fff3cd;color:#735c00;font-size:13px;font-weight:700}
+.hub-good{border-radius:11px;padding:10px 12px;margin-top:8px;background:#e4f4e9;color:#17653c;font-size:13px;font-weight:700}
+.hub-meta-row{display:grid;grid-template-columns:minmax(150px,1fr) 90px 90px;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #e5ece7}
+.hub-meta-row:first-child{border-top:0}
+.hub-meta-name{font-weight:850}
+.hub-meta-supports{font-size:11px;color:#667a70;margin-top:2px}
+.hub-detail-roster-row{display:grid;grid-template-columns:minmax(0,1fr) 120px 120px;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #e5ece7}
+.hub-detail-roster-row:first-child{border-top:0}
+.hub-detail-status{font-size:11px;font-weight:800}
+.hub-standings-row{display:grid;grid-template-columns:58px minmax(0,1fr) minmax(120px,.8fr);gap:10px;padding:8px 0;border-top:1px solid #e5ece7;align-items:center}
+.hub-standings-row:first-child{border-top:0}
+.hub-discord-box{background:#101914;color:#dbf4e5;border-radius:10px;padding:12px;white-space:pre-wrap;min-height:110px;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:850px){
+  .hub-subnav{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hub-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hub-mini-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hub-filter-row{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .hub-subnav{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hub-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hub-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hub-detail-roster-row{grid-template-columns:1fr}
+  .hub-standings-row{grid-template-columns:45px 1fr}
+}
+</style>
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -183,138 +230,185 @@
         <button id="copyDiscord" class="btn full" style="margin-top:10px">Copy Discord Code</button>
       </section>
 
+
 <section id="hubTab" class="card hidden owner-only">
   <div class="head">
     <div>
       <h3 style="margin:0">Master Hub</h3>
-      <div class="muted">Owner-only tournament overview and configuration tools.</div>
+      <div class="muted">Owner-only command center for tournaments, local meta, opponents, and system configuration.</div>
     </div>
     <button id="refreshHub" class="btn alt" style="width:auto">Refresh</button>
   </div>
 
-  <div id="hubMsg"></div>
-  <div id="masterHubList" style="margin-top:12px"></div>
-  <div id="pinnedOpponentsWrap" style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
-    <h3 style="margin:0">Played Against — Current Tournament</h3>
-    <div class="muted">Private owner-only opponent list for this tournament.</div>
-    <div id="pinnedOpponents" style="margin-top:10px"></div>
+  <div class="hub-subnav">
+    <button type="button" data-hub-view="overview" class="on">Overview</button>
+    <button type="button" data-hub-view="meta">Meta</button>
+    <button type="button" data-hub-view="tournaments">Tournaments</button>
+    <button type="button" data-hub-view="played">Played Against</button>
+    <button type="button" data-hub-view="library">Library</button>
+    <button type="button" data-hub-view="system">System</button>
   </div>
 
-  <div style="margin-top:24px;padding-top:20px;border-top:2px solid var(--line)">
-    <div class="head">
-      <div>
-        <h3 style="margin:0">Main / Support Profile Editor</h3>
-        <div class="muted">Control how Trainer decklists are classified. Main is required. Support/Variant can be None.</div>
+  <div id="hubMsg"></div>
+
+  <div id="hubOverviewPane" class="hub-pane">
+    <div class="hub-filter-row">
+      <div class="field">
+        <label>Date Range</label>
+        <select id="hubDateRange">
+          <option value="month">This Month</option>
+          <option value="30">Last 30 Days</option>
+          <option value="all">All Time</option>
+        </select>
       </div>
-      <button id="refreshLibrary" class="btn alt" style="width:auto">Refresh Profiles</button>
+      <div></div><div></div>
     </div>
 
-    <div class="library-form">
-      <div class="field">
-        <label>Profile Name</label>
-        <input id="libraryName" placeholder="Example: Dragapult / Dusknoir">
+    <div id="hubKpis" class="hub-kpi-grid"></div>
+
+    <div class="hub-section">
+      <h3 style="margin:0">Needs Attention</h3>
+      <div class="muted">Tournaments with missing decklists, unverified digital lists, or incomplete check-in.</div>
+      <div id="hubAttention"></div>
+    </div>
+
+    <div class="hub-section">
+      <h3 style="margin:0">Tournament Overview</h3>
+      <div class="muted">Current summary of every tournament in the selected date range.</div>
+      <div id="masterHubList"></div>
+    </div>
+  </div>
+
+  <div id="hubMetaPane" class="hub-pane hidden">
+    <div class="head">
+      <div>
+        <h3 style="margin:0">Master Quest Meta</h3>
+        <div class="muted">Aggregated Main + Support/Variant usage across tournaments in the selected date range.</div>
       </div>
+    </div>
+    <div id="hubMetaSummary" class="hub-kpi-grid"></div>
+    <div id="hubMetaList" style="margin-top:12px"></div>
+  </div>
+
+  <div id="hubTournamentsPane" class="hub-pane hidden">
+    <div id="hubTournamentBrowser">
+      <div class="head">
+        <div>
+          <h3 style="margin:0">All Tournaments</h3>
+          <div class="muted">Open an event to review attendance, decklists, standings, and Discord output.</div>
+        </div>
+      </div>
+      <div id="hubTournamentList" style="margin-top:10px"></div>
+    </div>
+
+    <div id="hubTournamentDetail" class="hidden">
+      <button id="hubBackToTournaments" class="btn alt" style="width:auto;margin-bottom:12px">← Back to Tournaments</button>
+      <div id="hubTournamentDetailContent"></div>
+    </div>
+  </div>
+
+  <div id="hubPlayedPane" class="hub-pane hidden">
+    <div id="playedAgainstManager">
+      <h3 style="margin:0">Played Against Ribbon</h3>
+      <div class="muted">Private Owner-only opponent tracking. These pins never appear in Discord output.</div>
 
       <div class="field">
-        <label>Main Pokémon / Card</label>
-        <select id="libraryMain"></select>
-      </div>
-
-      <div class="field">
-        <label>Support / Variant</label>
-        <select id="librarySupport"></select>
-      </div>
-
-      <div class="field">
-        <label>Relationship Type</label>
-        <select id="libraryRelationship">
-          <option value="support">Support</option>
-          <option value="variant">Variant</option>
+        <label>Tournament</label>
+        <select id="ribbonTournamentSelect">
+          <option value="">Choose tournament...</option>
         </select>
       </div>
 
-      <div class="full">
-        <button id="saveLibraryProfile" class="btn full">Add Profile</button>
-        <div id="libraryMsg"></div>
+      <div id="ribbonPlayerMsg"></div>
+      <div id="ribbonPlayerList" style="margin-top:10px">
+        <div class="muted">Choose a tournament to see its players.</div>
       </div>
     </div>
-
-    <div id="libraryList" style="margin-top:14px"></div>
   </div>
 
-  <div id="deckOptionsMaster" style="margin-top:26px;padding-top:20px;border-top:2px solid var(--line)">
-    <h3 style="margin-top:0">Deck / Card Options</h3>
-    <div class="muted">Add new options or edit an existing Pokémon/card's Discord emoji code and Sprite URL.</div>
+  <div id="hubLibraryPane" class="hub-pane hidden">
+    <div>
+      <div class="head">
+        <div>
+          <h3 style="margin:0">Main / Support Profile Editor</h3>
+          <div class="muted">Control how Trainer decklists are classified. Main is required. Support/Variant can be None.</div>
+        </div>
+        <button id="refreshLibrary" class="btn alt" style="width:auto">Refresh Profiles</button>
+      </div>
 
-    <div class="field">
-      <label>Edit Existing Pokémon / Card</label>
-      <select id="editOptionSelect">
-        <option value="">Choose existing option...</option>
-      </select>
+      <div class="library-form">
+        <div class="field">
+          <label>Profile Name</label>
+          <input id="libraryName" placeholder="Example: Dragapult / Dusknoir">
+        </div>
+        <div class="field">
+          <label>Main Pokémon / Card</label>
+          <select id="libraryMain"></select>
+        </div>
+        <div class="field">
+          <label>Support / Variant</label>
+          <select id="librarySupport"></select>
+        </div>
+        <div class="field">
+          <label>Relationship Type</label>
+          <select id="libraryRelationship">
+            <option value="support">Support</option>
+            <option value="variant">Variant</option>
+          </select>
+        </div>
+        <div class="full">
+          <button id="saveLibraryProfile" class="btn full">Add Profile</button>
+          <div id="libraryMsg"></div>
+        </div>
+      </div>
+
+      <div id="libraryList" style="margin-top:14px"></div>
     </div>
 
-    <div class="field">
-      <label>Pokémon / Card Name</label>
-      <input id="optionName" placeholder="Example: Dundunsparce">
-    </div>
+    <div id="deckOptionsMaster" class="hub-section">
+      <h3 style="margin-top:0">Deck / Card Options</h3>
+      <div class="muted">Add new options or edit an existing Pokémon/card's Discord emoji code and Sprite URL.</div>
 
-    <div class="field">
-      <label>Discord Emoji Code (optional)</label>
-      <input id="emojiCode" placeholder="<:Dragapult_:123456789>">
-    </div>
+      <div class="field">
+        <label>Edit Existing Pokémon / Card</label>
+        <select id="editOptionSelect">
+          <option value="">Choose existing option...</option>
+        </select>
+      </div>
+      <div class="field"><label>Pokémon / Card Name</label><input id="optionName" placeholder="Example: Dundunsparce"></div>
+      <div class="field"><label>Discord Emoji Code (optional)</label><input id="emojiCode" placeholder="<:Dragapult_:123456789>"></div>
+      <div class="field"><label>Sprite URL (optional)</label><input id="spriteUrl" placeholder="https://.../dundunsparce.png"></div>
 
-    <div class="field">
-      <label>Sprite URL (optional)</label>
-      <input id="spriteUrl" placeholder="https://.../dundunsparce.png">
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
-      <button id="addOption" class="btn alt full">Add Option</button>
-      <button id="clearOptionEditor" class="btn alt" style="width:auto">Clear</button>
-    </div>
-
-    <div id="optionMsg"></div>
-
-    <div id="spritePreviewWrap" class="hidden" style="margin-top:12px">
-      <div class="muted" style="margin-bottom:6px">Sprite Preview</div>
-      <img id="spritePreview" alt="Sprite preview" style="width:64px;height:64px;object-fit:contain">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+        <button id="addOption" class="btn alt full">Add Option</button>
+        <button id="clearOptionEditor" class="btn alt" style="width:auto">Clear</button>
+      </div>
+      <div id="optionMsg"></div>
+      <div id="spritePreviewWrap" class="hidden" style="margin-top:12px">
+        <div class="muted" style="margin-bottom:6px">Sprite Preview</div>
+        <img id="spritePreview" alt="Sprite preview" style="width:64px;height:64px;object-fit:contain">
+      </div>
     </div>
   </div>
 
-  <div id="librarySyncCard" style="margin-top:26px;padding-top:20px;border-top:2px solid var(--line)">
-    <h3 style="margin-top:0">Excel Pokémon Library Sync</h3>
-    <div class="muted">
-      Optional legacy/import tool. The live app no longer depends on Excel. Use this only when you want to import Pokémon/Card names,
-      Discord emoji codes, or Sprite URLs from your workbook into Supabase.
-    </div>
+  <div id="hubSystemPane" class="hub-pane hidden">
+    <h3 style="margin-top:0">System</h3>
+    <div class="muted">System and legacy import tools. The live app uses Supabase and does not require Excel.</div>
 
-    <div class="field">
-      <label for="excelLibraryFile">Excel Workbook (.xlsx)</label>
-      <input id="excelLibraryFile" type="file" accept=".xlsx,.xls">
-    </div>
-
-    <button id="syncExcelLibrary" class="btn alt full">Sync Pokémon Library</button>
-    <div id="syncLibraryMsg"></div>
-    <div id="syncLibraryPreview" class="sync-summary"></div>
-  </div>
-
-  <div id="playedAgainstManager" style="margin-top:24px;padding-top:20px;border-top:2px solid var(--line)">
-    <h3 style="margin:0">Played Against Ribbon</h3>
-    <div class="muted">Private Owner-only opponent tracking. These pins never appear in Discord output.</div>
-
-    <div class="field">
-      <label>Tournament</label>
-      <select id="ribbonTournamentSelect">
-        <option value="">Choose tournament...</option>
-      </select>
-    </div>
-
-    <div id="ribbonPlayerMsg"></div>
-    <div id="ribbonPlayerList" style="margin-top:10px">
-      <div class="muted">Choose a tournament to see its players.</div>
+    <div id="librarySyncCard" class="hub-section">
+      <h3 style="margin-top:0">Excel Pokémon Library Sync</h3>
+      <div class="muted">Optional bulk import for Pokémon/Card names, Discord emoji codes, and Sprite URLs.</div>
+      <div class="field">
+        <label for="excelLibraryFile">Excel Workbook (.xlsx)</label>
+        <input id="excelLibraryFile" type="file" accept=".xlsx,.xls">
+      </div>
+      <button id="syncExcelLibrary" class="btn alt full">Sync Pokémon Library</button>
+      <div id="syncLibraryMsg"></div>
+      <div id="syncLibraryPreview" class="sync-summary"></div>
     </div>
   </div>
 </section>
+
 
 
 
@@ -715,6 +809,226 @@
       });
     }
 
+
+    let hubTournaments = [];
+    let hubEntries = [];
+    let hubSelectedTournament = null;
+
+    function hubDateIncluded(dateStr){
+      if(!$('hubDateRange')) return true;
+      const mode=$('hubDateRange').value;
+      if(mode==='all') return true;
+      const d=new Date(dateStr+'T00:00:00');
+      const now=new Date();
+      if(mode==='30'){
+        const cutoff=new Date(now);
+        cutoff.setDate(cutoff.getDate()-30);
+        cutoff.setHours(0,0,0,0);
+        return d>=cutoff && d<=now;
+      }
+      return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+    }
+
+    function hubTournamentEntries(id){
+      return hubEntries.filter(e=>e.tournament_id===id);
+    }
+
+    function hubStats(rows){
+      return {
+        trainers: rows.length,
+        digital: rows.filter(e=>e.decklist_method==='digital').length,
+        paper: rows.filter(e=>e.decklist_method==='paper').length,
+        missing: rows.filter(e=>!e.decklist_method || e.decklist_method==='none').length,
+        verified: rows.filter(e=>e.decklist_method==='digital' && e.decklist_verified).length,
+        checked: rows.filter(e=>e.check_in_status==='checked_in').length
+      };
+    }
+
+    function hubTournamentCard(tour){
+      const rows=hubTournamentEntries(tour.id);
+      const s=hubStats(rows);
+      return '<div class="hub-tournament-card">'+
+        '<div class="hub-tournament-head">'+
+          '<div><div class="hub-tournament-title">'+esc(tour.event_name)+'</div>'+
+          '<div class="muted">'+esc(tour.event_date)+(tour.location?' • '+esc(tour.location):'')+' • '+esc(tour.status||'')+'</div></div>'+
+        '</div>'+
+        '<div class="hub-mini-grid">'+
+          '<div class="hub-mini"><b>'+s.trainers+'</b><span>TRAINERS</span></div>'+
+          '<div class="hub-mini"><b>'+s.digital+'</b><span>DIGITAL</span></div>'+
+          '<div class="hub-mini"><b>'+s.paper+'</b><span>PAPER SUBMITTED</span></div>'+
+          '<div class="hub-mini"><b>'+s.missing+'</b><span>NO DECKLIST</span></div>'+
+          '<div class="hub-mini"><b>'+s.verified+'</b><span>VERIFIED</span></div>'+
+          '<div class="hub-mini"><b>'+s.checked+'</b><span>CHECKED IN</span></div>'+
+        '</div>'+
+        '<div class="hub-card-actions">'+
+          '<button type="button" class="btn hub-open-tournament" data-id="'+tour.id+'">Open Tournament</button>'+
+        '</div>'+
+      '</div>';
+    }
+
+    function hubDiscordFor(rows){
+      const sorted=[...rows].filter(e=>e.standing).sort((a,b)=>a.standing-b.standing);
+      return sorted.length ? sorted.map(e=>{
+        const m=opt(e.main_option_id),s=opt(e.support_option_id);
+        const place=e.standing===1?'🥇':e.standing===2?'🥈':e.standing===3?'🥉':e.standing+'.';
+        return place+' **'+e.player_name+'**'+(m?.discord_emoji_code?' '+m.discord_emoji_code:'')+(s?.discord_emoji_code?' '+s.discord_emoji_code:'');
+      }).join('\n') : 'Complete standings to generate output.';
+    }
+
+    function renderMasterHub(){
+      const tours=hubTournaments.filter(t=>hubDateIncluded(t.event_date));
+      const rows=hubEntries.filter(e=>tours.some(t=>t.id===e.tournament_id));
+      const s=hubStats(rows);
+
+      if($('hubKpis')){
+        $('hubKpis').innerHTML=
+          '<div class="hub-kpi"><div class="hub-kpi-label">Tournaments</div><div class="hub-kpi-value">'+tours.length+'</div></div>'+
+          '<div class="hub-kpi"><div class="hub-kpi-label">Trainers</div><div class="hub-kpi-value">'+s.trainers+'</div></div>'+
+          '<div class="hub-kpi"><div class="hub-kpi-label">Digital Lists</div><div class="hub-kpi-value">'+s.digital+'</div></div>'+
+          '<div class="hub-kpi"><div class="hub-kpi-label">Paper Submitted</div><div class="hub-kpi-value">'+s.paper+'</div></div>'+
+          '<div class="hub-kpi"><div class="hub-kpi-label">No Decklist</div><div class="hub-kpi-value">'+s.missing+'</div></div>'+
+          '<div class="hub-kpi"><div class="hub-kpi-label">Checked In</div><div class="hub-kpi-value">'+s.checked+'</div></div>';
+      }
+
+      if($('hubAttention')){
+        const alerts=[];
+        tours.forEach(tour=>{
+          const ts=hubStats(hubTournamentEntries(tour.id));
+          const awaiting=hubTournamentEntries(tour.id).filter(e=>e.decklist_method==='digital'&&!e.decklist_verified).length;
+          const unchecked=ts.trainers-ts.checked;
+          if(ts.missing || awaiting || unchecked){
+            alerts.push('<div class="hub-alert"><b>'+esc(tour.event_name)+'</b> — '+
+              (ts.missing?ts.missing+' no decklist • ':'')+
+              (awaiting?awaiting+' digital awaiting verification • ':'')+
+              (unchecked?unchecked+' not checked in':'')+
+              '</div>');
+          }
+        });
+        $('hubAttention').innerHTML=alerts.length?alerts.join(''):'<div class="hub-good">No current issues in this date range.</div>';
+      }
+
+      if($('masterHubList')){
+        $('masterHubList').innerHTML=tours.length?tours.map(hubTournamentCard).join(''):'<div class="muted">No tournaments in this date range.</div>';
+      }
+      if($('hubTournamentList')){
+        $('hubTournamentList').innerHTML=hubTournaments.length?hubTournaments.map(hubTournamentCard).join(''):'<div class="muted">No tournaments found.</div>';
+      }
+
+      renderHubMeta(tours,rows);
+      bindHubOpenButtons();
+    }
+
+    function renderHubMeta(tours,rows){
+      if(!$('hubMetaList')) return;
+
+      const grouped=new Map();
+      rows.forEach(e=>{
+        if(!e.main_option_id) return;
+        const key=e.main_option_id;
+        if(!grouped.has(key)) grouped.set(key,{count:0,supports:new Map()});
+        const g=grouped.get(key);
+        g.count++;
+        if(e.support_option_id) g.supports.set(e.support_option_id,(g.supports.get(e.support_option_id)||0)+1);
+      });
+
+      const ranked=[...grouped.entries()]
+        .map(([id,g])=>({id,...g}))
+        .sort((a,b)=>b.count-a.count);
+
+      if($('hubMetaSummary')){
+        $('hubMetaSummary').innerHTML=
+          '<div class="hub-kpi"><div class="hub-kpi-label">Entries</div><div class="hub-kpi-value">'+rows.length+'</div></div>'+
+          '<div class="hub-kpi"><div class="hub-kpi-label">Tournaments</div><div class="hub-kpi-value">'+tours.length+'</div></div>'+
+          '<div class="hub-kpi"><div class="hub-kpi-label">Main Decks</div><div class="hub-kpi-value">'+ranked.length+'</div></div>';
+      }
+
+      $('hubMetaList').innerHTML=ranked.length?ranked.map((g,i)=>{
+        const main=opt(g.id);
+        const pct=rows.length?((g.count/rows.length)*100).toFixed(1):'0.0';
+        const supports=[...g.supports.entries()]
+          .sort((a,b)=>b[1]-a[1])
+          .slice(0,4)
+          .map(([sid,c])=>(opt(sid)?.name||'Unknown')+' '+c)
+          .join(' • ');
+        return '<div class="hub-meta-row">'+
+          '<div><div class="hub-meta-name">'+(i+1)+'. '+esc(main?.name||'Unknown')+'</div>'+
+          '<div class="hub-meta-supports">'+(supports?esc(supports):'No tracked support/variant')+'</div></div>'+
+          '<div><b>'+g.count+'</b> entries</div>'+
+          '<div><b>'+pct+'%</b></div>'+
+        '</div>';
+      }).join(''):'<div class="muted">No classified entries in this date range.</div>';
+    }
+
+    function bindHubOpenButtons(){
+      document.querySelectorAll('.hub-open-tournament').forEach(b=>b.onclick=()=>openHubTournament(b.dataset.id));
+    }
+
+    async function openHubTournament(id){
+      const tour=hubTournaments.find(t=>t.id===id);
+      if(!tour) return;
+      hubSelectedTournament=tour;
+      const rows=hubTournamentEntries(id);
+      const s=hubStats(rows);
+      const discord=hubDiscordFor(rows);
+      const sorted=[...rows].filter(e=>e.standing).sort((a,b)=>a.standing-b.standing);
+
+      $('hubTournamentBrowser').classList.add('hidden');
+      $('hubTournamentDetail').classList.remove('hidden');
+
+      $('hubTournamentDetailContent').innerHTML=
+        '<div class="head"><div><h3 style="margin:0">'+esc(tour.event_name)+'</h3>'+
+        '<div class="muted">'+esc(tour.event_date)+(tour.location?' • '+esc(tour.location):'')+' • '+esc(tour.status||'')+'</div></div></div>'+
+        '<div class="hub-mini-grid">'+
+          '<div class="hub-mini"><b>'+s.trainers+'</b><span>TRAINERS</span></div>'+
+          '<div class="hub-mini"><b>'+s.digital+'</b><span>DIGITAL</span></div>'+
+          '<div class="hub-mini"><b>'+s.paper+'</b><span>PAPER SUBMITTED</span></div>'+
+          '<div class="hub-mini"><b>'+s.missing+'</b><span>NO DECKLIST</span></div>'+
+          '<div class="hub-mini"><b>'+s.verified+'</b><span>VERIFIED</span></div>'+
+          '<div class="hub-mini"><b>'+s.checked+'</b><span>CHECKED IN</span></div>'+
+        '</div>'+
+        '<div class="hub-section"><h3 style="margin:0">Player Roster</h3>'+
+          '<div style="margin-top:8px">'+(rows.length?rows.map(e=>{
+            const m=opt(e.main_option_id),sp=opt(e.support_option_id);
+            const deck=e.decklist_method==='paper'?'Paper Submitted':e.decklist_method==='digital'?(e.decklist_verified?'Digital Verified':'Digital Submitted'):'No Decklist';
+            const check=e.check_in_status==='checked_in'?'Checked In':'Waiting';
+            return '<div class="hub-detail-roster-row">'+
+              '<div><b>'+esc(e.player_name)+'</b><div class="muted">'+esc(m?.name||'Deck Pending')+(sp?' • '+esc(sp.name):'')+'</div></div>'+
+              '<div class="hub-detail-status">'+esc(deck)+'</div>'+
+              '<div class="hub-detail-status">'+esc(check)+'</div>'+
+            '</div>';
+          }).join(''):'<div class="muted">No players.</div>')+'</div></div>'+
+        '<div class="hub-section"><h3 style="margin:0">Standings</h3>'+
+          '<div style="margin-top:8px">'+(sorted.length?sorted.map(e=>{
+            const m=opt(e.main_option_id),sp=opt(e.support_option_id);
+            return '<div class="hub-standings-row"><b>'+ordinal(e.standing)+'</b><div><b>'+esc(e.player_name)+'</b></div><div class="muted">'+esc(m?.name||'Deck Pending')+(sp?' • '+esc(sp.name):'')+'</div></div>';
+          }).join(''):'<div class="muted">Standings have not been completed for this tournament.</div>')+'</div></div>'+
+        '<div class="hub-section"><div class="head"><div><h3 style="margin:0">Discord Output</h3><div class="muted">Copy the completed standings directly from Master Hub.</div></div>'+
+          '<button type="button" id="hubCopyDiscordDetail" class="btn" style="width:auto">Copy Discord</button></div>'+
+          '<div id="hubDiscordDetail" class="hub-discord-box" style="margin-top:10px">'+esc(discord)+'</div></div>';
+
+      $('hubCopyDiscordDetail').onclick=async()=>{
+        await navigator.clipboard.writeText(discord);
+        $('hubCopyDiscordDetail').textContent='Copied!';
+        setTimeout(()=>$('hubCopyDiscordDetail').textContent='Copy Discord',1000);
+      };
+    }
+
+    async function loadMasterHub(){
+      if(currentRole!=='owner') return;
+
+      const [{data:tours,error:tErr},{data:allEntries,error:eErr}] = await Promise.all([
+        sb.from('tournaments').select('*').order('event_date',{ascending:false}),
+        sb.from('entries').select('id,tournament_id,player_name,main_option_id,support_option_id,standing,decklist_method,decklist_verified,check_in_status,owner_played_against,created_at')
+      ]);
+
+      if(tErr) return showMsg('hubMsg',tErr.message,'bad');
+      if(eErr) return showMsg('hubMsg',eErr.message,'bad');
+
+      hubTournaments=tours||[];
+      hubEntries=allEntries||[];
+      renderMasterHub();
+    }
+
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
     async function showApp(){
       $('auth').classList.add('hidden');
@@ -729,6 +1043,25 @@
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    document.querySelectorAll('[data-hub-view]').forEach(b=>b.onclick=async()=>{
+      document.querySelectorAll('[data-hub-view]').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      const view=b.dataset.hubView;
+      ['overview','meta','tournaments','played','library','system'].forEach(v=>{
+        const el=$('hub'+v.charAt(0).toUpperCase()+v.slice(1)+'Pane');
+        if(el) el.classList.toggle('hidden',v!==view);
+      });
+      if(view==='played') await loadRibbonTournaments();
+      if(view==='library'){ await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); }
+    });
+
+    if($('hubDateRange')) $('hubDateRange').onchange=renderMasterHub;
+    if($('hubBackToTournaments')) $('hubBackToTournaments').onclick=()=>{
+      $('hubTournamentDetail').classList.add('hidden');
+      $('hubTournamentBrowser').classList.remove('hidden');
+      hubSelectedTournament=null;
+    };
+    if($('refreshHub')) $('refreshHub').onclick=loadMasterHub;
     if($('ribbonTournamentSelect')) $('ribbonTournamentSelect').onchange=async()=>{
       showMsg('ribbonPlayerMsg','');
       await loadRibbonPlayers($('ribbonTournamentSelect').value);
