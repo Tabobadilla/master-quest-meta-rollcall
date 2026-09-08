@@ -75,6 +75,12 @@
 .player-sprite-strip img{width:30px;height:30px;object-fit:contain;display:block}
 </style>
 
+
+<style>
+.player-name-with-sprites{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.player-inline-sprite{width:30px;height:30px;object-fit:contain;vertical-align:middle}
+</style>
+
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -179,6 +185,39 @@
     function ordinal(n){ if(n%100>=11&&n%100<=13)return n+'th'; return n+(n%10===1?'st':n%10===2?'nd':n%10===3?'rd':'th'); }
     function opt(id){ return options.find(o=>o.id===id); }
 
+    function coreSpriteSlug(name){
+      let s=String(name||'').toLowerCase().trim()
+        .replace(/[’']/g,'')
+        .replace(/\bmega\b/g,'')
+        .replace(/\bex\b/g,'')
+        .trim();
+      const aliases={
+        'n s zoroark':'zoroark',
+        'ns zoroark':'zoroark',
+        'lillies clefairy':'clefairy',
+        'crushing hammers':'',
+        'crushing hammer':'',
+        'teal mask ogerpon':'ogerpon',
+        'wellspring ogerpon':'ogerpon'
+      };
+      if(aliases[s]!==undefined)s=aliases[s];
+      return s.replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    }
+
+    function coreSpriteUrl(o){
+      if(!o) return '';
+      if(o.sprite_url) return o.sprite_url;
+      const slug=coreSpriteSlug(o.name);
+      return slug ? 'https://img.pokemondb.net/sprites/scarlet-violet/icon/'+slug+'.png' : '';
+    }
+
+    function coreSpriteImg(o){
+      const url=coreSpriteUrl(o);
+      if(!url) return '';
+      return '<img class="player-inline-sprite" src="'+esc(url)+'" alt="'+esc(o.name||'')+'">';
+    }
+
+
     async function loadRole(){
       const {data:{user}} = await sb.auth.getUser();
       if(!user){ currentRole='trainer'; return; }
@@ -209,7 +248,7 @@
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
 
-    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); }
+    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); }
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
     async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
@@ -246,14 +285,14 @@
     }
 
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="name">'+esc(e.player_name)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions"><button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions"><button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
       document.querySelectorAll('.remove').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this player?')) return; const {error}=await sb.from('entries').delete().eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.mark-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'paper',decklist_received_at:new Date().toISOString(),decklist_verified:true}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.undo-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'none',decklist_received_at:null,decklist_verified:false}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.check-in').forEach(b=>b.onclick=async()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e) return; if(e.decklist_method==='none' && !confirm('This player has no decklist recorded. Check them in anyway?')) return; const {error}=await sb.from('entries').update({check_in_status:'checked_in',checked_in_at:new Date().toISOString()}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.undo-checkin').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({check_in_status:'waiting',checked_in_at:null}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e)return; $('playerName').value=e.player_name; $('mainOption').value=e.main_option_id||''; $('supportOption').value=e.support_option_id||''; $('addPlayer').dataset.editId=e.id; $('addPlayer').textContent='Save Player'; });
-      $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player"><div><div class="name">'+esc(e.player_name)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
+      $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
 
     $('addPlayer').onclick = async () => { showMsg('entryMsg',''); if(!currentTournament) return showMsg('entryMsg','Create or select a tournament first.','bad'); const player_name=$('playerName').value.trim(),main_option_id=$('mainOption').value||null,support_option_id=$('supportOption').value||null; if(!player_name) return showMsg('entryMsg','Enter a player name.','bad'); const editId=$('addPlayer').dataset.editId; const payload={tournament_id:currentTournament.id,player_name,main_option_id,support_option_id,deck_status:main_option_id?'confirmed':'pending'}; let error; if(editId){ ({error}=await sb.from('entries').update(payload).eq('id',editId)); delete $('addPlayer').dataset.editId; $('addPlayer').textContent='Add Player'; } else { ({error}=await sb.from('entries').insert(payload)); } if(error) return showMsg('entryMsg',error.message,'bad'); $('playerName').value=''; $('mainOption').value=''; $('supportOption').value=''; showMsg('entryMsg',editId?'Player updated.':'Player added.','good'); await loadEntries(); };
 
@@ -281,63 +320,6 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 const $q = (id) => document.getElementById(id);
 let pickerOptions = [];
 
-let decoratingPlayerSprites = false;
-
-function refreshPlayerRowSprites(){
-  if(decoratingPlayerSprites) return;
-  decoratingPlayerSprites = true;
-  try{
-    document.querySelectorAll('#players .player, #standings .player').forEach(row => {
-      const nameEl = row.querySelector('.name');
-      const deckEl = row.querySelector('.deck');
-      if(!nameEl || !deckEl) return;
-
-      // clear any prior sprite strip
-      const old = row.querySelector('.player-sprite-strip');
-      if(old) old.remove();
-
-      const deckText = deckEl.textContent.trim();
-      if(!deckText || deckText.toLowerCase().includes('deck pending')) return;
-
-      const names = deckText.split('•').map(x => x.trim()).filter(Boolean).slice(0,2);
-      const strip = document.createElement('span');
-      strip.className = 'player-sprite-strip';
-
-      for(const deckName of names){
-        const opt = pickerOptions.find(o => String(o.name || '').trim().toLowerCase() === deckName.toLowerCase());
-        if(!opt) continue;
-
-        const url = pickerSpriteFor(opt);
-        if(!url) continue;
-
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = opt.name;
-        img.title = opt.name;
-        img.onerror = () => img.remove();
-        strip.appendChild(img);
-      }
-
-      if(!strip.children.length) return;
-
-      let line = nameEl.parentElement;
-      if(!line.classList.contains('player-name-line')){
-        const wrapper = document.createElement('div');
-        wrapper.className = 'player-name-line';
-        nameEl.parentNode.insertBefore(wrapper, nameEl);
-        wrapper.appendChild(strip);
-        wrapper.appendChild(nameEl);
-      }else{
-        line.insertBefore(strip, nameEl);
-      }
-    });
-  } finally {
-    decoratingPlayerSprites = false;
-  }
-}
-
-const playerSpriteObserver = new MutationObserver(() => setTimeout(refreshPlayerRowSprites, 0));
-playerSpriteObserver.observe(document.body, {childList:true, subtree:true});
 
 
 let rosterDecorating = false;
