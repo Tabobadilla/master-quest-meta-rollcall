@@ -68,6 +68,13 @@
 .check-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .check-actions .btn{width:auto;min-height:34px;padding:7px 10px;font-size:12px}
 </style>
+
+<style>
+.player-name-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.player-sprite-strip{display:inline-flex;align-items:center;gap:3px;flex:none}
+.player-sprite-strip img{width:30px;height:30px;object-fit:contain;display:block}
+</style>
+
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -85,7 +92,10 @@
       <section class="card">
         <div class="head"><div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div><button id="signOut" class="btn alt" style="width:auto">Sign Out</button></div>
         <div class="field"><label>Current Tournament</label><select id="tournamentSelect"></select></div>
-        <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+          <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
+          <button id="deleteCurrentTournament" class="btn danger owner-only hidden" style="width:auto;padding-left:16px;padding-right:16px">Delete Tournament</button>
+        </div>
         <div id="newTournament" class="hidden">
           <div class="field"><label>Event / Store</label><input id="eventName" placeholder="GuuBuu Hobby"></div>
           <div class="row"><div class="field"><label>Date</label><input id="eventDate" type="date"></div><div class="field"><label>Location</label><input id="location" placeholder="Snellville, GA"></div></div>
@@ -270,6 +280,65 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const $q = (id) => document.getElementById(id);
 let pickerOptions = [];
+
+let decoratingPlayerSprites = false;
+
+function refreshPlayerRowSprites(){
+  if(decoratingPlayerSprites) return;
+  decoratingPlayerSprites = true;
+  try{
+    document.querySelectorAll('#players .player, #standings .player').forEach(row => {
+      const nameEl = row.querySelector('.name');
+      const deckEl = row.querySelector('.deck');
+      if(!nameEl || !deckEl) return;
+
+      // clear any prior sprite strip
+      const old = row.querySelector('.player-sprite-strip');
+      if(old) old.remove();
+
+      const deckText = deckEl.textContent.trim();
+      if(!deckText || deckText.toLowerCase().includes('deck pending')) return;
+
+      const names = deckText.split('•').map(x => x.trim()).filter(Boolean).slice(0,2);
+      const strip = document.createElement('span');
+      strip.className = 'player-sprite-strip';
+
+      for(const deckName of names){
+        const opt = pickerOptions.find(o => String(o.name || '').trim().toLowerCase() === deckName.toLowerCase());
+        if(!opt) continue;
+
+        const url = pickerSpriteFor(opt);
+        if(!url) continue;
+
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = opt.name;
+        img.title = opt.name;
+        img.onerror = () => img.remove();
+        strip.appendChild(img);
+      }
+
+      if(!strip.children.length) return;
+
+      let line = nameEl.parentElement;
+      if(!line.classList.contains('player-name-line')){
+        const wrapper = document.createElement('div');
+        wrapper.className = 'player-name-line';
+        nameEl.parentNode.insertBefore(wrapper, nameEl);
+        wrapper.appendChild(strip);
+        wrapper.appendChild(nameEl);
+      }else{
+        line.insertBefore(strip, nameEl);
+      }
+    });
+  } finally {
+    decoratingPlayerSprites = false;
+  }
+}
+
+const playerSpriteObserver = new MutationObserver(() => setTimeout(refreshPlayerRowSprites, 0));
+playerSpriteObserver.observe(document.body, {childList:true, subtree:true});
+
 
 let rosterDecorating = false;
 
