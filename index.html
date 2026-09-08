@@ -966,14 +966,25 @@
     async function openHubTournament(id){
       const tour=hubTournaments.find(t=>t.id===id);
       if(!tour) return;
+
+      // Always switch Master Hub into the Tournaments view before showing detail.
+      document.querySelectorAll('[data-hub-view]').forEach(x=>x.classList.remove('on'));
+      const tournamentsTab=document.querySelector('[data-hub-view="tournaments"]');
+      if(tournamentsTab) tournamentsTab.classList.add('on');
+
+      ['overview','meta','tournaments','played','library','system'].forEach(v=>{
+        const el=$('hub'+v.charAt(0).toUpperCase()+v.slice(1)+'Pane');
+        if(el) el.classList.toggle('hidden',v!=='tournaments');
+      });
+
       hubSelectedTournament=tour;
       const rows=hubTournamentEntries(id);
       const s=hubStats(rows);
       const discord=hubDiscordFor(rows);
       const sorted=[...rows].filter(e=>e.standing).sort((a,b)=>a.standing-b.standing);
 
-      $('hubTournamentBrowser').classList.add('hidden');
-      $('hubTournamentDetail').classList.remove('hidden');
+      if($('hubTournamentBrowser')) $('hubTournamentBrowser').classList.add('hidden');
+      if($('hubTournamentDetail')) $('hubTournamentDetail').classList.remove('hidden');
 
       $('hubTournamentDetailContent').innerHTML=
         '<div class="head"><div><h3 style="margin:0">'+esc(tour.event_name)+'</h3>'+
@@ -1057,8 +1068,11 @@
 
     if($('hubDateRange')) $('hubDateRange').onchange=renderMasterHub;
     if($('hubBackToTournaments')) $('hubBackToTournaments').onclick=()=>{
-      $('hubTournamentDetail').classList.add('hidden');
-      $('hubTournamentBrowser').classList.remove('hidden');
+      if($('hubTournamentDetail')) $('hubTournamentDetail').classList.add('hidden');
+      if($('hubTournamentBrowser')) $('hubTournamentBrowser').classList.remove('hidden');
+      document.querySelectorAll('[data-hub-view]').forEach(x=>x.classList.remove('on'));
+      const tournamentsTab=document.querySelector('[data-hub-view="tournaments"]');
+      if(tournamentsTab) tournamentsTab.classList.add('on');
       hubSelectedTournament=null;
     };
     if($('refreshHub')) $('refreshHub').onclick=loadMasterHub;
