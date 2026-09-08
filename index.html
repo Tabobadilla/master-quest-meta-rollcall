@@ -197,7 +197,10 @@
           <button id="deleteCurrentTournament" class="btn danger owner-only hidden" style="width:auto;padding-left:16px;padding-right:16px">Delete Tournament</button>
         </div>
         <div id="newTournament" class="hidden">
-          <div class="field"><label>Event / Store</label><input id="eventName" placeholder="GuuBuu Hobby"></div>
+          <div class="row">
+            <div class="field"><label>Tournament Name</label><input id="eventName" placeholder="League Cup"></div>
+            <div class="field"><label>Store Name</label><input id="storeName" placeholder="GuuBuu Hobby"></div>
+          </div>
           <div class="row"><div class="field"><label>Date</label><input id="eventDate" type="date"></div><div class="field"><label>Location</label><input id="location" placeholder="Snellville, GA"></div></div>
           <button id="createTournament" class="btn full">Create Tournament</button>
         </div>
@@ -299,6 +302,7 @@
         <select id="hubMetaScope">
           <option value="all">All Tournaments</option>
           <option value="single">Specific Tournament</option>
+          <option value="store">All Tournaments at One Store</option>
         </select>
       </div>
 
@@ -317,11 +321,10 @@
           <option value="">Choose tournament...</option>
         </select>
       </div>
-
       <div class="field">
         <label>Store</label>
-        <select id="hubMetaStore">
-          <option value="">All Stores</option>
+        <select id="hubMetaStore" disabled>
+          <option value="">Choose store...</option>
         </select>
       </div>
     </div>
@@ -905,8 +908,34 @@
         '</div>'+
         '<div class="hub-card-actions">'+
           '<button type="button" class="btn hub-open-tournament" data-id="'+tour.id+'" onclick="window.__mqOpenHubTournament(this.dataset.id)">Open Tournament</button>'+
+          '<button type="button" class="btn danger hub-delete-tournament" data-id="'+tour.id+'" data-label="'+esc(tour.event_name)+' — '+esc(tour.event_date)+'">Delete Tournament</button>'+
         '</div>'+
       '</div>';
+    }
+
+
+    async function deleteTournamentOwner(id,label){
+      if(currentRole!=='owner') return alert('Owner access required.');
+      if(!id) return;
+
+      const confirmed=confirm(
+        'Are you sure you want to delete tournament "'+label+'"?\n\n'+
+        'This cannot be undone. The tournament, its players, and submitted decklists will be deleted.'
+      );
+      if(!confirmed) return;
+
+      const {error}=await sb.rpc('delete_tournament_owner',{p_tournament_id:id});
+      if(error) return alert(error.message);
+
+      if(currentTournament?.id===id){
+        currentTournament=null;
+        entries=[];
+        if($('eventSummary')) $('eventSummary').textContent='Select or create an event';
+      }
+
+      await loadTournaments();
+      await loadMasterHub();
+      alert('Tournament deleted.');
     }
 
     function hubDiscordFor(rows){
@@ -957,8 +986,10 @@
         $('hubTournamentList').innerHTML=hubTournaments.length?hubTournaments.map(hubTournamentCard).join(''):'<div class="muted">No tournaments found.</div>';
       }
 
+      populateHubMetaStoreFilter();
       populateHubMetaTournamentFilter();
       renderHubMetaFromFilters();
+      document.querySelectorAll('.hub-delete-tournament').forEach(b=>b.onclick=()=>deleteTournamentOwner(b.dataset.id,b.dataset.label));
     }
 
 
@@ -980,25 +1011,43 @@
       return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
     }
 
+    function tournamentStoreName(t){
+      return String(t?.store_name || '').trim();
+    }
+
+    function populateHubMetaStoreFilter(){
+      if(!$('hubMetaStore')) return;
+      const current=$('hubMetaStore').value;
+      const stores=[...new Set(hubTournaments.map(t=>tournamentStoreName(t)).filter(Boolean))]
+        .sort((a,b)=>a.localeCompare(b));
+
+      $('hubMetaStore').innerHTML='<option value="">Choose store...</option>'+
+        stores.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join('');
+
+      if(current && stores.includes(current)) $('hubMetaStore').value=current;
+    }
+
     function hubMetaFilteredData(){
       const scope=$('hubMetaScope')?.value||'all';
-      const store=$('hubMetaStore')?.value||'';
 
       if(scope==='single'){
         const id=$('hubMetaTournament')?.value||'';
         const tours=id ? hubTournaments.filter(t=>t.id===id) : [];
-        const filteredTours=store ? tours.filter(t=>tournamentStoreName(t)===store) : tours;
-        const ids=new Set(filteredTours.map(t=>t.id));
-        const rows=hubEntries.filter(e=>ids.has(e.tournament_id));
-        return {tours:filteredTours,rows};
+        const ids=new Set(tours.map(t=>t.id));
+        return {tours,rows:hubEntries.filter(e=>ids.has(e.tournament_id))};
       }
 
-      let tours=hubTournaments.filter(t=>hubMetaDateIncluded(t.event_date));
-      if(store) tours=tours.filter(t=>tournamentStoreName(t)===store);
+      if(scope==='store'){
+        const store=$('hubMetaStore')?.value||'';
+        let tours=store ? hubTournaments.filter(t=>tournamentStoreName(t)===store) : [];
+        tours=tours.filter(t=>hubMetaDateIncluded(t.event_date));
+        const ids=new Set(tours.map(t=>t.id));
+        return {tours,rows:hubEntries.filter(e=>ids.has(e.tournament_id))};
+      }
 
+      const tours=hubTournaments.filter(t=>hubMetaDateIncluded(t.event_date));
       const ids=new Set(tours.map(t=>t.id));
-      const rows=hubEntries.filter(e=>ids.has(e.tournament_id));
-      return {tours,rows};
+      return {tours,rows:hubEntries.filter(e=>ids.has(e.tournament_id))};
     }
 
     function populateHubMetaTournamentFilter(){
@@ -1020,18 +1069,26 @@
       const {tours,rows}=hubMetaFilteredData();
 
       if($('hubMetaScopeLabel')){
-        if(($('hubMetaScope')?.value||'all')==='single'){
+        const scope=$('hubMetaScope')?.value||'all';
+
+        if(scope==='single'){
           const tour=tours[0];
           $('hubMetaScopeLabel').textContent=tour
             ? 'Showing meta for '+tour.event_name+' — '+tour.event_date
             : 'Choose a tournament to view its meta.';
+        }else if(scope==='store'){
+          const store=$('hubMetaStore')?.value||'';
+          const label=$('hubMetaDateRange')?.selectedOptions?.[0]?.textContent||'Selected Range';
+          $('hubMetaScopeLabel').textContent=store
+            ? 'Showing all tournaments at '+store+' — '+label+'.'
+            : 'Choose a store to view its tournaments.';
         }else{
           const label=$('hubMetaDateRange')?.selectedOptions?.[0]?.textContent||'Selected Range';
           $('hubMetaScopeLabel').textContent='Showing combined meta for '+label+'.';
         }
       }
 
-      populateHubMetaStoreFilter(); populateHubMetaTournamentFilter(); renderHubMetaFromFilters();
+      renderHubMeta(tours,rows);
     }
 
     function renderHubMeta(tours,rows){
@@ -1168,33 +1225,24 @@
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
-    if($('deleteCurrentTournament')) $('deleteCurrentTournament').onclick=async()=>{
-      if(currentRole!=='owner') return alert('Owner access required.');
+    if($('deleteCurrentTournament')) $('deleteCurrentTournament').onclick=()=>{
       if(!currentTournament) return alert('Select a tournament first.');
-
-      const label=currentTournament.event_name+' — '+currentTournament.event_date;
-      if(!confirm('Delete tournament "'+label+'"? This will also delete its players and submitted decklists.')) return;
-
-      const {error}=await sb.rpc('delete_tournament_owner',{p_tournament_id:currentTournament.id});
-      if(error) return alert(error.message);
-
-      currentTournament=null;
-      entries=[];
-      resetPlayerForm();
-      await loadTournaments();
-      if(currentRole==='owner') await loadMasterHub();
-      alert('Tournament deleted.');
+      deleteTournamentOwner(
+        currentTournament.id,
+        currentTournament.event_name+' — '+currentTournament.event_date
+      );
     };
-    if($('hubMetaStore')) $('hubMetaStore').onchange=renderHubMetaFromFilters;
     if($('hubMetaScope')) $('hubMetaScope').onchange=()=>{
-      const single=$('hubMetaScope').value==='single';
-      $('hubMetaTournament').disabled=!single;
-      $('hubMetaDateRange').disabled=single;
+      const scope=$('hubMetaScope').value;
+      $('hubMetaTournament').disabled=scope!=='single';
+      $('hubMetaStore').disabled=scope!=='store';
+      $('hubMetaDateRange').disabled=scope==='single';
       renderHubMetaFromFilters();
     };
 
     if($('hubMetaDateRange')) $('hubMetaDateRange').onchange=renderHubMetaFromFilters;
     if($('hubMetaTournament')) $('hubMetaTournament').onchange=renderHubMetaFromFilters;
+    if($('hubMetaStore')) $('hubMetaStore').onchange=renderHubMetaFromFilters;
     document.querySelectorAll('[data-hub-view]').forEach(b=>b.onclick=async()=>{
       document.querySelectorAll('[data-hub-view]').forEach(x=>x.classList.remove('on'));
       b.classList.add('on');
@@ -1246,7 +1294,7 @@
     async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
     $('tournamentSelect').onchange = async () => { const id=$('tournamentSelect').value; if(!id){ currentTournament=null; entries=[]; renderEntries();  return; } const {data}=await sb.from('tournaments').select('*').eq('id',id).single(); currentTournament=data; await loadEntries();  };
     $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
-    $('createTournament').onclick = async () => { const event_name=$('eventName').value.trim(),event_date=$('eventDate').value,location=$('location').value.trim(); if(!event_name||!event_date) return alert('Enter event/store and date.'); const {error}=await sb.from('tournaments').insert({event_name,store_name:event_name,event_date,location,status:'registration'}); if(error) return alert(error.message); $('newTournament').classList.add('hidden'); await loadTournaments(); };
+    $('createTournament').onclick = async () => { const event_name=$('eventName').value.trim(),store_name=$('storeName')?.value.trim()||'',event_date=$('eventDate').value,location=$('location').value.trim(); if(!event_name||!store_name||!event_date) return alert('Enter tournament name, store name, and date.'); const {error}=await sb.from('tournaments').insert({event_name,store_name,event_date,location,status:'registration'}); if(error) return alert(error.message); $('newTournament').classList.add('hidden'); await loadTournaments(); };
 
     async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,player_id,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,owner_played_against,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); if(currentRole==='owner' && $('pinnedOpponents')){ const pinned=entries.filter(e=>e.owner_played_against); $('pinnedOpponents').innerHTML=pinned.length?pinned.map(e=>'<div class="hub-row"><div><div class="hub-title">'+esc(e.player_name)+'</div><div class="hub-meta">'+esc(opt(e.main_option_id)?.name||'Deck Pending')+(opt(e.support_option_id)?' • '+esc(opt(e.support_option_id).name):'')+'</div></div></div>').join(''):'<div class="muted">No opponents pinned for this tournament.</div>'; } }
 
