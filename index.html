@@ -206,7 +206,19 @@
 
     function coreSpriteUrl(o){
       if(!o) return '';
+
+      // Prefer the Discord custom emoji asset because the library already
+      // stores a stable emoji ID for each deck option.
+      const code = String(o.discord_emoji_code || '');
+      const match = code.match(/<a?:[^:>]+:(\d+)>/);
+      if(match){
+        return 'https://cdn.discordapp.com/emojis/'+match[1]+'.png?size=64&quality=lossless';
+      }
+
+      // Fall back to the custom sprite URL stored in Supabase.
       if(o.sprite_url) return o.sprite_url;
+
+      // Last fallback for normal Pokémon names.
       const slug=coreSpriteSlug(o.name);
       return slug ? 'https://img.pokemondb.net/sprites/scarlet-violet/icon/'+slug+'.png' : '';
     }
@@ -214,7 +226,7 @@
     function coreSpriteImg(o){
       const url=coreSpriteUrl(o);
       if(!url) return '';
-      return '<img class="player-inline-sprite" src="'+esc(url)+'" alt="'+esc(o.name||'')+'">';
+      return '<img class="player-inline-sprite" src="'+esc(url)+'" alt="'+esc(o.name||'')+'" title="'+esc(o.name||'')+'" onerror="this.style.display=\'none\'">';
     }
 
 
