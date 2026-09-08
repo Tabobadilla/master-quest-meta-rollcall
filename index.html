@@ -313,6 +313,7 @@
 
       $('deckModal').classList.remove('hidden');
     }
+    window.__mqOpenDeck = openDeckSubmission;
 
     function printActiveDecklist(){
       if(!activeDeckSubmission) return;
@@ -372,12 +373,6 @@
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
-    document.addEventListener('click', async (ev) => {
-      const btn=ev.target.closest('.view-deck');
-      if(!btn) return;
-      ev.preventDefault();
-      await openDeckSubmission(btn.dataset.id);
-    });
     $('closeDeckModal').onclick = () => { $('deckModal').classList.add('hidden'); activeDeckSubmission=null; if($('markDeckVerified')){ $('markDeckVerified').disabled=false; $('markDeckVerified').textContent='Mark Verified'; } };
     $('printDecklist').onclick = printActiveDecklist;
     $('markDeckVerified').onclick = verifyActiveDecklist;
@@ -419,7 +414,7 @@
     }
 
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<button class="btn alt view-deck" data-id="'+e.id+'">View Decklist</button>':'')+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<button type="button" class="btn alt view-deck" data-id="'+e.id+'" onclick="window.__mqOpenDeck(this.dataset.id)">View Decklist</button>':'')+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
       document.querySelectorAll('.remove').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this player?')) return; const {error}=await sb.from('entries').delete().eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.mark-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'paper',decklist_received_at:new Date().toISOString(),decklist_verified:true}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.undo-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'none',decklist_received_at:null,decklist_verified:false}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
