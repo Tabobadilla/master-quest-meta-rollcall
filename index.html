@@ -420,7 +420,7 @@
       if(!sub) return alert('No digital decklist was found for this player.');
       activeDeckSubmission=sub;
       $('deckModalTitle').textContent=sub.trainer_name+' — Decklist';
-      $('deckModalMeta').textContent=(sub.player_id?'Player ID '+sub.player_id+' • ':'')+(sub.division||'')+' • '+(sub.format||'Standard');
+      const dob=sub.birthdate?new Date(sub.birthdate+'T00:00:00').toLocaleDateString('en-US'):'—'; $('deckModalMeta').textContent=(sub.player_id?'Player ID '+sub.player_id+' • ':'')+(sub.division||'')+' • DOB '+dob+' • '+(sub.format||'Standard');
       $('deckModalStatus').innerHTML=(sub.card_total===60?'<div class="submit-good">60/60 cards</div>':'<div class="submit-warning">'+(sub.card_total??'Unknown')+'/60 cards — Review required</div>');
       $('deckModalText').textContent=sub.decklist_text||'';
       $('deckModal').classList.remove('hidden');
@@ -432,7 +432,7 @@
       const w=window.open('','_blank');
       if(!w) return alert('Allow pop-ups to print the decklist.');
       const safeText=esc(s.decklist_text||'');
-      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">Player ID: '+esc(s.player_id||'')+' | Birthdate: '+esc(s.birthdate||'')+' | Division: '+esc(s.division||'')+' | Format: '+esc(s.format||'Standard')+' | Total: '+esc(s.card_total??'')+'</div><pre>'+safeText+'</pre></body></html>');
+      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">Player ID: '+esc(s.player_id||'')+' | Division: '+esc(s.division||'')+' | Birthdate: '+esc(s.birthdate||'')+' | Format: +esc(s.format||'Standard')+' | Total: '+esc(s.card_total??'')+'</div><pre>'+safeText+'</pre></body></html>');
       w.document.close();
       w.focus();
       setTimeout(()=>w.print(),250);
@@ -467,9 +467,14 @@
     $('printDecklist').onclick = printActiveDecklist;
     $('markDeckVerified').onclick = async () => {
       if(!activeDeckSubmission) return;
-      const {error}=await sb.from('decklist_submissions').update({professor_status:'checked_in'}).eq('id',activeDeckSubmission.id);
+      const {error}=await sb.from('decklist_submissions').update({professor_status:'verified'}).eq('id',activeDeckSubmission.id);
       if(error) return alert(error.message);
-      await sb.from('entries').update({decklist_verified:true}).eq('id',activeDeckSubmission.linked_entry_id);
+      const entry=entries.find(e=>e.id===activeDeckSubmission.linked_entry_id);
+      const {error:entryError}=await sb.from('entries').update({
+        decklist_verified:true,
+        deck_status:entry?.main_option_id?'confirmed':'submitted'
+      }).eq('id',activeDeckSubmission.linked_entry_id);
+      if(entryError) return alert(entryError.message);
       $('deckModal').classList.add('hidden');
       activeDeckSubmission=null;
       await loadEntries();
@@ -488,8 +493,8 @@
     function decklistBadge(e){
       if(e.decklist_method==='paper') return '<span class="status-badge status-paper">📄 Paper Received</span>';
       if(e.decklist_method==='digital'){
-        if(e.decklist_card_total===60 && e.decklist_verified) return '<span class="status-badge status-good">✓ Digital 60/60</span>';
-        if(e.decklist_card_total!=null) return '<span class="status-badge status-review">Digital '+esc(e.decklist_card_total)+'/60 — Review</span>';
+        if(e.decklist_card_total===60 && e.decklist_verified) return '<span class="status-badge status-good">✓ Digital 60/60 Verified</span>';
+        if(e.decklist_card_total===60) return '<span class="status-badge status-digital">Digital 60/60</span>'; if(e.decklist_card_total!=null) return '<span class="status-badge status-review">Digital '+esc(e.decklist_card_total)+'/60 — Review</span>';
         return '<span class="status-badge status-digital">Digital Submitted</span>';
       }
       return '<span class="status-badge status-waiting">Decklist Not Submitted</span>';
@@ -512,7 +517,7 @@
     }
 
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+(e.decklist_method==='digital'?'<button class="btn alt view-deck" data-id="'+e.id+'">View Decklist</button>':'')+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?'<span class="pending-deck">Deck Submitted — Archetype Review</span>':'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+(e.decklist_method==='digital'?'<button class="btn alt view-deck" data-id="'+e.id+'">View Decklist</button>':'')+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
       document.querySelectorAll('.view-deck').forEach(b=>b.onclick=()=>openDeckSubmission(b.dataset.id));
       document.querySelectorAll('.remove').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this player?')) return; const {error}=await sb.from('entries').delete().eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.mark-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'paper',decklist_received_at:new Date().toISOString(),decklist_verified:true}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
