@@ -96,6 +96,18 @@
 .deck-review-verified{display:inline-block;padding:3px 8px;border-radius:999px;background:#e3f4e8;color:#17653c;font-size:12px;font-weight:800}
 .deck-review-pending{display:inline-block;padding:3px 8px;border-radius:999px;background:#fff3cd;color:#735c00;font-size:12px;font-weight:800}
 </style>
+
+<style>
+.meta-library-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-top:1px solid #e4ebe6}
+.meta-library-row:first-child{border-top:0}
+.meta-library-name{font-weight:850}
+.meta-library-sub{font-size:12px;color:#667a70;margin-top:2px}
+.meta-library-actions{display:flex;gap:6px;flex-wrap:wrap}
+.meta-library-actions .btn{width:auto;min-height:34px;padding:7px 10px;font-size:12px}
+.library-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.library-form .full{grid-column:1/-1}
+@media(max-width:640px){.library-form{grid-template-columns:1fr}.library-form .full{grid-column:auto}}
+</style>
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -160,16 +172,51 @@
         <div class="head"><div><h3 style="margin:0">Master Hub</h3><div class="muted">Owner-only view of all tournaments and results.</div></div><button id="refreshHub" class="btn alt" style="width:auto">Refresh</button></div>
         <div id="hubMsg"></div>
         <div id="masterHubList" style="margin-top:12px"></div>
-      </section>
+      
+      <div id="libraryTab" class="owner-only">
+        <div class="head">
+          <div>
+            <h3 style="margin:0">Meta Archetype Library</h3>
+            <div class="muted">Define how submitted decklists should be classified. Main is required; Support/Variant can be None.</div>
+          </div>
+          <button id="refreshLibrary" class="btn alt" style="width:auto">Refresh</button>
+        </div>
 
-      <section class="card">
+        <div class="library-form">
+          <div class="field">
+            <label>Profile Name</label>
+            <input id="libraryName" placeholder="Dragapult / Dusknoir">
+          </div>
+          <div class="field">
+            <label>Main Pokémon / Card</label>
+            <select id="libraryMain"></select>
+          </div>
+          <div class="field">
+            <label>Support / Variant</label>
+            <select id="librarySupport"></select>
+          </div>
+          <div class="field">
+            <label>Relationship</label>
+            <select id="libraryRelationship">
+              <option value="support">Support</option>
+              <option value="variant">Variant</option>
+            </select>
+          </div>
+          <div class="full">
+            <button id="saveLibraryProfile" class="btn full">Add Profile</button>
+            <div id="libraryMsg"></div>
+          </div>
+        </div>
+
+        <div id="libraryList" style="margin-top:14px"></div>
+      </div>
+      <div class="owner-only" id="deckOptionsMaster" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
         <h3 style="margin-top:0">Deck / Card Options</h3><div class="muted">Every option can be used as Main or Support / Variant.</div>
         <div class="field"><label>New Pokémon / Card</label><input id="optionName" placeholder="Example: Mega Kangaskhan ex"></div>
         <div class="field"><label>Discord Emoji Code (optional)</label><input id="emojiCode" placeholder="<:Dragapult_:123456789>"></div>
         <button id="addOption" class="btn alt full">Add Option</button><div id="optionMsg"></div>
-      </section>
-    
-<section class="card" id="librarySyncCard">
+      </div>
+<div class="owner-only" id="librarySyncCard" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
   <h3 style="margin-top:0">Excel Pokémon Library Sync</h3>
   <div class="muted">
     Choose your Master Quest Excel workbook. The app reads the <b>POKEMON LIBRARY</b> sheet locally
@@ -182,7 +229,15 @@
   <button id="syncExcelLibrary" class="btn alt full">Sync Pokémon Library</button>
   <div id="syncLibraryMsg"></div>
   <div id="syncLibraryPreview" class="sync-summary"></div>
+</div>
 </section>
+
+
+    
+
+
+
+
 
 </main>
   </div>
@@ -358,6 +413,132 @@
       }
     }
 
+
+    let metaLibrary = [];
+
+    function fillLibraryOptionMenus(){
+      if(!$('libraryMain') || !$('librarySupport')) return;
+      $('libraryMain').innerHTML='<option value="">Choose Main...</option>'+
+        options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
+      $('librarySupport').innerHTML='<option value="">None</option>'+
+        options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
+    }
+
+    async function loadMetaLibrary(){
+      if(currentRole!=='owner' || !$('libraryList')) return;
+      fillLibraryOptionMenus();
+
+      const {data,error}=await sb.from('archetypes')
+        .select('id,name,main_option_id,support_option_id,active')
+        .order('name');
+
+      if(error){
+        showMsg('libraryMsg',error.message,'bad');
+        return;
+      }
+
+      metaLibrary=data||[];
+      $('libraryList').innerHTML=metaLibrary.length ? metaLibrary.map(a=>{
+        const main=options.find(o=>o.id===a.main_option_id);
+        const support=options.find(o=>o.id===a.support_option_id);
+        return '<div class="meta-library-row">'+
+          '<div><div class="meta-library-name">'+esc(a.name)+'</div>'+
+          '<div class="meta-library-sub">Main: '+esc(main?.name||'Unknown')+
+          ' • Support/Variant: '+esc(support?.name||'None')+'</div></div>'+
+          '<div class="meta-library-actions">'+
+          '<button class="btn alt edit-library" data-id="'+a.id+'">Edit</button>'+
+          '<button class="btn danger delete-library" data-id="'+a.id+'">Delete</button>'+
+          '</div></div>';
+      }).join('') : '<div class="muted">No archetype profiles yet.</div>';
+
+      document.querySelectorAll('.edit-library').forEach(b=>b.onclick=()=>{
+        const a=metaLibrary.find(x=>x.id===b.dataset.id);
+        if(!a) return;
+        $('libraryName').value=a.name;
+        $('libraryMain').value=a.main_option_id||'';
+        $('librarySupport').value=a.support_option_id||'';
+        $('saveLibraryProfile').dataset.editId=a.id;
+        $('saveLibraryProfile').textContent='Save Profile';
+      });
+
+      document.querySelectorAll('.delete-library').forEach(b=>b.onclick=async()=>{
+        const a=metaLibrary.find(x=>x.id===b.dataset.id);
+        if(!a) return;
+        if(!confirm('Delete archetype profile "'+a.name+'"?')) return;
+        const {error}=await sb.from('archetypes').delete().eq('id',a.id);
+        if(error) return showMsg('libraryMsg',error.message,'bad');
+        await loadMetaLibrary();
+      });
+    }
+
+    async function saveMetaLibraryProfile(){
+      showMsg('libraryMsg','');
+      const name=$('libraryName').value.trim();
+      const main_option_id=$('libraryMain').value||null;
+      const support_option_id=$('librarySupport').value||null;
+      const relationship=$('libraryRelationship').value||'support';
+
+      if(!name || !main_option_id){
+        return showMsg('libraryMsg','Profile Name and Main Pokémon/Card are required.','bad');
+      }
+
+      const editId=$('saveLibraryProfile').dataset.editId;
+      let archetypeId=editId||null;
+
+      if(editId){
+        const {error}=await sb.from('archetypes')
+          .update({name,main_option_id,support_option_id,active:true})
+          .eq('id',editId);
+        if(error) return showMsg('libraryMsg',error.message,'bad');
+      }else{
+        const {data,error}=await sb.from('archetypes')
+          .insert({name,main_option_id,support_option_id,active:true})
+          .select('id')
+          .single();
+        if(error) return showMsg('libraryMsg',error.message,'bad');
+        archetypeId=data.id;
+      }
+
+      // Rebuild relationship rows for this profile.
+      const {error:delErr}=await sb.from('archetype_relationships')
+        .delete()
+        .eq('archetype_id',archetypeId);
+      if(delErr) return showMsg('libraryMsg',delErr.message,'bad');
+
+      const rels=[{
+        archetype_id:archetypeId,
+        option_id:main_option_id,
+        relationship_type:'main_identifier',
+        weight:100,
+        min_copies:1,
+        required:true,
+        active:true
+      }];
+
+      if(support_option_id){
+        rels.push({
+          archetype_id:archetypeId,
+          option_id:support_option_id,
+          relationship_type:relationship,
+          weight:90,
+          min_copies:1,
+          required:true,
+          active:true
+        });
+      }
+
+      const {error:relErr}=await sb.from('archetype_relationships').insert(rels);
+      if(relErr) return showMsg('libraryMsg',relErr.message,'bad');
+
+      $('libraryName').value='';
+      $('libraryMain').value='';
+      $('librarySupport').value='';
+      delete $('saveLibraryProfile').dataset.editId;
+      $('saveLibraryProfile').textContent='Add Profile';
+      showMsg('libraryMsg','Profile saved.','good');
+      await loadMetaLibrary();
+    }
+
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
     async function showApp(){
       $('auth').classList.add('hidden');
@@ -372,11 +553,13 @@
     $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
     $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    if($('saveLibraryProfile')) $('saveLibraryProfile').onclick=saveMetaLibraryProfile;
+    if($('refreshLibrary')) $('refreshLibrary').onclick=loadMetaLibrary;
     $('closeDeckModal').onclick = () => { $('deckModal').classList.add('hidden'); activeDeckSubmission=null; if($('markDeckVerified')){ $('markDeckVerified').disabled=false; $('markDeckVerified').textContent='Mark Verified'; } };
     $('printDecklist').onclick = printActiveDecklist;
     $('markDeckVerified').onclick = verifyActiveDecklist;
 
-    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); }
+    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); if(currentRole==='owner') fillLibraryOptionMenus(); }
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
     async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
@@ -433,7 +616,7 @@
 
     document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); });  if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
-    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); });  if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub');  if(b.dataset.adminTab==='hub') await loadMasterHub(); });
+    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub');  if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); } });
     boot();
   </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
