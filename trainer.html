@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#063b2b">
+  <title>Master Quest — Trainer Decklist Submission</title>
+  <style>
+    *{box-sizing:border-box}
+    :root{
+      --bg:#f3f6f4;--card:#fff;--ink:#143326;--muted:#667a70;
+      --green:#0f7a49;--green2:#063b2b;--line:#d8e4dc;
+      --good-bg:#e4f4e9;--good:#17653c;
+      --warn-bg:#fff3cd;--warn:#735c00;
+      --bad-bg:#fde7e7;--bad:#8e2f2f;
+    }
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .top{background:var(--green2);color:#fff;padding:18px 20px}
+    .top .brand{font-size:22px;font-weight:900;letter-spacing:.2px}
+    .top .sub{font-size:13px;opacity:.85;margin-top:3px}
+    .wrap{max-width:760px;margin:0 auto;padding:16px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:14px}
+    h1,h2,h3{margin:0}
+    h2{font-size:20px}
+    .muted{color:var(--muted);font-size:13px;line-height:1.45}
+    .field{margin-top:14px}
+    label{display:block;font-size:13px;font-weight:800;margin-bottom:6px}
+    input,select,textarea{
+      width:100%;border:1px solid #cad8cf;border-radius:10px;background:#fff;
+      color:var(--ink);font:inherit;padding:12px 13px;min-height:46px
+    }
+    textarea{min-height:290px;resize:vertical;line-height:1.42;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .btn{
+      width:100%;border:0;border-radius:10px;background:var(--green);color:#fff;
+      min-height:48px;font-weight:850;font-size:15px;cursor:pointer;padding:10px 14px
+    }
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+    .summary>div{background:#eef5f0;border-radius:12px;padding:11px;text-align:center}
+    .summary span{display:block;color:var(--muted);font-size:11px;font-weight:700}
+    .summary strong{display:block;margin-top:4px;font-size:16px;line-height:1.2}
+    .msg{border-radius:10px;padding:11px 12px;margin-top:12px;font-size:13px;font-weight:750}
+    .good{background:var(--good-bg);color:var(--good)}
+    .warn{background:var(--warn-bg);color:var(--warn)}
+    .bad{background:var(--bad-bg);color:var(--bad)}
+    .hidden{display:none!important}
+    .success-card{text-align:center;padding:30px 20px}
+    .check{width:62px;height:62px;border-radius:50%;background:var(--good-bg);color:var(--good);display:grid;place-items:center;font-size:34px;margin:0 auto 14px}
+    .privacy{font-size:11px;color:var(--muted);margin-top:12px}
+    @media(max-width:620px){
+      .row{grid-template-columns:1fr}
+      .summary{grid-template-columns:1fr}
+      .wrap{padding:10px}
+      .card{padding:15px;border-radius:14px}
+      textarea{min-height:330px}
+    }
+    @media print{
+      .top,.btn,.privacy{display:none!important}
+      body{background:#fff}
+      .wrap{max-width:none;padding:0}
+      .card{border:0}
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">MASTER QUEST</div>
+    <div class="sub">Pokémon TCG Trainer Decklist Submission</div>
+  </header>
+
+  <main class="wrap">
+    <section id="formCard" class="card">
+      <h2>Submit Your Decklist</h2>
+      <div class="muted" style="margin-top:6px">
+        Complete all required player information and paste your full tournament decklist below.
+        Your decklist should total 60 cards.
+      </div>
+
+      <div id="pageMsg"></div>
+
+      <div class="field">
+        <label for="tournament">Tournament *</label>
+        <select id="tournament">
+          <option value="">Loading tournaments...</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="trainerName">Player Name *</label>
+          <input id="trainerName" autocomplete="name" placeholder="Full name">
+        </div>
+        <div class="field">
+          <label for="playerId">Player ID *</label>
+          <input id="playerId" inputmode="numeric" placeholder="Pokémon Player ID">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="birthdate">Birthdate *</label>
+          <input id="birthdate" type="date">
+        </div>
+        <div class="field">
+          <label for="division">Division *</label>
+          <select id="division">
+            <option value="">Choose division...</option>
+            <option value="Junior">Junior</option>
+            <option value="Senior">Senior</option>
+            <option value="Masters">Masters</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="format">Format *</label>
+        <select id="format">
+          <option value="Standard" selected>Standard</option>
+          <option value="Expanded">Expanded</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="decklist">Complete 60-Card Decklist *</label>
+        <textarea id="decklist" placeholder="Paste your decklist here.
+
+Example:
+4 Dreepy ASC-247
+3 Drakloak ASC-248
+3 Dragapult ex TWM-130
+1 Munkidori TWM-95
+...
+4 Lillie's Determination
+...
+3 Darkness Energy - Basic"></textarea>
+      </div>
+
+      <div class="summary">
+        <div>
+          <span>CARD TOTAL</span>
+          <strong id="cardTotal">0 / 60</strong>
+        </div>
+        <div>
+          <span>DETECTED MAIN</span>
+          <strong id="detectedMain">—</strong>
+        </div>
+        <div>
+          <span>DETECTED SUPPORT</span>
+          <strong id="detectedSupport">—</strong>
+        </div>
+      </div>
+
+      <div id="deckWarning"></div>
+
+      <button id="submitBtn" class="btn" style="margin-top:16px">Submit Decklist</button>
+      <div class="privacy">Your submission is sent directly to the tournament Professor/Organizer for check-in and decklist review.</div>
+    </section>
+
+    <section id="successCard" class="card success-card hidden">
+      <div class="check">✓</div>
+      <h2>Decklist Submitted</h2>
+      <div class="muted" style="margin-top:8px">
+        Your decklist has been sent to the tournament Professor/Organizer.
+        Please check in with them when you arrive.
+      </div>
+      <button id="submitAnother" class="btn" style="margin-top:18px">Submit Another Decklist</button>
+    </section>
+  </main>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = 'https://njulnumhkxvtdfrjoigx.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_31ke9sSB-21M8MXDWZm1lA_p_sYct8Z';
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const $ = id => document.getElementById(id);
+    let options = [];
+    let detectedMain = null;
+    let detectedSupport = null;
+
+    function esc(s=''){
+      return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    function showMsg(text,type=''){
+      $('pageMsg').innerHTML = text ? '<div class="msg '+type+'">'+esc(text)+'</div>' : '';
+    }
+
+    function countCards(text){
+      let total=0;
+      String(text||'').split(/\r?\n/).forEach(line=>{
+        const m=line.trim().match(/^(\d+)\s+\S/);
+        if(m) total += Number(m[1]);
+      });
+      return total;
+    }
+
+    function pokemonSection(text){
+      const raw=String(text||'');
+      const trainerPos=raw.search(/^\s*Trainer\b/im);
+      if(trainerPos>0) return raw.slice(0,trainerPos);
+      const energyPos=raw.search(/^\s*Energy\b/im);
+      if(energyPos>0) return raw.slice(0,energyPos);
+      return raw;
+    }
+
+    function mentionCount(text,name){
+      const hay=String(text||'').toLowerCase();
+      let n=String(name||'').toLowerCase().trim();
+      const variants=[n];
+
+      if(n.endsWith(' ex')) variants.push(n.slice(0,-3).trim());
+      if(n.startsWith('mega ')){
+        variants.push(n.replace(/^mega\s+/,'').replace(/\s+ex$/,'').trim());
+      }
+
+      let best=0;
+      for(const v of variants){
+        if(!v || v.length<4) continue;
+        const safe=v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+        const re=new RegExp('^(\\\\d+)\\\\s+.*\\\\b'+safe+'\\\\b','gim');
+        let m;
+        while((m=re.exec(hay))!==null) best += Number(m[1]||1);
+      }
+      return best;
+    }
+
+    function analyze(){
+      const text=$('decklist').value;
+      const total=countCards(text);
+      $('cardTotal').textContent=total+' / 60';
+
+      const pokemonText=pokemonSection(text);
+      const scores=options.map(o=>({o,score:mentionCount(pokemonText,o.name)}))
+        .filter(x=>x.score>0)
+        .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
+
+      detectedMain=scores[0]?.o||null;
+      detectedSupport=scores[1]?.o||null;
+
+      $('detectedMain').textContent=detectedMain?.name||'—';
+      $('detectedSupport').textContent=detectedSupport?.name||'—';
+
+      if(!text.trim()){
+        $('deckWarning').innerHTML='';
+      }else if(total===60){
+        $('deckWarning').innerHTML='<div class="msg good">✓ Decklist totals exactly 60 cards.</div>';
+      }else{
+        $('deckWarning').innerHTML='<div class="msg warn">Decklist currently totals '+total+' cards. You may still submit it, but the Professor will see that it needs review.</div>';
+      }
+    }
+
+    async function loadData(){
+      const [{data:tours,error:tErr},{data:opts,error:oErr}] = await Promise.all([
+        sb.rpc('list_open_tournaments'),
+        sb.rpc('list_public_deck_options')
+      ]);
+
+      if(tErr){
+        $('tournament').innerHTML='<option value="">Unable to load tournaments</option>';
+        showMsg(tErr.message,'bad');
+      }else{
+        const t=tours||[];
+        $('tournament').innerHTML='<option value="">Choose tournament...</option>'+
+          t.map(x=>'<option value="'+x.id+'">'+esc(x.event_name)+' — '+x.event_date+(x.location?' • '+esc(x.location):'')+'</option>').join('');
+        if(!t.length) showMsg('There are currently no tournaments accepting decklist submissions.','warn');
+      }
+
+      options=oErr?[]:(opts||[]);
+      analyze();
+    }
+
+    async function submit(){
+      showMsg('');
+      const tournament_id=$('tournament').value;
+      const trainer_name=$('trainerName').value.trim();
+      const player_id=$('playerId').value.trim();
+      const birthdate=$('birthdate').value||null;
+      const division=$('division').value;
+      const format=$('format').value||'Standard';
+      const decklist_text=$('decklist').value.trim();
+      const card_total=countCards(decklist_text);
+
+      if(!tournament_id || !trainer_name || !player_id || !birthdate || !division || !decklist_text){
+        showMsg('Please complete Tournament, Player Name, Player ID, Birthdate, Division, and Decklist.','bad');
+        return;
+      }
+
+      $('submitBtn').disabled=true;
+      $('submitBtn').textContent='Submitting...';
+
+      try{
+        const confidence=detectedMain ? (detectedSupport ? 85 : 70) : 0;
+        const {error}=await sb.rpc('submit_public_decklist',{
+          p_tournament_id:tournament_id,
+          p_trainer_name:trainer_name,
+          p_player_id:player_id,
+          p_birthdate:birthdate,
+          p_division:division,
+          p_format:format,
+          p_decklist_text:decklist_text,
+          p_card_total:card_total,
+          p_main_option_id:detectedMain?.id||null,
+          p_support_option_id:detectedSupport?.id||null,
+          p_parser_confidence:confidence
+        });
+        if(error) throw error;
+
+        $('formCard').classList.add('hidden');
+        $('successCard').classList.remove('hidden');
+        window.scrollTo({top:0,behavior:'smooth'});
+      }catch(err){
+        showMsg(err.message||String(err),'bad');
+      }finally{
+        $('submitBtn').disabled=false;
+        $('submitBtn').textContent='Submit Decklist';
+      }
+    }
+
+    function resetForm(){
+      $('trainerName').value='';
+      $('playerId').value='';
+      $('birthdate').value='';
+      $('division').value='';
+      $('format').value='Standard';
+      $('decklist').value='';
+      detectedMain=null;
+      detectedSupport=null;
+      analyze();
+      $('successCard').classList.add('hidden');
+      $('formCard').classList.remove('hidden');
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+
+    $('decklist').addEventListener('input',analyze);
+    $('submitBtn').onclick=submit;
+    $('submitAnother').onclick=resetForm;
+
+    loadData();
+  </script>
+</body>
+</html>
