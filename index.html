@@ -399,7 +399,7 @@
       const w=window.open('','_blank');
       if(!w) return alert('Allow pop-ups to print the decklist.');
       const safeText=esc(s.decklist_text||'');
-      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">Player ID: '+esc(s.player_id||'')+' | Division: '+esc(s.division||'')+' | Birthdate: '+esc(s.birthdate||'')+' | Format: +esc(s.format||'Standard')+' | Total: '+esc(s.card_total??'')+'</div><pre>'+safeText+'</pre></body></html>');
+      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">Player ID: '+esc(s.player_id||'')+' | Division: '+esc(s.division||'')+' | Birthdate: '+esc(s.birthdate||'')+' | Format: '+esc(s.format||'Standard')+' | Total: '+esc(s.card_total??'')+'</div><pre>'+safeText+'</pre></body></html>');
       w.document.close();
       w.focus();
       setTimeout(()=>w.print(),250);
