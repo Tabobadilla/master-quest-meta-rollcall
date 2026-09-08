@@ -177,6 +177,7 @@ Example:
 
     const $ = id => document.getElementById(id);
     let options = [];
+    let archetypeProfiles = [];
     let detectedMain = null;
     let detectedSupport = null;
 
@@ -245,32 +246,67 @@ Example:
       const total=countCards(text);
       $('cardTotal').textContent=total+' / 60';
 
-      const scored=options.map(o=>({o,score:optionLineScore(text,o)})).filter(x=>x.score>0);
+      // First score complete archetype profiles.
+      const profileScores=(archetypeProfiles||[]).map(profile=>{
+        let score=0;
+        let mainMatched=false;
+        let partnerMatched=false;
 
-      const mains=scored.filter(x=>x.o.kind==='main')
-        .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
-      const supports=scored.filter(x=>x.o.kind==='support' || x.o.kind==='variant')
-        .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
+        for(const rel of (profile.relationships||[])){
+          const opt=options.find(o=>o.id===rel.option_id) || {id:rel.option_id,name:rel.option_name};
+          const copies=optionLineScore(text,opt);
+          if(copies >= Number(rel.min_copies||1)){
+            score += Number(rel.weight||0) + Math.min(copies,4)*2;
+            if(rel.relationship_type==='main_identifier') mainMatched=true;
+            if(rel.relationship_type==='support' || rel.relationship_type==='variant') partnerMatched=true;
+          }else if(rel.required){
+            score -= 1000;
+          }
+        }
 
-      detectedMain=mains[0]?.o||null;
-      detectedSupport=supports[0]?.o||null;
+        // A real archetype must match its Main identifier.
+        if(!mainMatched) score -= 1000;
+
+        return {profile,score,partnerMatched};
+      }).filter(x=>x.score>0)
+        .sort((a,b)=>b.score-a.score || Number(b.partnerMatched)-Number(a.partnerMatched) || a.profile.name.localeCompare(b.profile.name));
+
+      const best=profileScores[0]?.profile||null;
+
+      if(best){
+        detectedMain=options.find(o=>o.id===best.main_option_id)||null;
+        detectedSupport=best.support_option_id
+          ? options.find(o=>o.id===best.support_option_id)||null
+          : null;
+      }else{
+        // Fallback to individual library roles when no curated profile matches.
+        const scored=options.map(o=>({o,score:optionLineScore(text,o)})).filter(x=>x.score>0);
+        const mains=scored.filter(x=>x.o.kind==='main')
+          .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
+        const supports=scored.filter(x=>x.o.kind==='support' || x.o.kind==='variant')
+          .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
+        detectedMain=mains[0]?.o||null;
+        detectedSupport=supports[0]?.o||null;
+      }
 
       $('detectedMain').textContent=detectedMain?.name||'—';
-      $('detectedSupport').textContent=detectedSupport?.name||'—';
+      $('detectedSupport').textContent=detectedSupport?.name||'None';
 
       if(!text.trim()){
         $('deckWarning').innerHTML='';
       }else if(total===60){
-        $('deckWarning').innerHTML='<div class="msg good">✓ Decklist totals exactly 60 cards.</div>';
+        const profileNote=best ? ' Detected archetype: '+best.name+'.' : '';
+        $('deckWarning').innerHTML='<div class="msg good">✓ Decklist totals exactly 60 cards.'+profileNote+'</div>';
       }else{
         $('deckWarning').innerHTML='<div class="msg warn">Decklist currently totals '+total+' cards. You may still submit it, but the Professor will see that it needs review.</div>';
       }
     }
 
     async function loadData(){
-      const [{data:tours,error:tErr},{data:opts,error:oErr}] = await Promise.all([
+      const [{data:tours,error:tErr},{data:opts,error:oErr},{data:arch,error:aErr}] = await Promise.all([
         sb.rpc('list_open_tournaments'),
-        sb.rpc('list_public_deck_options')
+        sb.rpc('list_public_deck_options'),
+        sb.rpc('list_public_archetype_library')
       ]);
 
       if(tErr){
@@ -284,6 +320,7 @@ Example:
       }
 
       options=oErr?[]:(opts||[]);
+      archetypeProfiles=aErr?[]:(arch||[]);
       analyze();
     }
 
