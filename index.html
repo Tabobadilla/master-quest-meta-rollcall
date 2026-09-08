@@ -56,6 +56,18 @@
 .hub-actions button{width:auto;min-height:36px}
 </style>
 
+
+<style>
+.status-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.status-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800}
+.status-waiting{background:#fff3cd;color:#735c00}
+.status-good{background:#e3f4e8;color:#17653c}
+.status-paper{background:#e8eef8;color:#294c7a}
+.status-digital{background:#e6f0ff;color:#245da8}
+.status-review{background:#ffe6df;color:#8a3424}
+.check-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.check-actions .btn{width:auto;min-height:34px;padding:7px 10px;font-size:12px}
+</style>
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -84,9 +96,9 @@
       <section class="card"><div class="tabs" style="grid-template-columns:repeat(3,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button></div></section>
 
       <section id="adminNavCard" class="card hidden">
-        <div class="head"><div><h3 style="margin:0">Admin Tools</h3><div class="muted">Professor and Owner tools are kept separate from tournament entry.</div></div></div>
-        <div class="tabs" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-          <button type="button" data-admin-tab="professor" class="staff-only">Professor</button>
+        <div class="head"><div><h3 style="margin:0">Owner Tools</h3><div class="muted">Private Master Quest controls.</div></div></div>
+        <div class="tabs" style="grid-template-columns:1fr">
+          
           <button type="button" data-admin-tab="hub" class="owner-only">Master Hub</button>
         </div>
       </section>
@@ -113,13 +125,7 @@
         <div id="discordText" class="discord">Complete standings to generate output.</div>
         <button id="copyDiscord" class="btn full" style="margin-top:10px">Copy Discord Code</button>
       </section>
-
-      <section id="professorTab" class="card hidden staff-only">
-        <div class="head"><div><h3 style="margin:0">Professor Check-In</h3><div class="muted">Decklist submissions and trainer check-in will live here.</div></div><span class="pill">V2</span></div>
-        <div id="professorSubmissions" class="muted" style="margin-top:12px">No decklist submissions yet.</div>
-      </section>
-
-      <section id="hubTab" class="card hidden owner-only">
+<section id="hubTab" class="card hidden owner-only">
         <div class="head"><div><h3 style="margin:0">Master Hub</h3><div class="muted">Owner-only view of all tournaments and results.</div></div><button id="refreshHub" class="btn alt" style="width:auto">Refresh</button></div>
         <div id="hubMsg"></div>
         <div id="masterHubList" style="margin-top:12px"></div>
@@ -175,7 +181,7 @@
       if($('roleBadge')) $('roleBadge').textContent = label;
       document.querySelectorAll('.owner-only').forEach(el => el.classList.toggle('hidden', currentRole !== 'owner'));
       document.querySelectorAll('.staff-only').forEach(el => el.classList.toggle('hidden', !['professor','owner'].includes(currentRole)));
-      if($('adminNavCard')) $('adminNavCard').classList.toggle('hidden', !['professor','owner'].includes(currentRole));
+      if($('adminNavCard')) $('adminNavCard').classList.toggle('hidden', currentRole !== 'owner');
     }
 
     async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
@@ -197,14 +203,45 @@
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
     async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
-    $('tournamentSelect').onchange = async () => { const id=$('tournamentSelect').value; if(!id){ currentTournament=null; entries=[]; renderEntries(); if(['professor','owner'].includes(currentRole)) await loadProfessorSubmissions(); return; } const {data}=await sb.from('tournaments').select('*').eq('id',id).single(); currentTournament=data; await loadEntries(); if(['professor','owner'].includes(currentRole)) await loadProfessorSubmissions(); };
+    $('tournamentSelect').onchange = async () => { const id=$('tournamentSelect').value; if(!id){ currentTournament=null; entries=[]; renderEntries();  return; } const {data}=await sb.from('tournaments').select('*').eq('id',id).single(); currentTournament=data; await loadEntries();  };
     $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
     $('createTournament').onclick = async () => { const event_name=$('eventName').value.trim(),event_date=$('eventDate').value,location=$('location').value.trim(); if(!event_name||!event_date) return alert('Enter event/store and date.'); const {error}=await sb.from('tournaments').insert({event_name,event_date,location,status:'registration'}); if(error) return alert(error.message); $('newTournament').classList.add('hidden'); await loadTournaments(); };
 
-    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); }
+    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,player_id,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); }
+
+    function decklistBadge(e){
+      if(e.decklist_method==='paper') return '<span class="status-badge status-paper">📄 Paper Received</span>';
+      if(e.decklist_method==='digital'){
+        if(e.decklist_card_total===60 && e.decklist_verified) return '<span class="status-badge status-good">✓ Digital 60/60</span>';
+        if(e.decklist_card_total!=null) return '<span class="status-badge status-review">Digital '+esc(e.decklist_card_total)+'/60 — Review</span>';
+        return '<span class="status-badge status-digital">Digital Submitted</span>';
+      }
+      return '<span class="status-badge status-waiting">Decklist Not Submitted</span>';
+    }
+
+    function checkinBadge(e){
+      return e.check_in_status==='checked_in'
+        ? '<span class="status-badge status-good">✓ Checked In</span>'
+        : '<span class="status-badge status-waiting">Check-In Waiting</span>';
+    }
+
+    function checkActionButtons(e){
+      const paper = e.decklist_method==='paper'
+        ? '<button class="btn alt undo-paper" data-id="'+e.id+'">Undo Paper</button>'
+        : '<button class="btn alt mark-paper" data-id="'+e.id+'">Paper Received</button>';
+      const check = e.check_in_status==='checked_in'
+        ? '<button class="btn alt undo-checkin" data-id="'+e.id+'">Undo Check-In</button>'
+        : '<button class="btn check-in" data-id="'+e.id+'">Check In</button>';
+      return '<div class="check-actions">'+paper+check+'</div>';
+    }
+
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="name">'+esc(e.player_name)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><div class="actions"><button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="name">'+esc(e.player_name)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions"><button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
       document.querySelectorAll('.remove').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this player?')) return; const {error}=await sb.from('entries').delete().eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
+      document.querySelectorAll('.mark-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'paper',decklist_received_at:new Date().toISOString(),decklist_verified:true}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
+      document.querySelectorAll('.undo-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'none',decklist_received_at:null,decklist_verified:false}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
+      document.querySelectorAll('.check-in').forEach(b=>b.onclick=async()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e) return; if(e.decklist_method==='none' && !confirm('This player has no decklist recorded. Check them in anyway?')) return; const {error}=await sb.from('entries').update({check_in_status:'checked_in',checked_in_at:new Date().toISOString()}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
+      document.querySelectorAll('.undo-checkin').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({check_in_status:'waiting',checked_in_at:null}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e)return; $('playerName').value=e.player_name; $('mainOption').value=e.main_option_id||''; $('supportOption').value=e.support_option_id||''; $('addPlayer').dataset.editId=e.id; $('addPlayer').textContent='Save Player'; });
       $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player"><div><div class="name">'+esc(e.player_name)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
 
@@ -217,9 +254,9 @@
 
     $('addOption').onclick = async () => { showMsg('optionMsg',''); const name=$('optionName').value.trim(),discord_emoji_code=$('emojiCode').value.trim()||null; if(!name) return showMsg('optionMsg','Enter a Pokémon/card name.','bad'); const {error}=await sb.from('deck_options').insert({name,discord_emoji_code,active:true,kind:'main',option_type:'card_or_pokemon'}); if(error) return showMsg('optionMsg',error.message,'bad'); $('optionName').value=''; $('emojiCode').value=''; showMsg('optionMsg','Added to Main and Support selectors.','good'); await loadOptions(); };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if($('professorTab')) $('professorTab').classList.add('hidden'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); });  if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
-    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('professorTab')) $('professorTab').classList.toggle('hidden', b.dataset.adminTab!=='professor'); if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); if(b.dataset.adminTab==='professor') await loadProfessorSubmissions(); if(b.dataset.adminTab==='hub') await loadMasterHub(); });
+    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); });  if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub');  if(b.dataset.adminTab==='hub') await loadMasterHub(); });
     boot();
   </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
