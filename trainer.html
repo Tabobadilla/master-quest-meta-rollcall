@@ -84,6 +84,7 @@
         <select id="tournament">
           <option value="">Loading tournaments...</option>
         </select>
+        <div id="selectedTournamentInfo" class="muted" style="margin-top:6px">Choose a tournament to see the store.</div>
       </div>
 
       <div class="row">
@@ -315,12 +316,31 @@ Example:
       }else{
         const t=tours||[];
         $('tournament').innerHTML='<option value="">Choose tournament...</option>'+
-          t.map(x=>'<option value="'+x.id+'">'+esc(x.store_name||'Unassigned Store')+' — '+esc(x.event_name)+' — '+x.event_date+(x.location?' • '+esc(x.location):'')+'</option>').join('');
+          t.map(x=>{
+            const store=x.store_name||'Unassigned Store';
+            return '<option value="'+x.id+'" data-store="'+esc(store)+'" data-event="'+esc(x.event_name)+'" data-date="'+x.event_date+'">'+
+              esc(store)+' — '+esc(x.event_name)+' — '+x.event_date+
+              (x.location?' • '+esc(x.location):'')+
+            '</option>';
+          }).join('');
         if(!t.length) showMsg('There are currently no tournaments accepting decklist submissions.','warn');
       }
 
       options=oErr?[]:(opts||[]);
       archetypeProfiles=aErr?[]:(arch||[]);
+
+      $('tournament').onchange=()=>{
+        const selected=$('tournament').selectedOptions[0];
+        if(!selected || !selected.value){
+          $('selectedTournamentInfo').textContent='Choose a tournament to see the store.';
+          return;
+        }
+        const store=selected.dataset.store||'Unassigned Store';
+        const event=selected.dataset.event||'';
+        const date=selected.dataset.date||'';
+        $('selectedTournamentInfo').innerHTML='<b>Store:</b> '+esc(store)+' &nbsp;•&nbsp; <b>Event:</b> '+esc(event)+' &nbsp;•&nbsp; '+esc(date);
+      };
+
       analyze();
     }
 
@@ -392,5 +412,6 @@ Example:
 
     loadData();
   </script>
+<div style="text-align:center;font-size:10px;color:#8aa093;padding:8px">Store-aware tournament picker</div>
 </body>
 </html>
