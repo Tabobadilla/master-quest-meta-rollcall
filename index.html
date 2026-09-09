@@ -262,7 +262,13 @@
 
     <main id="app" class="hidden">
       <section class="card">
-        <div class="head"><div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div><button id="signOut" class="btn alt" style="width:auto">Sign Out</button></div>
+        <div class="head">
+          <div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="accountSettingsBtn" class="btn alt" style="width:auto">Account Settings</button>
+            <button id="signOut" class="btn alt" style="width:auto">Sign Out</button>
+          </div>
+        </div>
         <div class="field"><label>Current Tournament</label><select id="tournamentSelect"></select></div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
           <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
@@ -277,6 +283,65 @@
           <button id="createTournament" class="btn full">Create Tournament</button>
         </div>
       </section>
+
+      <section id="accountSettingsCard" class="card hidden">
+        <div class="head">
+          <div>
+            <h3 style="margin:0">Account Settings</h3>
+            <div class="muted">Store assignment for your Professor account.</div>
+          </div>
+          <button id="closeAccountSettings" class="btn alt" style="width:auto">Close</button>
+        </div>
+
+        <div id="accountSettingsMsg"></div>
+
+        <div class="field">
+          <label>Name</label>
+          <input id="accountDisplayName" disabled>
+        </div>
+
+        <div class="field">
+          <label>Current Role</label>
+          <input id="accountRole" disabled>
+        </div>
+
+        <div class="field">
+          <label>Assigned Store</label>
+          <input id="accountCurrentStore" disabled>
+        </div>
+
+        <div id="accountNoStoreArea">
+          <div class="field">
+            <label>Select Existing Store</label>
+            <select id="accountStoreSelect">
+              <option value="">Choose store...</option>
+            </select>
+          </div>
+
+          <button id="saveAccountStore" class="btn full">Assign Me to This Store</button>
+
+          <div class="hub-section" style="margin-top:18px">
+            <label style="display:flex;align-items:center;gap:8px;font-weight:800">
+              <input id="accountStoreNotListed" type="checkbox" style="width:auto;min-height:0">
+              My store is not listed
+            </label>
+
+            <div id="accountStoreRequestArea" class="hidden" style="margin-top:10px">
+              <div class="field">
+                <label>Requested Store Name</label>
+                <input id="accountRequestedStoreName" placeholder="Example: Wasteland Gaming">
+              </div>
+              <button id="requestAccountStore" class="btn alt full">Request New Store</button>
+              <div class="muted" style="margin-top:6px">New stores require Owner approval before Professor access is activated.</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="accountStoreLockedMsg" class="hidden">
+          <div class="msg good">Your account is assigned to a store. Contact the Owner if the assignment needs to change.</div>
+        </div>
+      </section>
+
 
       <section class="card"><div class="tabs" style="grid-template-columns:repeat(3,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button></div></section>
 
@@ -674,6 +739,7 @@
 
       if($('adminNavCard')) $('adminNavCard').classList.toggle('hidden', currentRole !== 'owner');
       if($('deleteCurrentTournament')) $('deleteCurrentTournament').classList.toggle('hidden', currentRole!=='owner');
+      if($('accountSettingsBtn')) $('accountSettingsBtn').classList.toggle('hidden', currentRole==='owner');
 
       populateTournamentStoreSelector();
     }
@@ -1470,6 +1536,59 @@
       });
     }
 
+
+    async function loadAccountSettings(){
+      if(!$('accountSettingsCard')) return;
+
+      const {data,error}=await sb.rpc('get_my_profile_context');
+      if(error) return showMsg('accountSettingsMsg',error.message,'bad');
+
+      const profile=(data||[])[0];
+      if(!profile) return;
+
+      $('accountDisplayName').value=profile.display_name||'';
+      $('accountRole').value=profile.role||'';
+      $('accountCurrentStore').value=profile.store_name||'Not Assigned';
+
+      $('accountStoreSelect').innerHTML='<option value="">Choose store...</option>'+
+        availableStores.map(s=>'<option value="'+s.id+'">'+esc(s.name)+(s.location?' — '+esc(s.location):'')+'</option>').join('');
+
+      const hasStore=!!profile.store_id;
+      $('accountNoStoreArea').classList.toggle('hidden',hasStore);
+      $('accountStoreLockedMsg').classList.toggle('hidden',!hasStore);
+    }
+
+    async function assignMyStore(){
+      showMsg('accountSettingsMsg','');
+      const storeId=$('accountStoreSelect').value;
+      if(!storeId) return showMsg('accountSettingsMsg','Choose a store first.','bad');
+
+      const {error}=await sb.rpc('assign_my_existing_store',{p_store_id:storeId});
+      if(error) return showMsg('accountSettingsMsg',error.message,'bad');
+
+      await loadRole();
+      applyRoleUI();
+      await loadTournaments();
+      await loadAccountSettings();
+
+      showMsg('accountSettingsMsg','Store assigned. Your Professor access is now limited to this store.','good');
+    }
+
+    async function requestMyStore(){
+      showMsg('accountSettingsMsg','');
+      const name=$('accountRequestedStoreName').value.trim();
+      if(!name) return showMsg('accountSettingsMsg','Enter the store name.','bad');
+
+      const {error}=await sb.rpc('request_my_new_store',{p_store_name:name});
+      if(error) return showMsg('accountSettingsMsg',error.message,'bad');
+
+      showMsg('accountSettingsMsg','Store request submitted. The Owner must approve it before Professor access is activated.','good');
+      setTimeout(async()=>{
+        await sb.auth.signOut();
+        location.reload();
+      },1400);
+    }
+
     async function boot(){
       await loadAvailableStores();
       const {data:{session}} = await sb.auth.getSession();
@@ -1581,6 +1700,29 @@
     };
 
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    if($('accountSettingsBtn')) $('accountSettingsBtn').onclick=async()=>{
+      $('accountSettingsCard').classList.remove('hidden');
+      await loadAvailableStores();
+      await loadAccountSettings();
+      $('accountSettingsCard').scrollIntoView({behavior:'smooth',block:'start'});
+    };
+
+    if($('closeAccountSettings')) $('closeAccountSettings').onclick=()=>{
+      $('accountSettingsCard').classList.add('hidden');
+      showMsg('accountSettingsMsg','');
+    };
+
+    if($('saveAccountStore')) $('saveAccountStore').onclick=assignMyStore;
+
+    if($('accountStoreNotListed')) $('accountStoreNotListed').onchange=()=>{
+      const show=$('accountStoreNotListed').checked;
+      $('accountStoreRequestArea').classList.toggle('hidden',!show);
+      $('accountStoreSelect').disabled=show;
+      $('saveAccountStore').disabled=show;
+      if(show) $('accountStoreSelect').value='';
+    };
+
+    if($('requestAccountStore')) $('requestAccountStore').onclick=requestMyStore;
     if($('refreshProfessors')) $('refreshProfessors').onclick=loadProfessorDirectory;
     if($('deleteCurrentTournament')) $('deleteCurrentTournament').onclick=()=>{
       if(!currentTournament) return alert('Select a tournament first.');
