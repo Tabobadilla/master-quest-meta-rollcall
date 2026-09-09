@@ -1144,11 +1144,15 @@
     function hubTournamentCard(tour){
       const rows=hubTournamentEntries(tour.id);
       const s=hubStats(rows);
+      const store=(tour.store_name||'Unassigned Store').trim();
+
       return '<div class="hub-tournament-card">'+
         '<div class="hub-tournament-head">'+
-          '<div><div class="hub-tournament-title">'+esc(tour.event_name)+'</div>'+
-          '<div class="muted"><b>Store:</b> '+esc(tour.store_name||'Unassigned Store')+'</div>'+
-          '<div class="muted">'+esc(tour.event_date)+(tour.location?' • '+esc(tour.location):'')+' • '+esc(tour.status||'')+'</div></div>'+
+          '<div>'+
+            '<div class="hub-tournament-title">'+esc(tour.event_name)+'</div>'+
+            '<div class="muted"><b>Store:</b> '+esc(store)+'</div>'+
+            '<div class="muted">'+esc(tour.event_date)+(tour.location?' • '+esc(tour.location):'')+' • '+esc(tour.status||'')+'</div>'+
+          '</div>'+
         '</div>'+
         '<div class="hub-mini-grid">'+
           '<div class="hub-mini"><b>'+s.trainers+'</b><span>TRAINERS</span></div>'+
@@ -1164,7 +1168,6 @@
         '</div>'+
       '</div>';
     }
-
 
     async function deleteTournamentOwner(id,label){
       if(currentRole!=='owner') return alert('Owner access required.');
@@ -1945,8 +1948,51 @@
     async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); populateOptionEditor(); if(currentRole==='owner') fillLibraryOptionMenus(); }
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
-    async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc((t.store_name||'Unassigned Store'))+' — '+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
-    $('tournamentSelect').onchange = async () => { const id=$('tournamentSelect').value; if(!id){ currentTournament=null; entries=[]; renderEntries();  return; } const {data}=await sb.from('tournaments').select('*').eq('id',id).single(); currentTournament=data; await loadEntries();  };
+    async function loadTournaments(){
+      const {data,error}=await sb.from('tournaments')
+        .select('*')
+        .order('event_date',{ascending:false});
+
+      if(error) return;
+
+      const d=data||[];
+
+      $('tournamentSelect').innerHTML=
+        '<option value="">Select tournament...</option>'+
+        d.map(t=>{
+          const store=(t.store_name||'Unassigned Store').trim();
+          return '<option value="'+t.id+'">'+
+            esc(store)+' — '+esc(t.event_name)+' — '+t.event_date+
+          '</option>';
+        }).join('');
+
+      if(d.length){
+        $('tournamentSelect').value=d[0].id;
+        currentTournament=d[0];
+        if($('eventSummary')) $('eventSummary').textContent=(d[0].store_name||'Unassigned Store')+' — '+d[0].event_name+' — '+d[0].event_date;
+        await loadEntries();
+      }else{
+        currentTournament=null;
+        entries=[];
+        renderEntries();
+      }
+    }
+
+    $('tournamentSelect').onchange = async () => {
+      const id=$('tournamentSelect').value;
+      if(!id){
+        currentTournament=null;
+        entries=[];
+        if($('eventSummary')) $('eventSummary').textContent='Select or create an event';
+        renderEntries();
+        return;
+      }
+      const {data}=await sb.from('tournaments').select('*').eq('id',id).single();
+      currentTournament=data;
+      if($('eventSummary')) $('eventSummary').textContent=
+        (data.store_name||'Unassigned Store')+' — '+data.event_name+' — '+data.event_date;
+      await loadEntries();
+    };
     $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
     $('createTournament').onclick = async () => {
       const event_name=$('eventName').value.trim();
