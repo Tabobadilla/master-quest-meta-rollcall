@@ -532,7 +532,7 @@
 
     <div class="hub-section" style="margin-top:14px;padding-top:0;border-top:0">
       <h3 style="margin:0">Professor Accounts</h3>
-      <div id="professorDirectory" style="margin-top:10px"></div>
+      <div id="professorDirectory" style="margin-top:10px"><div class="muted">Loading Professor accounts…</div></div>
     </div>
 
     <div class="hub-section">
@@ -563,7 +563,7 @@
 
       <button id="ownerAddStore" class="btn full">Add Store</button>
       <div id="ownerStoreMsg"></div>
-      <div id="ownerStoreList" style="margin-top:12px"></div>
+      <div id="ownerStoreList" style="margin-top:12px"><div class="muted">Loading stores…</div></div>
     </div>
 
 </div>
@@ -1887,7 +1887,7 @@
       document.querySelectorAll('[data-hub-view]').forEach(x=>x.classList.remove('on'));
       b.classList.add('on');
       const view=b.dataset.hubView;
-      ['overview','meta','tournaments','played','library','system'].forEach(v=>{
+      ['overview','meta','tournaments','played','professors','library','system'].forEach(v=>{
         const el=$('hub'+v.charAt(0).toUpperCase()+v.slice(1)+'Pane');
         if(el) el.classList.toggle('hidden',v!==view);
       });
