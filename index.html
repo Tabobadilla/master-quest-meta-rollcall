@@ -194,6 +194,15 @@
   .store-request-row{grid-template-columns:1fr}
 }
 </style>
+
+<style>
+.owner-store-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-top:1px solid #e4ebe6}
+.owner-store-row:first-child{border-top:0}
+.owner-store-name{font-weight:850}
+.owner-store-meta{font-size:12px;color:#667a70;margin-top:2px}
+.owner-store-actions{display:flex;gap:6px;flex-wrap:wrap}
+.owner-store-actions .btn{width:auto;min-height:34px;padding:7px 10px;font-size:12px}
+</style>
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -529,7 +538,33 @@
       <div class="muted">Approve a requested store to activate that Professor's store access.</div>
       <div id="storeRequestDirectory" style="margin-top:10px"></div>
     </div>
-  </div>
+  
+    <div id="storeManagement" class="hub-section">
+      <div class="head">
+        <div>
+          <h3 style="margin:0">Store Management</h3>
+          <div class="muted">Owner-only store registry used for Professor assignments and tournament ownership.</div>
+        </div>
+        <button id="refreshStores" class="btn alt" style="width:auto">Refresh Stores</button>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <div class="field">
+          <label>Store Name</label>
+          <input id="ownerStoreName" placeholder="Example: Wasteland Gaming">
+        </div>
+        <div class="field">
+          <label>Location / Address (optional)</label>
+          <input id="ownerStoreLocation" placeholder="Example: Duluth, GA">
+        </div>
+      </div>
+
+      <button id="ownerAddStore" class="btn full">Add Store</button>
+      <div id="ownerStoreMsg"></div>
+      <div id="ownerStoreList" style="margin-top:12px"></div>
+    </div>
+
+</div>
 
 
   <div id="hubLibraryPane" class="hub-pane hidden">
@@ -1452,6 +1487,74 @@
     }
 
 
+
+    async function loadOwnerStores(){
+      if(currentRole!=='owner' || !$('ownerStoreList')) return;
+
+      await loadAvailableStores();
+
+      $('ownerStoreList').innerHTML=availableStores.length
+        ? availableStores.map(s=>
+            '<div class="owner-store-row">'+
+              '<div>'+
+                '<div class="owner-store-name">'+esc(s.name)+'</div>'+
+                '<div class="owner-store-meta">'+esc(s.location||'No location set')+'</div>'+
+              '</div>'+
+              '<div class="owner-store-actions">'+
+                '<button type="button" class="btn alt edit-owner-store" data-id="'+s.id+'">Edit</button>'+
+              '</div>'+
+            '</div>'
+          ).join('')
+        : '<div class="muted">No stores have been added yet.</div>';
+
+      document.querySelectorAll('.edit-owner-store').forEach(b=>b.onclick=async()=>{
+        const s=availableStores.find(x=>x.id===b.dataset.id);
+        if(!s) return;
+
+        const name=prompt('Store name:',s.name);
+        if(name===null) return;
+
+        const location=prompt('Store location/address:',s.location||'');
+        if(location===null) return;
+
+        const {error}=await sb.rpc('owner_update_store',{
+          p_store_id:s.id,
+          p_name:name.trim(),
+          p_location:location.trim()
+        });
+
+        if(error) return alert(error.message);
+
+        await loadOwnerStores();
+        await loadProfessorDirectory();
+        await loadOwnerStores();
+      });
+    }
+
+    async function ownerAddStore(){
+      showMsg('ownerStoreMsg','');
+
+      const name=$('ownerStoreName').value.trim();
+      const location=$('ownerStoreLocation').value.trim();
+
+      if(!name) return showMsg('ownerStoreMsg','Enter a store name.','bad');
+
+      const {error}=await sb.rpc('owner_create_store',{
+        p_name:name,
+        p_location:location
+      });
+
+      if(error) return showMsg('ownerStoreMsg',error.message,'bad');
+
+      $('ownerStoreName').value='';
+      $('ownerStoreLocation').value='';
+      showMsg('ownerStoreMsg','Store added.','good');
+
+      await loadOwnerStores();
+      await loadProfessorDirectory();
+      populateTournamentStoreSelector();
+    }
+
     async function loadProfessorDirectory(){
       if(currentRole!=='owner' || !$('professorDirectory')) return;
 
@@ -1700,6 +1803,8 @@
     };
 
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    if($('ownerAddStore')) $('ownerAddStore').onclick=ownerAddStore;
+    if($('refreshStores')) $('refreshStores').onclick=loadOwnerStores;
     if($('accountSettingsBtn')) $('accountSettingsBtn').onclick=async()=>{
       $('accountSettingsCard').classList.remove('hidden');
       await loadAvailableStores();
@@ -1752,7 +1857,7 @@
       });
       if(view==='meta'){ populateHubMetaStoreFilter(); populateHubMetaTournamentFilter(); renderHubMetaFromFilters(); }
       if(view==='played') await loadRibbonTournaments();
-      if(view==='professors') await loadProfessorDirectory();
+      if(view==='professors'){ await loadProfessorDirectory(); await loadOwnerStores(); }
       if(view==='library'){ await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); }
     });
 
