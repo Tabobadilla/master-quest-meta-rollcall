@@ -315,7 +315,7 @@ Example:
       }else{
         const t=tours||[];
         $('tournament').innerHTML='<option value="">Choose tournament...</option>'+
-          t.map(x=>'<option value="'+x.id+'">'+esc(x.event_name)+' — '+x.event_date+(x.location?' • '+esc(x.location):'')+'</option>').join('');
+          t.map(x=>'<option value="'+x.id+'">'+esc(x.store_name||'Unassigned Store')+' — '+esc(x.event_name)+' — '+x.event_date+(x.location?' • '+esc(x.location):'')+'</option>').join('');
         if(!t.length) showMsg('There are currently no tournaments accepting decklist submissions.','warn');
       }
 
