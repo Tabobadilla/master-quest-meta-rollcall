@@ -306,8 +306,10 @@
 
         <div class="field">
           <label>Name</label>
-          <input id="accountDisplayName" disabled>
+          <input id="accountDisplayName" placeholder="Professor full name">
         </div>
+
+        <button id="saveProfessorName" class="btn alt full" style="margin-bottom:12px">Save Professor Name</button>
 
         <div class="field">
           <label>Current Role</label>
@@ -1577,15 +1579,34 @@
 
             return '<div class="professor-directory-row">'+
               '<div>'+
-                '<div class="professor-name">'+esc(p.display_name||'Professor')+'</div>'+
-                '<div class="professor-email">'+esc(p.email||'')+'</div>'+
+                '<div class="professor-name">Professor Name: '+esc((p.display_name&& !p.display_name.includes('@'))?p.display_name:'Name Needed')+'</div>'+
+                '<div class="professor-email">Professor Email: '+esc(p.email||'')+'</div>'+
+                '<div class="professor-email">Store Representative: '+esc(p.store_name||'Not Assigned')+'</div>'+
                 '<span class="professor-status '+statusClass+'">'+esc(p.access_status||'')+'</span>'+
               '</div>'+
               '<select class="professor-store-select professor-assignment" data-user="'+p.user_id+'">'+storeOptions+'</select>'+
-              '<button type="button" class="btn alt save-professor-store" data-user="'+p.user_id+'" style="width:auto">Save Store</button>'+
+              '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+                '<button type="button" class="btn alt edit-professor-name" data-user="'+p.user_id+'" data-name="'+esc((p.display_name&& !p.display_name.includes('@'))?p.display_name:'')+'" style="width:auto">Edit Name</button>'+
+                '<button type="button" class="btn alt save-professor-store" data-user="'+p.user_id+'" style="width:auto">Save Store</button>'+
+              '</div>'+
             '</div>';
           }).join('')
         : '<div class="muted">No Professor accounts yet.</div>';
+
+      document.querySelectorAll('.edit-professor-name').forEach(b=>b.onclick=async()=>{
+        const name=prompt('Professor Name:',b.dataset.name||'');
+        if(name===null) return;
+        const clean=name.trim();
+        if(!clean) return alert('Professor name is required.');
+        if(clean.includes('@')) return alert('Enter the Professor name, not their email.');
+
+        const {error}=await sb.rpc('owner_update_professor_name',{
+          p_user_id:b.dataset.user,
+          p_display_name:clean
+        });
+        if(error) return alert(error.message);
+        await loadProfessorDirectory();
+      });
 
       document.querySelectorAll('.save-professor-store').forEach(b=>b.onclick=async()=>{
         const select=document.querySelector('.professor-assignment[data-user="'+b.dataset.user+'"]');
@@ -1649,7 +1670,7 @@
       const profile=(data||[])[0];
       if(!profile) return;
 
-      $('accountDisplayName').value=profile.display_name||'';
+      $('accountDisplayName').value=(profile.display_name && !profile.display_name.includes('@')) ? profile.display_name : '';
       $('accountRole').value=profile.role||'';
       $('accountCurrentStore').value=profile.store_name||'Not Assigned';
 
@@ -1659,6 +1680,20 @@
       const hasStore=!!profile.store_id;
       $('accountNoStoreArea').classList.toggle('hidden',hasStore);
       $('accountStoreLockedMsg').classList.toggle('hidden',!hasStore);
+    }
+
+    async function saveMyProfessorName(){
+      showMsg('accountSettingsMsg','');
+      const name=$('accountDisplayName').value.trim();
+      if(!name) return showMsg('accountSettingsMsg','Professor name is required.','bad');
+      if(name.includes('@')) return showMsg('accountSettingsMsg','Enter your Professor name, not your email address.','bad');
+
+      const {error}=await sb.rpc('update_my_professor_name',{p_display_name:name});
+      if(error) return showMsg('accountSettingsMsg',error.message,'bad');
+
+      await loadRole();
+      applyRoleUI();
+      showMsg('accountSettingsMsg','Professor name updated.','good');
     }
 
     async function assignMyStore(){
@@ -1817,6 +1852,7 @@
       showMsg('accountSettingsMsg','');
     };
 
+    if($('saveProfessorName')) $('saveProfessorName').onclick=saveMyProfessorName;
     if($('saveAccountStore')) $('saveAccountStore').onclick=assignMyStore;
 
     if($('accountStoreNotListed')) $('accountStoreNotListed').onchange=()=>{
