@@ -124,7 +124,7 @@
 </style>
 
 <style>
-.hub-subnav{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:14px}
+.hub-subnav{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;margin-top:14px}
 .hub-subnav button{border:0;border-radius:10px;background:#e8f0eb;color:#244c3a;min-height:42px;font-weight:800;cursor:pointer}
 .hub-subnav button.on{background:#0f7a49;color:#fff}
 .hub-pane.hidden{display:none!important}
@@ -175,17 +175,89 @@
   .meta-filter-grid{grid-template-columns:1fr!important}
 }
 </style>
+
+<style>
+.professor-directory-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(160px,.8fr) auto;gap:10px;align-items:center;padding:11px 0;border-top:1px solid #e4ebe6}
+.professor-directory-row:first-child{border-top:0}
+.professor-name{font-weight:850}
+.professor-email{font-size:12px;color:#667a70;margin-top:2px}
+.professor-status{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:850;margin-top:5px}
+.professor-status.active{background:#e4f4e9;color:#17653c}
+.professor-status.pending{background:#fff3cd;color:#735c00}
+.professor-store-select{min-height:40px}
+.store-request-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-top:1px solid #e4ebe6}
+.store-request-row:first-child{border-top:0}
+.store-request-actions{display:flex;gap:7px;flex-wrap:wrap}
+.store-request-actions .btn{width:auto;min-height:34px;padding:7px 10px;font-size:12px}
+@media(max-width:720px){
+  .professor-directory-row{grid-template-columns:1fr}
+  .store-request-row{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
   <div class="wrap">
     <section id="auth" class="card auth">
-      <h2 style="margin-top:0">Sign in</h2>
-      <div class="muted">Use your Master Quest account to access tournament data.</div>
-      <div id="authMsg"></div>
-      <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div>
-      <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
-      <div class="row"><button class="btn" id="signIn">Sign In</button><button class="btn alt" id="signUp">Create Account</button></div>
+      <div id="signInPanel">
+        <h2 style="margin-top:0">Professor / Organizer Sign In</h2>
+        <div class="muted">Sign in to manage tournaments for your assigned store.</div>
+        <div id="authMsg"></div>
+        <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div>
+        <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
+        <div class="row">
+          <button class="btn" id="signIn">Sign In</button>
+          <button class="btn alt" id="showSignUp">Create Professor Account</button>
+        </div>
+      </div>
+
+      <div id="signUpPanel" class="hidden">
+        <h2 style="margin-top:0">Professor Registration</h2>
+        <div class="muted">Create your Professor account and select the store you represent.</div>
+        <div id="signUpMsg"></div>
+
+        <div class="field">
+          <label>Professor Name</label>
+          <input id="signUpName" placeholder="Full name" autocomplete="name">
+        </div>
+
+        <div class="field">
+          <label>Email</label>
+          <input id="signUpEmail" type="email" autocomplete="email">
+        </div>
+
+        <div class="field">
+          <label>Password</label>
+          <input id="signUpPassword" type="password" autocomplete="new-password">
+        </div>
+
+        <div class="field">
+          <label>Store Representative</label>
+          <select id="signUpStore">
+            <option value="">Choose store...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:800">
+            <input id="storeNotListed" type="checkbox" style="width:auto;min-height:0">
+            My store is not listed
+          </label>
+        </div>
+
+        <div id="newStoreRequestFields" class="hidden">
+          <div class="field">
+            <label>Requested Store Name</label>
+            <input id="requestedStoreName" placeholder="Example: Wasteland Gaming">
+          </div>
+          <div class="muted">This account will remain pending until the Owner approves the new store.</div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <button class="btn" id="submitProfessorSignUp">Create Account</button>
+          <button class="btn alt" id="backToSignIn">Back to Sign In</button>
+        </div>
+      </div>
     </section>
 
     <main id="app" class="hidden">
@@ -199,7 +271,7 @@
         <div id="newTournament" class="hidden">
           <div class="row">
             <div class="field"><label>Tournament Name</label><input id="eventName" placeholder="League Cup"></div>
-            <div class="field"><label>Store Name</label><input id="storeName" placeholder="GuuBuu Hobby"></div>
+            <div class="field"><label>Store</label><select id="tournamentStoreSelect"><option value="">Choose store...</option></select></div>
           </div>
           <div class="row"><div class="field"><label>Date</label><input id="eventDate" type="date"></div><div class="field"><label>Location</label><input id="location" placeholder="Snellville, GA"></div></div>
           <button id="createTournament" class="btn full">Create Tournament</button>
@@ -254,6 +326,7 @@
     <button type="button" data-hub-view="meta">Meta</button>
     <button type="button" data-hub-view="tournaments">Tournaments</button>
     <button type="button" data-hub-view="played">Played Against</button>
+    <button type="button" data-hub-view="professors">Professors</button>
     <button type="button" data-hub-view="library">Library</button>
     <button type="button" data-hub-view="system">System</button>
   </div>
@@ -370,6 +443,30 @@
     </div>
   </div>
 
+  <div id="hubProfessorsPane" class="hub-pane hidden">
+    <div class="head">
+      <div>
+        <h3 style="margin:0">Professor Directory</h3>
+        <div class="muted">Owner-only view of Professor accounts and their assigned stores.</div>
+      </div>
+      <button id="refreshProfessors" class="btn alt" style="width:auto">Refresh</button>
+    </div>
+
+    <div id="professorMsg"></div>
+
+    <div class="hub-section" style="margin-top:14px;padding-top:0;border-top:0">
+      <h3 style="margin:0">Professor Accounts</h3>
+      <div id="professorDirectory" style="margin-top:10px"></div>
+    </div>
+
+    <div class="hub-section">
+      <h3 style="margin:0">New Store Requests</h3>
+      <div class="muted">Approve a requested store to activate that Professor's store access.</div>
+      <div id="storeRequestDirectory" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+
   <div id="hubLibraryPane" class="hub-pane hidden">
     <div>
       <div class="head">
@@ -472,6 +569,7 @@
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const $ = (id) => document.getElementById(id);
     let currentTournament = null, options = [], entries = [], currentRole = 'trainer';
+    let currentProfileRole='trainer', currentAccessStatus='active', currentStoreId=null, currentStoreName='', availableStores=[];
     window.__mqOpenHubTournament = window.__mqOpenHubTournament || function(){ alert('Tournament viewer is still loading. Refresh the page and try again.'); };
 
     function showMsg(id, text, type='') { $(id).innerHTML = text ? '<div class="msg '+type+'">'+text+'</div>' : ''; }
@@ -526,19 +624,59 @@
 
     async function loadRole(){
       const {data:{user}} = await sb.auth.getUser();
-      if(!user){ currentRole='trainer'; return; }
-      const {data,error} = await sb.from('profiles').select('role').eq('user_id',user.id).single();
-      if(!error && data?.role) currentRole=data.role;
+      if(!user){
+        currentRole='trainer';
+        currentProfileRole='trainer';
+        currentAccessStatus='active';
+        currentStoreId=null;
+        currentStoreName='';
+        return;
+      }
+
+      const {data,error}=await sb.rpc('get_my_profile_context');
+      const profile=(data||[])[0];
+
+      if(error || !profile){
+        currentRole='trainer';
+        return;
+      }
+
+      currentProfileRole=profile.role||'trainer';
+      currentAccessStatus=profile.access_status||'active';
+      currentStoreId=profile.store_id||null;
+      currentStoreName=profile.store_name||'';
+
+      currentRole = currentProfileRole==='owner'
+        ? 'owner'
+        : (currentProfileRole==='professor' && currentAccessStatus==='active' && currentStoreId)
+          ? 'professor'
+          : 'trainer';
     }
 
     function applyRoleUI(){
-      const label = currentRole === 'owner' ? 'Owner' : currentRole === 'professor' ? 'Professor' : 'Trainer';
+      const label = currentRole === 'owner'
+        ? 'Owner'
+        : currentRole === 'professor'
+          ? 'Professor — '+(currentStoreName||'Assigned Store')
+          : currentProfileRole==='professor' && currentAccessStatus==='pending_store'
+            ? 'Professor — Store Approval Pending'
+            : 'Trainer';
+
       if($('roleBadge')) $('roleBadge').textContent = label;
-      document.querySelectorAll('.owner-only').forEach(el => el.classList.toggle('hidden', currentRole !== 'owner'));
-      document.querySelectorAll('.staff-only').forEach(el => el.classList.toggle('hidden', !['professor','owner'].includes(currentRole)));
+
+      document.querySelectorAll('.owner-only').forEach(el =>
+        el.classList.toggle('hidden', currentRole !== 'owner')
+      );
+
+      document.querySelectorAll('.staff-only').forEach(el =>
+        el.classList.toggle('hidden', !['professor','owner'].includes(currentRole))
+      );
+
       if($('adminNavCard')) $('adminNavCard').classList.toggle('hidden', currentRole !== 'owner');
-    
-      if($('deleteCurrentTournament')) $('deleteCurrentTournament').classList.toggle('hidden', currentRole!=='owner');}
+      if($('deleteCurrentTournament')) $('deleteCurrentTournament').classList.toggle('hidden', currentRole!=='owner');
+
+      populateTournamentStoreSelector();
+    }
 
 
     async function openDeckSubmission(entryId){
@@ -1142,7 +1280,7 @@
       const tournamentsTab=document.querySelector('[data-hub-view="tournaments"]');
       if(tournamentsTab) tournamentsTab.classList.add('on');
 
-      ['overview','meta','tournaments','played','library','system'].forEach(v=>{
+      ['overview','meta','tournaments','played','professors','library','system'].forEach(v=>{
         const el=$('hub'+v.charAt(0).toUpperCase()+v.slice(1)+'Pane');
         if(el) el.classList.toggle('hidden',v!=='tournaments');
       });
@@ -1211,20 +1349,239 @@
       renderMasterHub();
     }
 
-    async function boot(){ const {data:{session}} = await sb.auth.getSession(); if(session) await showApp(); }
-    async function showApp(){
-      $('auth').classList.add('hidden');
-      $('app').classList.remove('hidden');
-      await loadRole();
-      applyRoleUI();
-      await loadOptions();
-      await loadTournaments();
-      if(currentRole === 'owner'){ await loadMasterHub(); await loadRibbonTournaments(); }
+
+    async function loadAvailableStores(){
+      const {data,error}=await sb.rpc('list_signup_stores');
+      if(error){
+        availableStores=[];
+        return;
+      }
+      availableStores=data||[];
+
+      if($('signUpStore')){
+        $('signUpStore').innerHTML='<option value="">Choose store...</option>'+
+          availableStores.map(s=>'<option value="'+s.id+'">'+esc(s.name)+(s.location?' — '+esc(s.location):'')+'</option>').join('');
+      }
+
+      populateTournamentStoreSelector();
     }
 
-    $('signIn').onclick = async () => { showMsg('authMsg',''); const {error} = await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); await showApp(); };
-    $('signUp').onclick = async () => { showMsg('authMsg',''); const {data,error} = await sb.auth.signUp({email:$('email').value,password:$('password').value}); if(error) return showMsg('authMsg',error.message,'bad'); if(data.session) await showApp(); else showMsg('authMsg','Account created. Check your email if confirmation is required.','good'); };
+    function populateTournamentStoreSelector(){
+      if(!$('tournamentStoreSelect')) return;
+
+      $('tournamentStoreSelect').innerHTML='<option value="">Choose store...</option>'+
+        availableStores.map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');
+
+      if(currentRole==='professor'){
+        $('tournamentStoreSelect').value=currentStoreId||'';
+        $('tournamentStoreSelect').disabled=true;
+      }else{
+        $('tournamentStoreSelect').disabled=false;
+      }
+    }
+
+    function selectedStoreRecord(){
+      const id=$('tournamentStoreSelect')?.value||'';
+      return availableStores.find(s=>s.id===id)||null;
+    }
+
+
+    async function loadProfessorDirectory(){
+      if(currentRole!=='owner' || !$('professorDirectory')) return;
+
+      const [{data:profs,error:pErr},{data:reqs,error:rErr}] = await Promise.all([
+        sb.rpc('owner_list_professors'),
+        sb.rpc('owner_list_store_requests')
+      ]);
+
+      if(pErr) showMsg('professorMsg',pErr.message,'bad');
+      if(rErr) showMsg('professorMsg',rErr.message,'bad');
+
+      const professors=profs||[];
+      const requests=reqs||[];
+
+      $('professorDirectory').innerHTML=professors.length
+        ? professors.map(p=>{
+            const statusClass=p.access_status==='active'?'active':'pending';
+            const storeOptions='<option value="">No Store</option>'+
+              availableStores.map(s=>'<option value="'+s.id+'" '+(p.store_id===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('');
+
+            return '<div class="professor-directory-row">'+
+              '<div>'+
+                '<div class="professor-name">'+esc(p.display_name||'Professor')+'</div>'+
+                '<div class="professor-email">'+esc(p.email||'')+'</div>'+
+                '<span class="professor-status '+statusClass+'">'+esc(p.access_status||'')+'</span>'+
+              '</div>'+
+              '<select class="professor-store-select professor-assignment" data-user="'+p.user_id+'">'+storeOptions+'</select>'+
+              '<button type="button" class="btn alt save-professor-store" data-user="'+p.user_id+'" style="width:auto">Save Store</button>'+
+            '</div>';
+          }).join('')
+        : '<div class="muted">No Professor accounts yet.</div>';
+
+      document.querySelectorAll('.save-professor-store').forEach(b=>b.onclick=async()=>{
+        const select=document.querySelector('.professor-assignment[data-user="'+b.dataset.user+'"]');
+        const storeId=select?.value||'';
+        if(!storeId) return alert('Choose a store.');
+
+        const {error}=await sb.rpc('owner_set_professor_store',{
+          p_user_id:b.dataset.user,
+          p_store_id:storeId
+        });
+
+        if(error) return alert(error.message);
+        await loadProfessorDirectory();
+      });
+
+      const pending=requests.filter(r=>r.status==='pending');
+
+      $('storeRequestDirectory').innerHTML=pending.length
+        ? pending.map(r=>
+            '<div class="store-request-row">'+
+              '<div>'+
+                '<div class="professor-name">'+esc(r.requested_store_name)+'</div>'+
+                '<div class="professor-email">'+esc(r.professor_name||'')+' • '+esc(r.email||'')+'</div>'+
+              '</div>'+
+              '<div class="store-request-actions">'+
+                '<button type="button" class="btn approve-store-request" data-id="'+r.id+'">Approve</button>'+
+                '<button type="button" class="btn danger reject-store-request" data-id="'+r.id+'">Reject</button>'+
+              '</div>'+
+            '</div>'
+          ).join('')
+        : '<div class="muted">No pending store requests.</div>';
+
+      document.querySelectorAll('.approve-store-request').forEach(b=>b.onclick=async()=>{
+        const location=prompt('Optional store location/address:','')||'';
+        const {error}=await sb.rpc('owner_approve_store_request',{
+          p_request_id:b.dataset.id,
+          p_location:location
+        });
+        if(error) return alert(error.message);
+
+        await loadAvailableStores();
+        await loadProfessorDirectory();
+        await loadMasterHub();
+      });
+
+      document.querySelectorAll('.reject-store-request').forEach(b=>b.onclick=async()=>{
+        if(!confirm('Reject this new-store request?')) return;
+        const {error}=await sb.rpc('owner_reject_store_request',{p_request_id:b.dataset.id});
+        if(error) return alert(error.message);
+        await loadProfessorDirectory();
+      });
+    }
+
+    async function boot(){
+      await loadAvailableStores();
+      const {data:{session}} = await sb.auth.getSession();
+      if(session) await showApp();
+    }
+
+    async function showApp(){
+      await loadRole();
+
+      if(currentProfileRole==='professor' && currentAccessStatus==='pending_store'){
+        $('app').classList.add('hidden');
+        $('auth').classList.remove('hidden');
+        $('signInPanel').classList.remove('hidden');
+        $('signUpPanel').classList.add('hidden');
+        showMsg('authMsg','Your Professor account is waiting for Owner approval of the requested store.','warn');
+        return;
+      }
+
+      $('auth').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      applyRoleUI();
+      await loadOptions();
+      await loadAvailableStores();
+      await loadTournaments();
+      if(currentRole === 'owner'){
+        await loadMasterHub();
+        await loadRibbonTournaments();
+        await loadProfessorDirectory();
+      }
+    }
+
+    $('signIn').onclick = async () => {
+      showMsg('authMsg','');
+      const {error}=await sb.auth.signInWithPassword({
+        email:$('email').value.trim(),
+        password:$('password').value
+      });
+      if(error) return showMsg('authMsg',error.message,'bad');
+      await showApp();
+    };
+
+    $('showSignUp').onclick=()=>{
+      $('signInPanel').classList.add('hidden');
+      $('signUpPanel').classList.remove('hidden');
+      showMsg('signUpMsg','');
+    };
+
+    $('backToSignIn').onclick=()=>{
+      $('signUpPanel').classList.add('hidden');
+      $('signInPanel').classList.remove('hidden');
+      showMsg('signUpMsg','');
+    };
+
+    $('storeNotListed').onchange=()=>{
+      const custom=$('storeNotListed').checked;
+      $('newStoreRequestFields').classList.toggle('hidden',!custom);
+      $('signUpStore').disabled=custom;
+      if(custom) $('signUpStore').value='';
+    };
+
+    $('submitProfessorSignUp').onclick=async()=>{
+      showMsg('signUpMsg','');
+
+      const display_name=$('signUpName').value.trim();
+      const email=$('signUpEmail').value.trim();
+      const password=$('signUpPassword').value;
+      const customStore=$('storeNotListed').checked;
+      const requested_store_id=customStore ? '' : $('signUpStore').value;
+      const requested_store_name=customStore ? $('requestedStoreName').value.trim() : '';
+
+      if(!display_name || !email || !password){
+        return showMsg('signUpMsg','Name, email, and password are required.','bad');
+      }
+
+      if(customStore && !requested_store_name){
+        return showMsg('signUpMsg','Enter the store name you want to request.','bad');
+      }
+
+      if(!customStore && !requested_store_id){
+        return showMsg('signUpMsg','Choose the store you represent or select "My store is not listed."','bad');
+      }
+
+      const {data,error}=await sb.auth.signUp({
+        email,
+        password,
+        options:{
+          data:{
+            display_name,
+            requested_role:'professor',
+            requested_store_id,
+            requested_store_name
+          }
+        }
+      });
+
+      if(error) return showMsg('signUpMsg',error.message,'bad');
+
+      if(customStore){
+        showMsg('signUpMsg','Account created. Your new-store request was sent to the Owner for approval.','good');
+        if(data.session) await sb.auth.signOut();
+        return;
+      }
+
+      if(data.session){
+        await showApp();
+      }else{
+        showMsg('signUpMsg','Account created. Check your email if confirmation is required, then sign in.','good');
+      }
+    };
+
     $('signOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    if($('refreshProfessors')) $('refreshProfessors').onclick=loadProfessorDirectory;
     if($('deleteCurrentTournament')) $('deleteCurrentTournament').onclick=()=>{
       if(!currentTournament) return alert('Select a tournament first.');
       deleteTournamentOwner(
@@ -1253,6 +1610,7 @@
       });
       if(view==='meta'){ populateHubMetaStoreFilter(); populateHubMetaTournamentFilter(); renderHubMetaFromFilters(); }
       if(view==='played') await loadRibbonTournaments();
+      if(view==='professors') await loadProfessorDirectory();
       if(view==='library'){ await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); }
     });
 
@@ -1294,7 +1652,41 @@
     async function loadTournaments(){ const {data,error}=await sb.from('tournaments').select('*').order('event_date',{ascending:false}); if(error) return; const d=data||[]; $('tournamentSelect').innerHTML='<option value="">Select tournament...</option>'+d.map(t=>'<option value="'+t.id+'">'+esc(t.event_name)+' — '+t.event_date+'</option>').join(''); if(d.length){ $('tournamentSelect').value=d[0].id; currentTournament=d[0]; await loadEntries(); } else { currentTournament=null; entries=[]; renderEntries(); } }
     $('tournamentSelect').onchange = async () => { const id=$('tournamentSelect').value; if(!id){ currentTournament=null; entries=[]; renderEntries();  return; } const {data}=await sb.from('tournaments').select('*').eq('id',id).single(); currentTournament=data; await loadEntries();  };
     $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
-    $('createTournament').onclick = async () => { const event_name=$('eventName').value.trim(),store_name=$('storeName')?.value.trim()||'',event_date=$('eventDate').value,location=$('location').value.trim(); if(!event_name||!store_name||!event_date) return alert('Enter tournament name, store name, and date.'); const {error}=await sb.from('tournaments').insert({event_name,store_name,event_date,location,status:'registration'}); if(error) return alert(error.message); $('newTournament').classList.add('hidden'); await loadTournaments(); };
+    $('createTournament').onclick = async () => {
+      const event_name=$('eventName').value.trim();
+      const event_date=$('eventDate').value;
+      const location=$('location').value.trim();
+      const store=selectedStoreRecord();
+
+      if(!event_name || !event_date) return alert('Enter tournament name and date.');
+      if(!store) return alert('Choose a store.');
+
+      if(currentRole==='professor' && store.id!==currentStoreId){
+        return alert('Professors can only create tournaments for their assigned store.');
+      }
+
+      const {data:{user}}=await sb.auth.getUser();
+
+      const {error}=await sb.from('tournaments').insert({
+        event_name,
+        store_id:store.id,
+        store_name:store.name,
+        event_date,
+        location,
+        status:'registration',
+        created_by:user?.id||null
+      });
+
+      if(error) return alert(error.message);
+
+      $('newTournament').classList.add('hidden');
+      $('eventName').value='';
+      $('eventDate').value='';
+      $('location').value='';
+      await loadTournaments();
+
+      if(currentRole==='owner') await loadMasterHub();
+    };
 
     async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,player_id,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,owner_played_against,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); if(currentRole==='owner' && $('pinnedOpponents')){ const pinned=entries.filter(e=>e.owner_played_against); $('pinnedOpponents').innerHTML=pinned.length?pinned.map(e=>'<div class="hub-row"><div><div class="hub-title">'+esc(e.player_name)+'</div><div class="hub-meta">'+esc(opt(e.main_option_id)?.name||'Deck Pending')+(opt(e.support_option_id)?' • '+esc(opt(e.support_option_id).name):'')+'</div></div></div>').join(''):'<div class="muted">No opponents pinned for this tournament.</div>'; } }
 
