@@ -519,33 +519,42 @@
     </div>
   </div>
 
+  
+
+
+  
   <div id="hubProfessorsPane" class="hub-pane hidden">
     <div class="head">
       <div>
         <h3 style="margin:0">Professor Directory</h3>
-        <div class="muted">Owner-only view of Professor accounts and their assigned stores.</div>
+        <div class="muted">Owner-only Professor accounts, store assignments, and store management.</div>
       </div>
-      <button id="refreshProfessors" class="btn alt" style="width:auto">Refresh</button>
+      <button id="refreshProfessors" class="btn alt" style="width:auto">Refresh Professors</button>
     </div>
 
     <div id="professorMsg"></div>
 
-    <div class="hub-section" style="margin-top:14px;padding-top:0;border-top:0">
+    <div style="margin-top:14px">
       <h3 style="margin:0">Professor Accounts</h3>
-      <div id="professorDirectory" style="margin-top:10px"><div class="muted">Loading Professor accounts…</div></div>
+      <div class="muted">Professor Name, Professor Email, and Store Representative are kept as separate fields.</div>
+      <div id="professorDirectory" style="margin-top:10px">
+        <div class="muted">Loading Professor accounts…</div>
+      </div>
     </div>
 
     <div class="hub-section">
       <h3 style="margin:0">New Store Requests</h3>
-      <div class="muted">Approve a requested store to activate that Professor's store access.</div>
-      <div id="storeRequestDirectory" style="margin-top:10px"></div>
+      <div class="muted">Approve or reject stores requested by Professors.</div>
+      <div id="storeRequestDirectory" style="margin-top:10px">
+        <div class="muted">Loading store requests…</div>
+      </div>
     </div>
-  
+
     <div id="storeManagement" class="hub-section">
       <div class="head">
         <div>
           <h3 style="margin:0">Store Management</h3>
-          <div class="muted">Owner-only store registry used for Professor assignments and tournament ownership.</div>
+          <div class="muted">Add and edit stores used for Professor assignments and tournament ownership.</div>
         </div>
         <button id="refreshStores" class="btn alt" style="width:auto">Refresh Stores</button>
       </div>
@@ -563,13 +572,14 @@
 
       <button id="ownerAddStore" class="btn full">Add Store</button>
       <div id="ownerStoreMsg"></div>
-      <div id="ownerStoreList" style="margin-top:12px"><div class="muted">Loading stores…</div></div>
+
+      <div id="ownerStoreList" style="margin-top:12px">
+        <div class="muted">Loading stores…</div>
+      </div>
     </div>
+  </div>
 
-</div>
-
-
-  <div id="hubLibraryPane" class="hub-pane hidden">
+<div id="hubLibraryPane" class="hub-pane hidden">
     <div>
       <div class="head">
         <div>
@@ -1893,6 +1903,7 @@
       });
       if(view==='meta'){ populateHubMetaStoreFilter(); populateHubMetaTournamentFilter(); renderHubMetaFromFilters(); }
       if(view==='played') await loadRibbonTournaments();
+      if(view==='professors'){ await loadProfessorDirectory(); await loadOwnerStores(); }
       if(view==='professors'){ await loadProfessorDirectory(); await loadOwnerStores(); }
       if(view==='library'){ await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); }
     });
