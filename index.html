@@ -2566,17 +2566,63 @@ $('addPlayer').onclick = async () => {
       if(btn) btn.addEventListener('click',applyPendingPhotoImport,{once:true});
     }
 
+    const STANDINGS_SCANNER_URL = 'https://masterquest-standings-scanner.9wdm928w9j.workers.dev/';
+
+    function fileToDataUrl(file){
+      return new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(reader.result);
+        reader.onerror=()=>reject(new Error('Could not read the selected image.'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function scanStandingsWithAI(file){
+      const image=await fileToDataUrl(file);
+      const roster=entries.map(e=>({id:e.id,name:e.player_name}));
+      const res=await fetch(STANDINGS_SCANNER_URL,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({image,roster})
+      });
+      let data=null;
+      try{ data=await res.json(); }catch(_){ throw new Error('Scanner returned an unreadable response.'); }
+      if(!res.ok) throw new Error(data?.details||data?.error||('Scanner request failed ('+res.status+').'));
+      const players=Array.isArray(data?.players)?data.players:[];
+      if(!players.length) throw new Error('The scanner did not return any standings rows.');
+      return players.map(p=>({
+        entry_id:p.entry_id||p.id||null,
+        name:String(p.name||p.player_name||'').trim(),
+        standing:p.standing==null?null:Number(p.standing),
+        wins:p.wins==null?null:Number(p.wins),
+        losses:p.losses==null?null:Number(p.losses),
+        ties:p.ties==null?null:Number(p.ties)
+      })).filter(p=>p.name);
+    }
+
     async function scanStandingsPhoto(mode){
       const file=$('standingsPhoto')?.files?.[0];
       if(!file) return showMsg('photoImportMsg','Take or choose a standings photo first.','bad');
-      if(!window.Tesseract) return showMsg('photoImportMsg','Photo reader did not load. Check the internet connection and refresh.','bad');
-      showMsg('photoImportMsg','Reading photo… this can take several seconds.','');
+      showMsg('photoImportMsg',mode==='standings'?'Sending photo to Master Quest AI scanner…':'Reading player names…','');
       $('photoImportPreview').innerHTML='';
       try{
-        const rows=await scanStandardExhibit(file);
+        let rows;
+        if(mode==='standings'){
+          rows=await scanStandingsWithAI(file);
+        }else{
+          if(!window.Tesseract) throw new Error('Photo reader did not load. Check the internet connection and refresh.');
+          rows=await scanStandardExhibit(file);
+        }
         showPhotoPreview(rows,mode);
-        if(rows.length){ const ready=rows.filter(r=>r.standing!=null&&r.wins!=null&&r.losses!=null&&r.ties!=null).length; showMsg('photoImportMsg',ready+' of '+entries.length+' tournament players fully recognized. All '+entries.length+' players are shown below for review.',ready===entries.length?'good':'warn'); }
-      }catch(err){ showMsg('photoImportMsg','Could not read this photo: '+err.message,'bad'); }
+        if(rows.length){
+          const ready=rows.filter(r=>r.standing!=null&&r.wins!=null&&r.losses!=null&&r.ties!=null).length;
+          if(mode==='standings') showMsg('photoImportMsg',ready+' result'+(ready===1?'':'s')+' recognized by the AI scanner. Review below, then apply.','good');
+          else showMsg('photoImportMsg',rows.length+' player name'+(rows.length===1?'':'s')+' recognized. Review below, then apply.','good');
+        }
+      }catch(err){
+        console.error('Standings scan failed:',err);
+        showMsg('photoImportMsg','Could not read this photo: '+(err?.message||String(err)),'bad');
+      }
     }
 
     if($('scanPlayerNames')) $('scanPlayerNames').onclick=()=>scanStandingsPhoto('players');
