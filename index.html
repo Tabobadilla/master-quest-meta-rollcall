@@ -2289,95 +2289,67 @@ $('addPlayer').onclick = async () => {
       await loadEntries();
     };
 
-    function normalizeOCRLine(line){
-      return String(line||'').replace(/[|]/g,'/').replace(/[—–]/g,'-').replace(/\s+/g,' ').trim();
+    function cleanCellText(s){
+      return String(s||'').replace(/[—–]/g,'-').replace(/\s+/g,' ').trim();
     }
-
-    function parseStandingsLine(raw){
-      const line=normalizeOCRLine(raw);
-      const pm=line.match(/^\s*(\d{1,3})[\.\):\-]?\s+(.+)$/);
-      if(!pm) return null;
-      const standing=Number(pm[1]);
-      if(!standing || standing>500) return null;
-      const rest=pm[2].trim();
-
-      let rec=rest.match(/(?:^|\s)(\d{1,2})\s*[\/\\Il|]\s*(\d{1,2})\s*[\/\\Il|]\s*(\d{1,2})(?=\s|\(|$)/i);
-      if(!rec) rec=rest.match(/(?:^|\s)(\d{1,2})\s+(\d{1,2})\s*[\/\\Il|]\s*(\d{1,2})(?=\s|\(|$)/i);
-
-      const recText=rec ? rec[0].trim() : '';
-      const nameEnd=rec ? rest.indexOf(recText) : -1;
-      let name=(nameEnd>=0 ? rest.slice(0,nameEnd) : rest)
-        .replace(/\s+(masters?|seniors?|juniors?)\b.*$/i,'')
-        .replace(/\s+\d+(?:\.\d+)?%.*$/,'')
-        .replace(/\s+\d+\s*$/,'')
-        .replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’\-\. ]+$/g,'')
-        .replace(/\s+/g,' ').trim();
-
-      if(name.length<2 || !/[A-Za-zÀ-ÿ]/.test(name)) return null;
-      return {standing,name,wins:rec?Number(rec[1]):0,losses:rec?Number(rec[2]):0,ties:rec?Number(rec[3]):0};
+    function parseRecordCell(s){
+      const x=cleanCellText(s).replace(/[|Il]/g,'/');
+      const m=x.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/);
+      return m?{wins:+m[1],losses:+m[2],ties:+m[3]}:null;
     }
-
-    function parseStandingsOCR(text,ocrLines=[]){
-      const candidates=[], seen=new Set();
-      const add=line=>{
-        const r=parseStandingsLine(line);
-        if(!r) return;
-        const key=r.standing+'|'+r.name.toLowerCase();
-        if(seen.has(key)) return;
-        seen.add(key); candidates.push(r);
-      };
-      (ocrLines||[]).forEach(add);
-      String(text||'').split(/\n+/).forEach(add);
-
-      const byStanding=new Map();
-      for(const r of candidates){
-        const old=byStanding.get(r.standing);
-        const score=x=>(x.wins+x.losses+x.ties>0?10:0)+Math.min(x.name.length,40)/40;
-        if(!old || score(r)>score(old)) byStanding.set(r.standing,r);
+    function groupWordsIntoRows(words){
+      const ws=(words||[]).filter(w=>String(w.text||'').trim()&&w.bbox);
+      if(!ws.length)return[];
+      ws.sort((a,b)=>((a.bbox.y0+a.bbox.y1)/2)-((b.bbox.y0+b.bbox.y1)/2));
+      const hs=ws.map(w=>Math.max(1,w.bbox.y1-w.bbox.y0)).sort((a,b)=>a-b);
+      const tol=Math.max(5,(hs[Math.floor(hs.length/2)]||14)*.55), rows=[];
+      for(const w of ws){
+        const cy=(w.bbox.y0+w.bbox.y1)/2;
+        let r=rows.find(x=>Math.abs(x.cy-cy)<=tol);
+        if(!r){r={cy,words:[]};rows.push(r);}
+        r.words.push(w); r.cy=r.words.reduce((s,x)=>s+(x.bbox.y0+x.bbox.y1)/2,0)/r.words.length;
       }
-      return [...byStanding.values()].sort((a,b)=>a.standing-b.standing);
+      rows.sort((a,b)=>a.cy-b.cy);
+      rows.forEach(r=>r.words.sort((a,b)=>a.bbox.x0-b.bbox.x0));
+      return rows;
     }
-
-    function buildOCRLines(result){
-      const words=result?.data?.words||[];
-      if(!words.length) return [];
-      const groups=new Map();
-      for(const w of words){
-        const txt=String(w.text||'').trim();
-        if(!txt) continue;
-        const key=[w.page_num||0,w.block_num||0,w.par_num||0,w.line_num||0].join('-');
-        if(!groups.has(key)) groups.set(key,[]);
-        groups.get(key).push(w);
+    function bandText(row,a,b,width){
+      return row.words.filter(w=>{const x=(w.bbox.x0+w.bbox.x1)/2/width;return x>=a&&x<b;}).map(w=>w.text).join(' ');
+    }
+    function parseStandardStandingsOCR(result,width){
+      const rows=groupWordsIntoRows(result?.data?.words||[]), out=[];
+      if(!rows.length)return out;
+      // Official exhibit fixed layout: Standing 0-12%, Name 12-37%, Match Record 51-64%.
+      for(const row of rows){
+        const st=cleanCellText(bandText(row,0,.12,width));
+        const nm=cleanCellText(bandText(row,.12,.37,width)).replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’.\- ]+$/g,'').trim();
+        const rc=parseRecordCell(bandText(row,.51,.64,width));
+        const sm=st.match(/\b(\d{1,3})\b/);
+        if(!sm||!nm||!rc)continue;
+        out.push({standing:+sm[1],name:nm,wins:rc.wins,losses:rc.losses,ties:rc.ties});
       }
-      return [...groups.values()].map(ws=>ws.sort((a,b)=>(a.bbox?.x0||0)-(b.bbox?.x0||0)).map(w=>w.text).join(' '));
+      const max=Math.max(entries?.length||0,out.length||0,8)+3, uniq=new Map();
+      for(const r of out) if(r.standing>=1&&r.standing<=max&&!uniq.has(r.standing))uniq.set(r.standing,r);
+      return [...uniq.values()].sort((a,b)=>a.standing-b.standing);
     }
-
     async function prepareStandingsImage(file){
-      const img=await new Promise((resolve,reject)=>{
-        const im=new Image();
-        im.onload=()=>resolve(im); im.onerror=reject;
-        im.src=URL.createObjectURL(file);
-      });
-      const scale=Math.max(1,Math.min(2.5,2600/img.width));
-      const c=document.createElement('canvas');
-      c.width=Math.round(img.width*scale); c.height=Math.round(img.height*scale);
-      const ctx=c.getContext('2d',{willReadFrequently:true});
-      ctx.drawImage(img,0,0,c.width,c.height);
-      const d=ctx.getImageData(0,0,c.width,c.height);
-      for(let i=0;i<d.data.length;i+=4){
-        const g=0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];
-        const v=g>205?255:g<95?0:Math.max(0,Math.min(255,(g-128)*1.7+128));
-        d.data[i]=d.data[i+1]=d.data[i+2]=v;
-      }
-      ctx.putImageData(d,0,0);
-      URL.revokeObjectURL(img.src);
-      return c;
+      const img=await new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=no;im.src=URL.createObjectURL(file);});
+      const scale=Math.max(1,Math.min(3,3000/img.width)),c=document.createElement('canvas');
+      c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);
+      const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,c.width,c.height);
+      const d=x.getImageData(0,0,c.width,c.height);
+      for(let i=0;i<d.data.length;i+=4){const g=.299*d.data[i]+.587*d.data[i+1]+.114*d.data[i+2],v=Math.max(0,Math.min(255,(g-128)*1.35+128));d.data[i]=d.data[i+1]=d.data[i+2]=v;}
+      x.putImageData(d,0,0);URL.revokeObjectURL(img.src);return c;
     }
 
     function bestEntryMatch(name){
-      const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-      const n=norm(name);
-      return entries.find(e=>norm(e.player_name)===n) || entries.find(e=>norm(e.player_name).includes(n)||n.includes(norm(e.player_name))) || null;
+      const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+      const dist=(a,b)=>{a=norm(a);b=norm(b);const d=Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));for(let i=0;i<=a.length;i++)d[i][0]=i;for(let j=0;j<=b.length;j++)d[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[a.length][b.length];};
+      const n=norm(name); if(!n)return null;
+      const exact=entries.find(e=>norm(e.player_name)===n); if(exact)return exact;
+      let best=null,score=999;
+      for(const e of entries){const en=norm(e.player_name),d=dist(n,en),limit=Math.max(1,Math.floor(Math.max(n.length,en.length)*.18));if(d<=limit&&d<score){best=e;score=d;}}
+      return best;
     }
 
     let pendingPhotoImport=null;
@@ -2455,11 +2427,11 @@ $('addPlayer').onclick = async () => {
       try{
         const prepared=await prepareStandingsImage(file);
         const result=await window.Tesseract.recognize(prepared,'eng',{
-          logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading photo… '+Math.round((m.progress||0)*100)+'%',''); },
+          logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading standard standings report… '+Math.round((m.progress||0)*100)+'%',''); },
           tessedit_pageseg_mode:'6',
           preserve_interword_spaces:'1'
         });
-        const rows=parseStandingsOCR(result?.data?.text||'',buildOCRLines(result));
+        const rows=parseStandardStandingsOCR(result,prepared.width);
         showPhotoPreview(rows,mode);
         if(rows.length){ const matched=rows.filter(r=>bestEntryMatch(r.name)).length; showMsg('photoImportMsg',rows.length+' row'+(rows.length===1?'':'s')+' recognized • '+matched+' matched to tournament players. Review below, then apply.',matched?'good':'warn'); }
       }catch(err){ showMsg('photoImportMsg','Could not read this photo: '+err.message,'bad'); }
