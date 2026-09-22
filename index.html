@@ -2292,54 +2292,126 @@ $('addPlayer').onclick = async () => {
     function cleanCellText(s){
       return String(s||'').replace(/[—–]/g,'-').replace(/\s+/g,' ').trim();
     }
+
     function parseRecordCell(s){
       const x=cleanCellText(s).replace(/[|Il]/g,'/');
       const m=x.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/);
-      return m?{wins:+m[1],losses:+m[2],ties:+m[3]}:null;
+      return m ? {wins:+m[1],losses:+m[2],ties:+m[3]} : null;
     }
-    function groupWordsIntoRows(words){
-      const ws=(words||[]).filter(w=>String(w.text||'').trim()&&w.bbox);
-      if(!ws.length)return[];
-      ws.sort((a,b)=>((a.bbox.y0+a.bbox.y1)/2)-((b.bbox.y0+b.bbox.y1)/2));
-      const hs=ws.map(w=>Math.max(1,w.bbox.y1-w.bbox.y0)).sort((a,b)=>a-b);
-      const tol=Math.max(5,(hs[Math.floor(hs.length/2)]||14)*.55), rows=[];
-      for(const w of ws){
-        const cy=(w.bbox.y0+w.bbox.y1)/2;
-        let r=rows.find(x=>Math.abs(x.cy-cy)<=tol);
-        if(!r){r={cy,words:[]};rows.push(r);}
-        r.words.push(w); r.cy=r.words.reduce((s,x)=>s+(x.bbox.y0+x.bbox.y1)/2,0)/r.words.length;
+
+    function cropCanvas(source,x1,x2){
+      const c=document.createElement('canvas');
+      const sx=Math.round(source.width*x1), sw=Math.round(source.width*(x2-x1));
+      c.width=sw; c.height=source.height;
+      c.getContext('2d').drawImage(source,sx,0,sw,source.height,0,0,sw,source.height);
+      return c;
+    }
+
+    function ocrLines(result){
+      const words=(result?.data?.words||[]).filter(w=>String(w.text||'').trim()&&w.bbox);
+      if(!words.length){
+        return String(result?.data?.text||'').split(/\n+/).map((text,i)=>({text:cleanCellText(text),y:i*30})).filter(x=>x.text);
       }
-      rows.sort((a,b)=>a.cy-b.cy);
-      rows.forEach(r=>r.words.sort((a,b)=>a.bbox.x0-b.bbox.x0));
-      return rows;
-    }
-    function bandText(row,a,b,width){
-      return row.words.filter(w=>{const x=(w.bbox.x0+w.bbox.x1)/2/width;return x>=a&&x<b;}).map(w=>w.text).join(' ');
-    }
-    function parseStandardStandingsOCR(result,width){
-      const rows=groupWordsIntoRows(result?.data?.words||[]), out=[];
-      if(!rows.length)return out;
-      // Official exhibit fixed layout: Standing 0-12%, Name 12-37%, Match Record 51-64%.
-      for(const row of rows){
-        const st=cleanCellText(bandText(row,0,.12,width));
-        const nm=cleanCellText(bandText(row,.12,.37,width)).replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’.\- ]+$/g,'').trim();
-        const rc=parseRecordCell(bandText(row,.51,.64,width));
-        const sm=st.match(/\b(\d{1,3})\b/);
-        if(!sm||!nm||!rc)continue;
-        out.push({standing:+sm[1],name:nm,wins:rc.wins,losses:rc.losses,ties:rc.ties});
+      words.sort((a,b)=>((a.bbox.y0+a.bbox.y1)/2)-((b.bbox.y0+b.bbox.y1)/2));
+      const hs=words.map(w=>Math.max(1,w.bbox.y1-w.bbox.y0)).sort((a,b)=>a-b);
+      const tol=Math.max(5,(hs[Math.floor(hs.length/2)]||14)*.6), rows=[];
+      for(const w of words){
+        const y=(w.bbox.y0+w.bbox.y1)/2;
+        let row=rows.find(r=>Math.abs(r.y-y)<=tol);
+        if(!row){ row={y,words:[]}; rows.push(row); }
+        row.words.push(w);
+        row.y=row.words.reduce((s,z)=>s+(z.bbox.y0+z.bbox.y1)/2,0)/row.words.length;
       }
-      const max=Math.max(entries?.length||0,out.length||0,8)+3, uniq=new Map();
-      for(const r of out) if(r.standing>=1&&r.standing<=max&&!uniq.has(r.standing))uniq.set(r.standing,r);
+      return rows.sort((a,b)=>a.y-b.y).map(r=>({
+        y:r.y,
+        text:cleanCellText(r.words.sort((a,b)=>a.bbox.x0-b.bbox.x0).map(w=>w.text).join(' '))
+      })).filter(r=>r.text);
+    }
+
+    function nearestLine(lines,y,maxDelta){
+      let best=null,delta=Infinity;
+      for(const l of lines){
+        const d=Math.abs(l.y-y);
+        if(d<delta){best=l;delta=d;}
+      }
+      return delta<=maxDelta?best:null;
+    }
+
+    async function scanStandardExhibit(file){
+      const prepared=await prepareStandingsImage(file);
+
+      // These are the ONLY three columns we care about in the standard exhibit.
+      const standingCrop=cropCanvas(prepared,0.000,0.120);
+      const nameCrop=cropCanvas(prepared,0.115,0.370);
+      const recordCrop=cropCanvas(prepared,0.505,0.645);
+
+      const recognize=async(canvas,label,psm='6')=>{
+        showMsg('photoImportMsg','Reading '+label+'…','');
+        return await window.Tesseract.recognize(canvas,'eng',{
+          logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading '+label+'… '+Math.round((m.progress||0)*100)+'%',''); },
+          tessedit_pageseg_mode:psm,
+          preserve_interword_spaces:'1'
+        });
+      };
+
+      // OCR each column separately so unrelated columns can never contaminate a player row.
+      const sr=await recognize(standingCrop,'standings');
+      const nr=await recognize(nameCrop,'player names');
+      const rr=await recognize(recordCrop,'match records');
+
+      let sLines=ocrLines(sr).filter(x=>/^\D*\d{1,3}\D*$/.test(x.text) && !/standing/i.test(x.text));
+      let nLines=ocrLines(nr).filter(x=>/[A-Za-zÀ-ÿ]{2}/.test(x.text) && !/^name$/i.test(x.text));
+      let rLines=ocrLines(rr).filter(x=>parseRecordCell(x.text));
+
+      // Convert crop Y coordinates back to the same coordinate system (same height, so direct).
+      const rowGap=Math.max(12, prepared.height/Math.max(20,(entries?.length||20)+3)*.55);
+      const out=[];
+      for(const s of sLines){
+        const sm=s.text.match(/(\d{1,3})/);
+        if(!sm) continue;
+        const standing=+sm[1];
+        const maxStanding=Math.max(entries?.length||0,20)+5;
+        if(standing<1||standing>maxStanding) continue;
+
+        const nm=nearestLine(nLines,s.y,rowGap*1.8);
+        const rc=nearestLine(rLines,s.y,rowGap*1.8);
+        if(!nm||!rc) continue;
+        const record=parseRecordCell(rc.text);
+        if(!record) continue;
+
+        const name=cleanCellText(nm.text)
+          .replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’.\- ]+$/g,'').trim();
+        if(!name) continue;
+        out.push({standing,name,wins:record.wins,losses:record.losses,ties:record.ties});
+      }
+
+      // Deduplicate by standing and keep the row whose name actually matches the tournament roster.
+      const uniq=new Map();
+      for(const r of out){
+        const old=uniq.get(r.standing);
+        if(!old || (!bestEntryMatch(old.name)&&bestEntryMatch(r.name))) uniq.set(r.standing,r);
+      }
       return [...uniq.values()].sort((a,b)=>a.standing-b.standing);
     }
+
     async function prepareStandingsImage(file){
-      const img=await new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=no;im.src=URL.createObjectURL(file);});
-      const scale=Math.max(1,Math.min(3,3000/img.width)),c=document.createElement('canvas');
-      c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);
-      const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,c.width,c.height);
+      const img=await new Promise((ok,no)=>{
+        const im=new Image(); im.onload=()=>ok(im); im.onerror=no; im.src=URL.createObjectURL(file);
+      });
+      const scale=Math.max(1,Math.min(3,3200/img.width));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*scale); c.height=Math.round(img.height*scale);
+      const x=c.getContext('2d',{willReadFrequently:true});
+      x.drawImage(img,0,0,c.width,c.height);
       const d=x.getImageData(0,0,c.width,c.height);
-      for(let i=0;i<d.data.length;i+=4){const g=.299*d.data[i]+.587*d.data[i+1]+.114*d.data[i+2],v=Math.max(0,Math.min(255,(g-128)*1.35+128));d.data[i]=d.data[i+1]=d.data[i+2]=v;}
-      x.putImageData(d,0,0);URL.revokeObjectURL(img.src);return c;
+      for(let i=0;i<d.data.length;i+=4){
+        const g=.299*d.data[i]+.587*d.data[i+1]+.114*d.data[i+2];
+        const v=Math.max(0,Math.min(255,(g-128)*1.25+128));
+        d.data[i]=d.data[i+1]=d.data[i+2]=v;
+      }
+      x.putImageData(d,0,0);
+      URL.revokeObjectURL(img.src);
+      return c;
     }
 
     function bestEntryMatch(name){
@@ -2425,13 +2497,7 @@ $('addPlayer').onclick = async () => {
       showMsg('photoImportMsg','Reading photo… this can take several seconds.','');
       $('photoImportPreview').innerHTML='';
       try{
-        const prepared=await prepareStandingsImage(file);
-        const result=await window.Tesseract.recognize(prepared,'eng',{
-          logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading standard standings report… '+Math.round((m.progress||0)*100)+'%',''); },
-          tessedit_pageseg_mode:'6',
-          preserve_interword_spaces:'1'
-        });
-        const rows=parseStandardStandingsOCR(result,prepared.width);
+        const rows=await scanStandardExhibit(file);
         showPhotoPreview(rows,mode);
         if(rows.length){ const matched=rows.filter(r=>bestEntryMatch(r.name)).length; showMsg('photoImportMsg',rows.length+' row'+(rows.length===1?'':'s')+' recognized • '+matched+' matched to tournament players. Review below, then apply.',matched?'good':'warn'); }
       }catch(err){ showMsg('photoImportMsg','Could not read this photo: '+err.message,'bad'); }
