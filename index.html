@@ -2289,23 +2289,89 @@ $('addPlayer').onclick = async () => {
       await loadEntries();
     };
 
-    function parseStandingsOCR(text){
-      const rows=[];
-      const lines=String(text||'').split(/\n+/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
-      for(const line of lines){
-        // Typical line: 1 Sahil Parekh ... 5/0/0 ...
-        const place=(line.match(/^\s*(\d{1,3})\b/)||[])[1];
-        const record=line.match(/\b(\d{1,2})\s*[\/\-]\s*(\d{1,2})\s*[\/\-]\s*(\d{1,2})\b/);
-        if(!place) continue;
-        let name=line.replace(/^\s*\d{1,3}\s*/,'');
-        if(record) name=name.slice(0,name.indexOf(record[0]));
-        // Strip common columns that can appear immediately after the name.
-        name=name.replace(/\s+(masters?|seniors?|juniors?)\b.*$/i,'').trim();
-        name=name.replace(/\s+\d+(?:\.\d+)?%.*$/,'').trim();
-        if(name.length<2) continue;
-        rows.push({standing:Number(place),name,wins:record?Number(record[1]):0,losses:record?Number(record[2]):0,ties:record?Number(record[3]):0});
+    function normalizeOCRLine(line){
+      return String(line||'').replace(/[|]/g,'/').replace(/[—–]/g,'-').replace(/\s+/g,' ').trim();
+    }
+
+    function parseStandingsLine(raw){
+      const line=normalizeOCRLine(raw);
+      const pm=line.match(/^\s*(\d{1,3})[\.\):\-]?\s+(.+)$/);
+      if(!pm) return null;
+      const standing=Number(pm[1]);
+      if(!standing || standing>500) return null;
+      const rest=pm[2].trim();
+
+      let rec=rest.match(/(?:^|\s)(\d{1,2})\s*[\/\\Il|]\s*(\d{1,2})\s*[\/\\Il|]\s*(\d{1,2})(?=\s|\(|$)/i);
+      if(!rec) rec=rest.match(/(?:^|\s)(\d{1,2})\s+(\d{1,2})\s*[\/\\Il|]\s*(\d{1,2})(?=\s|\(|$)/i);
+
+      const recText=rec ? rec[0].trim() : '';
+      const nameEnd=rec ? rest.indexOf(recText) : -1;
+      let name=(nameEnd>=0 ? rest.slice(0,nameEnd) : rest)
+        .replace(/\s+(masters?|seniors?|juniors?)\b.*$/i,'')
+        .replace(/\s+\d+(?:\.\d+)?%.*$/,'')
+        .replace(/\s+\d+\s*$/,'')
+        .replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’\-\. ]+$/g,'')
+        .replace(/\s+/g,' ').trim();
+
+      if(name.length<2 || !/[A-Za-zÀ-ÿ]/.test(name)) return null;
+      return {standing,name,wins:rec?Number(rec[1]):0,losses:rec?Number(rec[2]):0,ties:rec?Number(rec[3]):0};
+    }
+
+    function parseStandingsOCR(text,ocrLines=[]){
+      const candidates=[], seen=new Set();
+      const add=line=>{
+        const r=parseStandingsLine(line);
+        if(!r) return;
+        const key=r.standing+'|'+r.name.toLowerCase();
+        if(seen.has(key)) return;
+        seen.add(key); candidates.push(r);
+      };
+      (ocrLines||[]).forEach(add);
+      String(text||'').split(/\n+/).forEach(add);
+
+      const byStanding=new Map();
+      for(const r of candidates){
+        const old=byStanding.get(r.standing);
+        const score=x=>(x.wins+x.losses+x.ties>0?10:0)+Math.min(x.name.length,40)/40;
+        if(!old || score(r)>score(old)) byStanding.set(r.standing,r);
       }
-      return rows;
+      return [...byStanding.values()].sort((a,b)=>a.standing-b.standing);
+    }
+
+    function buildOCRLines(result){
+      const words=result?.data?.words||[];
+      if(!words.length) return [];
+      const groups=new Map();
+      for(const w of words){
+        const txt=String(w.text||'').trim();
+        if(!txt) continue;
+        const key=[w.page_num||0,w.block_num||0,w.par_num||0,w.line_num||0].join('-');
+        if(!groups.has(key)) groups.set(key,[]);
+        groups.get(key).push(w);
+      }
+      return [...groups.values()].map(ws=>ws.sort((a,b)=>(a.bbox?.x0||0)-(b.bbox?.x0||0)).map(w=>w.text).join(' '));
+    }
+
+    async function prepareStandingsImage(file){
+      const img=await new Promise((resolve,reject)=>{
+        const im=new Image();
+        im.onload=()=>resolve(im); im.onerror=reject;
+        im.src=URL.createObjectURL(file);
+      });
+      const scale=Math.max(1,Math.min(2.5,2600/img.width));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*scale); c.height=Math.round(img.height*scale);
+      const ctx=c.getContext('2d',{willReadFrequently:true});
+      ctx.drawImage(img,0,0,c.width,c.height);
+      const d=ctx.getImageData(0,0,c.width,c.height);
+      for(let i=0;i<d.data.length;i+=4){
+        const g=0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];
+        const v=g>205?255:g<95?0:Math.max(0,Math.min(255,(g-128)*1.7+128));
+        d.data[i]=d.data[i+1]=d.data[i+2]=v;
+      }
+      ctx.putImageData(d,0,0);
+      URL.revokeObjectURL(img.src);
+      return c;
     }
 
     function bestEntryMatch(name){
@@ -2387,10 +2453,15 @@ $('addPlayer').onclick = async () => {
       showMsg('photoImportMsg','Reading photo… this can take several seconds.','');
       $('photoImportPreview').innerHTML='';
       try{
-        const result=await window.Tesseract.recognize(file,'eng',{logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading photo… '+Math.round((m.progress||0)*100)+'%',''); }});
-        const rows=parseStandingsOCR(result?.data?.text||'');
+        const prepared=await prepareStandingsImage(file);
+        const result=await window.Tesseract.recognize(prepared,'eng',{
+          logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading photo… '+Math.round((m.progress||0)*100)+'%',''); },
+          tessedit_pageseg_mode:'6',
+          preserve_interword_spaces:'1'
+        });
+        const rows=parseStandingsOCR(result?.data?.text||'',buildOCRLines(result));
         showPhotoPreview(rows,mode);
-        if(rows.length) showMsg('photoImportMsg',rows.length+' row'+(rows.length===1?'':'s')+' recognized. Review below, then apply.','good');
+        if(rows.length){ const matched=rows.filter(r=>bestEntryMatch(r.name)).length; showMsg('photoImportMsg',rows.length+' row'+(rows.length===1?'':'s')+' recognized • '+matched+' matched to tournament players. Review below, then apply.',matched?'good':'warn'); }
       }catch(err){ showMsg('photoImportMsg','Could not read this photo: '+err.message,'bad'); }
     }
 
