@@ -2339,31 +2339,46 @@ $('addPlayer').onclick = async () => {
 
     async function scanStandardExhibit(file){
       const prepared=await prepareStandingsImage(file);
-      const result=await window.Tesseract.recognize(prepared,'eng',{
-        logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading standings report… '+Math.round((m.progress||0)*100)+'%',''); },
-        tessedit_pageseg_mode:'6',
-        preserve_interword_spaces:'1'
-      });
 
-      const words=(result?.data?.words||[]).filter(w=>String(w.text||'').trim()&&w.bbox);
-      if(!words.length) return [];
+      const crop=(a,b)=>{
+        const c=document.createElement('canvas');
+        const sx=Math.round(prepared.width*a), sw=Math.round(prepared.width*(b-a));
+        c.width=sw; c.height=prepared.height;
+        c.getContext('2d').drawImage(prepared,sx,0,sw,prepared.height,0,0,sw,prepared.height);
+        return c;
+      };
 
-      // Rebuild physical table rows from OCR word coordinates.
-      words.sort((a,b)=>((a.bbox.y0+a.bbox.y1)/2)-((b.bbox.y0+b.bbox.y1)/2));
-      const hs=words.map(w=>Math.max(1,w.bbox.y1-w.bbox.y0)).sort((a,b)=>a-b);
-      const tol=Math.max(5,(hs[Math.floor(hs.length/2)]||14)*.62), physical=[];
-      for(const w of words){
-        const y=(w.bbox.y0+w.bbox.y1)/2;
-        let row=physical.find(r=>Math.abs(r.y-y)<=tol);
-        if(!row){row={y,words:[]};physical.push(row);}
-        row.words.push(w);
-        row.y=row.words.reduce((sum,z)=>sum+(z.bbox.y0+z.bbox.y1)/2,0)/row.words.length;
-      }
-      physical.sort((a,b)=>a.y-b.y);
-      physical.forEach(r=>r.words.sort((a,b)=>a.bbox.x0-b.bbox.x0));
+      const recognize=async(canvas,label,psm='6')=>{
+        return await window.Tesseract.recognize(canvas,'eng',{
+          logger:m=>{if(m.status==='recognizing text')showMsg('photoImportMsg','Reading '+label+'… '+Math.round((m.progress||0)*100)+'%','');},
+          tessedit_pageseg_mode:psm,
+          preserve_interword_spaces:'1'
+        });
+      };
 
-      const norm=s=>String(s||'').toLowerCase().normalize('NFD')
-        .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+      // First scan ONLY the Name column. Player names become the row anchors.
+      const nameResult=await recognize(crop(.115,.37),'player names');
+      const nameWords=(nameResult?.data?.words||[]).filter(w=>String(w.text||'').trim()&&w.bbox);
+
+      const groupLines=(words)=>{
+        const ws=[...words].sort((a,b)=>((a.bbox.y0+a.bbox.y1)/2)-((b.bbox.y0+b.bbox.y1)/2));
+        const hs=ws.map(w=>Math.max(1,w.bbox.y1-w.bbox.y0)).sort((a,b)=>a-b);
+        const tol=Math.max(5,(hs[Math.floor(hs.length/2)]||14)*.62), rows=[];
+        for(const w of ws){
+          const y=(w.bbox.y0+w.bbox.y1)/2;
+          let r=rows.find(x=>Math.abs(x.y-y)<=tol);
+          if(!r){r={y,words:[]};rows.push(r);}
+          r.words.push(w);
+          r.y=r.words.reduce((q,z)=>q+(z.bbox.y0+z.bbox.y1)/2,0)/r.words.length;
+        }
+        return rows.sort((a,b)=>a.y-b.y).map(r=>({
+          y:r.y,
+          text:cleanCellText(r.words.sort((a,b)=>a.bbox.x0-b.bbox.x0).map(w=>w.text).join(' '))
+            .replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’.\- ]+$/g,'').trim()
+        })).filter(r=>/[A-Za-zÀ-ÿ]{2}/.test(r.text)&&!/^name$/i.test(r.text));
+      };
+
+      const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
       const lev=(a,b)=>{
         a=norm(a);b=norm(b);
         const d=Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
@@ -2374,49 +2389,70 @@ $('addPlayer').onclick = async () => {
         return d[a.length][b.length];
       };
 
-      // Read only Standing, Name, and Match Record from each physical row.
-      const rows=physical.map(r=>{
-        const cell=(a,b)=>cleanCellText(r.words.filter(w=>{
-          const cx=(w.bbox.x0+w.bbox.x1)/2/prepared.width;
-          return cx>=a&&cx<b;
-        }).map(w=>w.text).join(' '));
-        const st=cell(0,.12), nm=cell(.115,.37)
-          .replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’.\- ]+$/g,'').trim();
-        const rec=parseRecordCell(cell(.505,.645));
-        const sm=st.match(/\b(\d{1,3})\b/);
-        return {standing:sm?+sm[1]:null,ocrName:nm,record:rec};
-      }).filter(r=>r.ocrName);
+      const nameLines=groupLines(nameWords);
+      const anchors=[];
+      const used=new Set();
 
-      // Match each KNOWN tournament player to the closest OCR row.
-      const results=[],used=new Set();
+      // Match the known tournament roster to OCR name lines.
       for(const entry of entries){
-        const target=entry.player_name||'';
         let bi=-1,bs=999;
-        rows.forEach((r,i)=>{
-          if(used.has(i)||!r.ocrName)return;
-          const a=norm(target),b=norm(r.ocrName);
+        nameLines.forEach((line,i)=>{
+          if(used.has(i))return;
+          const a=norm(entry.player_name),b=norm(line.text);
           let score=lev(a,b)/Math.max(a.length,b.length,1);
-          const tp=target.toLowerCase().split(/\s+/).filter(Boolean);
-          const rp=r.ocrName.toLowerCase().split(/\s+/).filter(Boolean);
-          if(tp.length&&rp.length){
-            if(lev(tp[0],rp[0])<=1)score-=.10;
-            if(lev(tp.at(-1),rp.at(-1))<=1)score-=.15;
+          const ap=String(entry.player_name).toLowerCase().split(/\s+/).filter(Boolean);
+          const bp=String(line.text).toLowerCase().split(/\s+/).filter(Boolean);
+          if(ap.length&&bp.length){
+            if(lev(ap[0],bp[0])<=1)score-=.10;
+            if(lev(ap.at(-1),bp.at(-1))<=1)score-=.15;
           }
           if(score<bs){bs=score;bi=i;}
         });
         if(bi>=0&&bs<=.40){
-          const r=rows[bi];used.add(bi);
-          results.push({
-            standing:r.standing,name:target,
-            wins:r.record?.wins??null,losses:r.record?.losses??null,ties:r.record?.ties??null,
-            entry_id:entry.id,unresolved:!r.record||r.standing==null
-          });
+          used.add(bi);
+          anchors.push({entry,y:nameLines[bi].y,ocrName:nameLines[bi].text,score:bs});
         }else{
-          results.push({standing:null,name:target,wins:null,losses:null,ties:null,entry_id:entry.id,unresolved:true});
+          anchors.push({entry,y:null,ocrName:null,score:null});
         }
       }
 
-      // Invalid or duplicate standings are review-only; never silently save them.
+      // Now scan Standing and Match Record independently.
+      const standingResult=await recognize(crop(0,.12),'standings');
+      const recordResult=await recognize(crop(.505,.645),'match records');
+      const standingLines=groupLines((standingResult?.data?.words||[]).filter(w=>w.bbox))
+        .map(x=>({...x,value:(x.text.match(/\b(\d{1,3})\b/)||[])[1]}))
+        .filter(x=>x.value);
+      const recordLines=groupLines((recordResult?.data?.words||[]).filter(w=>w.bbox))
+        .map(x=>({...x,record:parseRecordCell(x.text)})).filter(x=>x.record);
+
+      // Estimate row spacing from recognized names, then only accept cells on the SAME row.
+      const ys=nameLines.map(x=>x.y).sort((a,b)=>a-b);
+      const gaps=ys.slice(1).map((y,i)=>y-ys[i]).filter(g=>g>4).sort((a,b)=>a-b);
+      const medianGap=gaps[Math.floor(gaps.length/2)]||30;
+      const maxDelta=Math.max(7,medianGap*.38);
+
+      const nearest=(arr,y)=>{
+        let best=null,d=Infinity;
+        for(const x of arr){const q=Math.abs(x.y-y);if(q<d){d=q;best=x;}}
+        return d<=maxDelta?best:null;
+      };
+
+      const results=anchors.map(a=>{
+        if(a.y==null) return {standing:null,name:a.entry.player_name,wins:null,losses:null,ties:null,entry_id:a.entry.id,unresolved:true};
+        const st=nearest(standingLines,a.y), rc=nearest(recordLines,a.y);
+        const standing=st?Number(st.value):null;
+        return {
+          standing,
+          name:a.entry.player_name,
+          wins:rc?.record?.wins??null,
+          losses:rc?.record?.losses??null,
+          ties:rc?.record?.ties??null,
+          entry_id:a.entry.id,
+          unresolved:!(st&&rc)
+        };
+      });
+
+      // Never trust duplicate/out-of-range placements.
       const seen=new Set(),max=Math.max(entries.length,1);
       for(const r of results){
         if(r.standing==null)continue;
