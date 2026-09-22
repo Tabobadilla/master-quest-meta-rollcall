@@ -2339,59 +2339,91 @@ $('addPlayer').onclick = async () => {
 
     async function scanStandardExhibit(file){
       const prepared=await prepareStandingsImage(file);
+      const result=await window.Tesseract.recognize(prepared,'eng',{
+        logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading standings report… '+Math.round((m.progress||0)*100)+'%',''); },
+        tessedit_pageseg_mode:'6',
+        preserve_interword_spaces:'1'
+      });
 
-      // These are the ONLY three columns we care about in the standard exhibit.
-      const standingCrop=cropCanvas(prepared,0.000,0.120);
-      const nameCrop=cropCanvas(prepared,0.115,0.370);
-      const recordCrop=cropCanvas(prepared,0.505,0.645);
+      const words=(result?.data?.words||[]).filter(w=>String(w.text||'').trim()&&w.bbox);
+      if(!words.length) return [];
 
-      const recognize=async(canvas,label,psm='6')=>{
-        showMsg('photoImportMsg','Reading '+label+'…','');
-        return await window.Tesseract.recognize(canvas,'eng',{
-          logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading '+label+'… '+Math.round((m.progress||0)*100)+'%',''); },
-          tessedit_pageseg_mode:psm,
-          preserve_interword_spaces:'1'
-        });
+      // Rebuild physical table rows from OCR word coordinates.
+      words.sort((a,b)=>((a.bbox.y0+a.bbox.y1)/2)-((b.bbox.y0+b.bbox.y1)/2));
+      const hs=words.map(w=>Math.max(1,w.bbox.y1-w.bbox.y0)).sort((a,b)=>a-b);
+      const tol=Math.max(5,(hs[Math.floor(hs.length/2)]||14)*.62), physical=[];
+      for(const w of words){
+        const y=(w.bbox.y0+w.bbox.y1)/2;
+        let row=physical.find(r=>Math.abs(r.y-y)<=tol);
+        if(!row){row={y,words:[]};physical.push(row);}
+        row.words.push(w);
+        row.y=row.words.reduce((sum,z)=>sum+(z.bbox.y0+z.bbox.y1)/2,0)/row.words.length;
+      }
+      physical.sort((a,b)=>a.y-b.y);
+      physical.forEach(r=>r.words.sort((a,b)=>a.bbox.x0-b.bbox.x0));
+
+      const norm=s=>String(s||'').toLowerCase().normalize('NFD')
+        .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+      const lev=(a,b)=>{
+        a=norm(a);b=norm(b);
+        const d=Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
+        for(let i=0;i<=a.length;i++)d[i][0]=i;
+        for(let j=0;j<=b.length;j++)d[0][j]=j;
+        for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)
+          d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+        return d[a.length][b.length];
       };
 
-      // OCR each column separately so unrelated columns can never contaminate a player row.
-      const sr=await recognize(standingCrop,'standings');
-      const nr=await recognize(nameCrop,'player names');
-      const rr=await recognize(recordCrop,'match records');
-
-      let sLines=ocrLines(sr).filter(x=>/^\D*\d{1,3}\D*$/.test(x.text) && !/standing/i.test(x.text));
-      let nLines=ocrLines(nr).filter(x=>/[A-Za-zÀ-ÿ]{2}/.test(x.text) && !/^name$/i.test(x.text));
-      let rLines=ocrLines(rr).filter(x=>parseRecordCell(x.text));
-
-      // Convert crop Y coordinates back to the same coordinate system (same height, so direct).
-      const rowGap=Math.max(12, prepared.height/Math.max(20,(entries?.length||20)+3)*.55);
-      const out=[];
-      for(const s of sLines){
-        const sm=s.text.match(/(\d{1,3})/);
-        if(!sm) continue;
-        const standing=+sm[1];
-        const maxStanding=Math.max(entries?.length||0,20)+5;
-        if(standing<1||standing>maxStanding) continue;
-
-        const nm=nearestLine(nLines,s.y,rowGap*1.8);
-        const rc=nearestLine(rLines,s.y,rowGap*1.8);
-        if(!nm||!rc) continue;
-        const record=parseRecordCell(rc.text);
-        if(!record) continue;
-
-        const name=cleanCellText(nm.text)
+      // Read only Standing, Name, and Match Record from each physical row.
+      const rows=physical.map(r=>{
+        const cell=(a,b)=>cleanCellText(r.words.filter(w=>{
+          const cx=(w.bbox.x0+w.bbox.x1)/2/prepared.width;
+          return cx>=a&&cx<b;
+        }).map(w=>w.text).join(' '));
+        const st=cell(0,.12), nm=cell(.115,.37)
           .replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’.\- ]+$/g,'').trim();
-        if(!name) continue;
-        out.push({standing,name,wins:record.wins,losses:record.losses,ties:record.ties});
+        const rec=parseRecordCell(cell(.505,.645));
+        const sm=st.match(/\b(\d{1,3})\b/);
+        return {standing:sm?+sm[1]:null,ocrName:nm,record:rec};
+      }).filter(r=>r.ocrName);
+
+      // Match each KNOWN tournament player to the closest OCR row.
+      const results=[],used=new Set();
+      for(const entry of entries){
+        const target=entry.player_name||'';
+        let bi=-1,bs=999;
+        rows.forEach((r,i)=>{
+          if(used.has(i)||!r.ocrName)return;
+          const a=norm(target),b=norm(r.ocrName);
+          let score=lev(a,b)/Math.max(a.length,b.length,1);
+          const tp=target.toLowerCase().split(/\s+/).filter(Boolean);
+          const rp=r.ocrName.toLowerCase().split(/\s+/).filter(Boolean);
+          if(tp.length&&rp.length){
+            if(lev(tp[0],rp[0])<=1)score-=.10;
+            if(lev(tp.at(-1),rp.at(-1))<=1)score-=.15;
+          }
+          if(score<bs){bs=score;bi=i;}
+        });
+        if(bi>=0&&bs<=.40){
+          const r=rows[bi];used.add(bi);
+          results.push({
+            standing:r.standing,name:target,
+            wins:r.record?.wins??null,losses:r.record?.losses??null,ties:r.record?.ties??null,
+            entry_id:entry.id,unresolved:!r.record||r.standing==null
+          });
+        }else{
+          results.push({standing:null,name:target,wins:null,losses:null,ties:null,entry_id:entry.id,unresolved:true});
+        }
       }
 
-      // Deduplicate by standing and keep the row whose name actually matches the tournament roster.
-      const uniq=new Map();
-      for(const r of out){
-        const old=uniq.get(r.standing);
-        if(!old || (!bestEntryMatch(old.name)&&bestEntryMatch(r.name))) uniq.set(r.standing,r);
+      // Invalid or duplicate standings are review-only; never silently save them.
+      const seen=new Set(),max=Math.max(entries.length,1);
+      for(const r of results){
+        if(r.standing==null)continue;
+        if(r.standing<1||r.standing>max||seen.has(r.standing)){r.standing=null;r.unresolved=true;}
+        else seen.add(r.standing);
       }
-      return [...uniq.values()].sort((a,b)=>a.standing-b.standing);
+      return results.sort((a,b)=>(a.standing??9999)-(b.standing??9999)||a.name.localeCompare(b.name));
     }
 
     async function prepareStandingsImage(file){
@@ -2452,9 +2484,9 @@ $('addPlayer').onclick = async () => {
           }
         }else{
           for(const r of mapped){
-            if(!r.entry) continue;
+            if(!r.entry || r.standing==null || r.wins==null || r.losses==null || r.ties==null) continue;
             const {data,error}=await sb.from('entries')
-              .update({standing:Number(r.standing),wins:Number(r.wins||0),losses:Number(r.losses||0),ties:Number(r.ties||0)})
+              .update({standing:Number(r.standing),wins:Number(r.wins),losses:Number(r.losses),ties:Number(r.ties)})
               .eq('id',r.entry.id)
               .select('id');
             if(error){ failed++; errors.push(r.name+': '+error.message); }
@@ -2482,10 +2514,18 @@ $('addPlayer').onclick = async () => {
     }
 
     function showPhotoPreview(rows,mode){
-      if(!rows.length){ pendingPhotoImport=null; $('photoImportPreview').innerHTML=''; return showMsg('photoImportMsg','No standings rows were recognized. Try a clearer, straighter photo.','bad'); }
-      const mapped=rows.map(r=>({...r,entry:bestEntryMatch(r.name)}));
+      if(!rows.length){ pendingPhotoImport=null; $('photoImportPreview').innerHTML=''; return showMsg('photoImportMsg','No tournament players could be prepared for review.','bad'); }
+      const mapped=rows.map(r=>({...r,entry:r.entry_id?entries.find(e=>e.id===r.entry_id):bestEntryMatch(r.name)}));
       pendingPhotoImport={mapped,mode};
-      $('photoImportPreview').innerHTML='<div class="muted" style="margin-bottom:6px">Review recognized data before applying.</div>'+mapped.map((r,i)=>'<div class="hub-row"><div><div class="hub-title">'+r.standing+'. '+esc(r.name)+'</div><div class="hub-meta">'+(mode==='standings'?'Record '+r.wins+'-'+r.losses+'-'+r.ties+' • ':'')+(r.entry?'Matched: '+esc(r.entry.player_name):'⚠ No tournament match')+'</div></div></div>').join('')+'<button id="applyPhotoImport" type="button" class="btn full" style="margin-top:10px">Apply Reviewed Data</button>';
+      $('photoImportPreview').innerHTML=
+        '<div class="muted" style="margin-bottom:6px">Every tournament player is shown. ⚠ means the scanner needs manual review before that player can be applied.</div>'+
+        mapped.map(r=>{
+          const ok=r.standing!=null&&r.wins!=null&&r.losses!=null&&r.ties!=null;
+          const place=ok?r.standing+'. ':'⚠ ';
+          const record=ok?(r.wins+'-'+r.losses+'-'+r.ties):'Needs review';
+          return '<div class="hub-row"><div><div class="hub-title">'+place+esc(r.name)+'</div><div class="hub-meta">Record '+record+' • '+(ok?'Ready':'⚠ Not confidently read')+'</div></div></div>';
+        }).join('')+
+        '<button id="applyPhotoImport" type="button" class="btn full" style="margin-top:10px">Apply Reviewed Data</button>';
       const btn=$('applyPhotoImport');
       if(btn) btn.addEventListener('click',applyPendingPhotoImport,{once:true});
     }
@@ -2499,7 +2539,7 @@ $('addPlayer').onclick = async () => {
       try{
         const rows=await scanStandardExhibit(file);
         showPhotoPreview(rows,mode);
-        if(rows.length){ const matched=rows.filter(r=>bestEntryMatch(r.name)).length; showMsg('photoImportMsg',rows.length+' row'+(rows.length===1?'':'s')+' recognized • '+matched+' matched to tournament players. Review below, then apply.',matched?'good':'warn'); }
+        if(rows.length){ const ready=rows.filter(r=>r.standing!=null&&r.wins!=null&&r.losses!=null&&r.ties!=null).length; showMsg('photoImportMsg',ready+' of '+entries.length+' tournament players fully recognized. All '+entries.length+' players are shown below for review.',ready===entries.length?'good':'warn'); }
       }catch(err){ showMsg('photoImportMsg','Could not read this photo: '+err.message,'bad'); }
     }
 
