@@ -100,8 +100,8 @@
 
       <div class="row">
         <div class="field">
-          <label for="birthdate">Birthdate *</label>
-          <input id="birthdate" type="date">
+          <label for="birthYear">Birth Year *</label>
+          <input id="birthYear" type="number" min="1900" max="2100" inputmode="numeric" placeholder="YYYY">
         </div>
         <div class="field">
           <label for="division">Division *</label>
@@ -355,8 +355,8 @@ Example:
       const decklist_text=$('decklist').value.trim();
       const card_total=countCards(decklist_text);
 
-      if(!tournament_id || !trainer_name || !player_id || !birthdate || !division || !decklist_text){
-        showMsg('Please complete Tournament, Player Name, Player ID, Birthdate, Division, and Decklist.','bad');
+      if(!tournament_id || !trainer_name || !player_id || !birth_year || !division || !decklist_text){
+        showMsg('Please complete Tournament, Player Name, Player ID, Birth Year, Division, and Decklist.','bad');
         return;
       }
 
@@ -365,11 +365,11 @@ Example:
 
       try{
         const confidence=detectedMain ? (detectedSupport ? 85 : 70) : 0;
-        const {error}=await sb.rpc('submit_public_decklist',{
+        const {error}=await sb.rpc('submit_public_decklist_v2',{
           p_tournament_id:tournament_id,
           p_trainer_name:trainer_name,
           p_player_id:player_id,
-          p_birthdate:birthdate,
+          p_birth_year:birth_year,
           p_division:division,
           p_format:format,
           p_decklist_text:decklist_text,
@@ -394,7 +394,7 @@ Example:
     function resetForm(){
       $('trainerName').value='';
       $('playerId').value='';
-      $('birthdate').value='';
+      $('birthYear').value='';
       $('division').value='';
       $('format').value='Standard';
       $('decklist').value='';
