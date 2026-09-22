@@ -203,6 +203,10 @@
 .owner-store-actions{display:flex;gap:6px;flex-wrap:wrap}
 .owner-store-actions .btn{width:auto;min-height:34px;padding:7px 10px;font-size:12px}
 </style>
+
+<style>
+@media(max-width:700px){#standings .player{grid-template-columns:1fr 1fr 1fr 1fr!important}#standings .player>div:first-child{grid-column:1/-1}}
+</style>
 </head>
 <body>
   <header class="top"><div class="brand">MASTER QUEST META ROLLCALL</div><div class="sub">Pokémon TCG tournament deck entry</div></header>
@@ -376,19 +380,27 @@
           <div class="field"><label>Main Pokémon / Card</label><select id="mainOption"></select></div>
           <div class="field"><label>Support / Variant</label><select id="supportOption"></select></div>
         </div>
-        <div class="row">
-          <div class="field"><label>Wins</label><input id="playerWins" type="number" min="0" value="0"></div>
-          <div class="field"><label>Losses</label><input id="playerLosses" type="number" min="0" value="0"></div>
-          <div class="field"><label>Ties</label><input id="playerTies" type="number" min="0" value="0"></div>
-        </div>
         <button id="addPlayer" class="btn full">Add Player</button><div id="entryMsg"></div>
         <div id="players" style="margin-top:12px"></div>
       </section>
 
       <section id="standingsTab" class="card hidden">
-        <div class="head"><div><h3 style="margin:0">Final Standings</h3><div class="muted">Assign placements after the tournament ends.</div></div><span id="standingCount" class="pill">0 Players</span></div>
+        <div class="head"><div><h3 style="margin:0">Final Standings</h3><div class="muted">Record final placement and match record (Wins / Losses / Ties).</div></div><span id="standingCount" class="pill">0 Players</span></div>
+
+        <div class="card" style="margin-top:12px;background:#f8fbf9">
+          <h3 style="margin-top:0">Import from Photo</h3>
+          <div class="muted">Take or upload a photo of the final standings. The app reads only Player Name, Match Record, and Final Standing. Review the results before saving.</div>
+          <div class="field"><label>Standings Photo</label><input id="standingsPhoto" type="file" accept="image/*" capture="environment"></div>
+          <div class="row">
+            <button id="scanPlayerNames" type="button" class="btn alt">Scan Player Names</button>
+            <button id="scanFinalStandings" type="button" class="btn">Scan Final Standings</button>
+          </div>
+          <div id="photoImportMsg"></div>
+          <div id="photoImportPreview" style="margin-top:10px"></div>
+        </div>
+
         <div id="standings" style="margin-top:10px"></div>
-        <button id="saveStandings" class="btn full" style="margin-top:10px">Save Final Standings</button><div id="standingMsg"></div>
+        <button id="saveStandings" class="btn full" style="margin-top:10px">Save Final Standings + Records</button><div id="standingMsg"></div>
       </section>
 
       <section id="discordTab" class="card hidden">
@@ -683,6 +695,8 @@
 
 </main>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -2063,7 +2077,7 @@
       if(currentRole==='owner') await loadMasterHub();
     };
 
-    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,deck_status,player_id,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,owner_played_against,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); if(currentRole==='owner' && $('pinnedOpponents')){ const pinned=entries.filter(e=>e.owner_played_against); $('pinnedOpponents').innerHTML=pinned.length?pinned.map(e=>'<div class="hub-row"><div><div class="hub-title">'+esc(e.player_name)+'</div><div class="hub-meta">'+esc(opt(e.main_option_id)?.name||'Deck Pending')+(opt(e.support_option_id)?' • '+esc(opt(e.support_option_id).name):'')+'</div></div></div>').join(''):'<div class="muted">No opponents pinned for this tournament.</div>'; } }
+    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,wins,losses,ties,saved_player_id,deck_status,player_id,birth_year,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,owner_played_against,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); if(currentRole==='owner' && $('pinnedOpponents')){ const pinned=entries.filter(e=>e.owner_played_against); $('pinnedOpponents').innerHTML=pinned.length?pinned.map(e=>'<div class="hub-row"><div><div class="hub-title">'+esc(e.player_name)+'</div><div class="hub-meta">'+esc(opt(e.main_option_id)?.name||'Deck Pending')+(opt(e.support_option_id)?' • '+esc(opt(e.support_option_id).name):'')+'</div></div></div>').join(''):'<div class="muted">No opponents pinned for this tournament.</div>'; } }
 
     function decklistBadge(e){
       if(e.decklist_method==='paper') return '<span class="status-badge status-paper">📄 Paper Received</span>';
@@ -2161,7 +2175,7 @@
     }
 
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year+' • ':'')+'Record: '+(e.wins||0)+'-'+(e.losses||0)+'-'+(e.ties||0)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year:'')+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
       document.querySelectorAll('.played-on').forEach(b=>b.onclick=async()=>{
         const {error}=await sb.rpc('set_owner_played_against',{p_entry_id:b.dataset.id,p_value:true});
         if(error) return alert(error.message);
@@ -2177,13 +2191,12 @@
       document.querySelectorAll('.undo-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'none',decklist_received_at:null,decklist_verified:false}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.check-in').forEach(b=>b.onclick=async()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e) return; if(e.decklist_method==='none' && !confirm('This player has no decklist recorded. Check them in anyway?')) return; const {error}=await sb.from('entries').update({check_in_status:'checked_in',checked_in_at:new Date().toISOString()}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.undo-checkin').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({check_in_status:'waiting',checked_in_at:null}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
-      document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e)return; $('playerName').value=e.player_name; $('playerId').value=e.player_id||''; $('birthYear').value=e.birth_year||''; $('playerDivision').value=e.division||''; $('playerWins').value=e.wins||0; $('playerLosses').value=e.losses||0; $('playerTies').value=e.ties||0; $('mainOption').value=e.main_option_id||''; $('supportOption').value=e.support_option_id||''; if(e.saved_player_id) $('playerName').dataset.savedPlayerId=e.saved_player_id; $('mainOption').dispatchEvent(new Event('change',{bubbles:true})); $('supportOption').dispatchEvent(new Event('change',{bubbles:true})); $('addPlayer').dataset.editId=e.id; $('addPlayer').textContent='Save Player'; });
-      $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
+      document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e)return; $('playerName').value=e.player_name; $('playerId').value=e.player_id||''; $('birthYear').value=e.birth_year||''; $('playerDivision').value=e.division||''; $('mainOption').value=e.main_option_id||''; $('supportOption').value=e.support_option_id||''; if(e.saved_player_id) $('playerName').dataset.savedPlayerId=e.saved_player_id; $('mainOption').dispatchEvent(new Event('change',{bubbles:true})); $('supportOption').dispatchEvent(new Event('change',{bubbles:true})); $('addPlayer').dataset.editId=e.id; $('addPlayer').textContent='Save Player'; });
+      $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player" style="display:grid;grid-template-columns:minmax(0,1fr) 92px repeat(3,70px);gap:8px"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><div><label>Standing</label><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div><div><label>W</label><input class="result-win" data-entry="'+e.id+'" type="number" min="0" value="'+(e.wins||0)+'"></div><div><label>L</label><input class="result-loss" data-entry="'+e.id+'" type="number" min="0" value="'+(e.losses||0)+'"></div><div><label>T</label><input class="result-tie" data-entry="'+e.id+'" type="number" min="0" value="'+(e.ties||0)+'"></div></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
 
     
     function resetPlayerForm(){
       ['playerName','playerId','birthYear','playerDivision'].forEach(id=>{ if($(id)) $(id).value=''; });
-      ['playerWins','playerLosses','playerTies'].forEach(id=>{ if($(id)) $(id).value='0'; });
       if($('playerName')) delete $('playerName').dataset.savedPlayerId;
 
       // Reset native Pokémon values first.
@@ -2219,9 +2232,10 @@ $('addPlayer').onclick = async () => {
       const player_id=$('playerId').value.trim()||null;
       const birth_year=$('birthYear').value ? Number($('birthYear').value) : null;
       const division=$('playerDivision').value.trim()||null;
-      const wins=Number($('playerWins').value||0);
-      const losses=Number($('playerLosses').value||0);
-      const ties=Number($('playerTies').value||0);
+      const existingEntry=$('addPlayer').dataset.editId ? entries.find(e=>e.id===$('addPlayer').dataset.editId) : null;
+      const wins=Number(existingEntry?.wins||0);
+      const losses=Number(existingEntry?.losses||0);
+      const ties=Number(existingEntry?.ties||0);
       const main_option_id=$('mainOption').value||null;
       const support_option_id=$('supportOption').value||null;
 
@@ -2257,7 +2271,91 @@ $('addPlayer').onclick = async () => {
       await loadEntries();
     };
 
-    $('saveStandings').onclick = async () => { showMsg('standingMsg',''); const sels=[...document.querySelectorAll('.stand')], vals=sels.map(s=>s.value).filter(Boolean); if(vals.length!==entries.length) return showMsg('standingMsg','Assign a standing to every player.','bad'); if(new Set(vals).size!==vals.length) return showMsg('standingMsg','Each finishing position can only be used once.','bad'); for(const s of sels){ const {error}=await sb.from('entries').update({standing:Number(s.value)}).eq('id',s.dataset.entry); if(error) return showMsg('standingMsg',error.message,'bad'); } await sb.from('tournaments').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',currentTournament.id); showMsg('standingMsg','Final standings saved.','good'); await loadEntries(); };
+    $('saveStandings').onclick = async () => {
+      showMsg('standingMsg','');
+      const sels=[...document.querySelectorAll('.stand')], vals=sels.map(s=>s.value).filter(Boolean);
+      if(vals.length!==entries.length) return showMsg('standingMsg','Assign a standing to every player.','bad');
+      if(new Set(vals).size!==vals.length) return showMsg('standingMsg','Each finishing position can only be used once.','bad');
+      for(const s of sels){
+        const id=s.dataset.entry;
+        const wins=Number(document.querySelector('.result-win[data-entry="'+id+'"]').value||0);
+        const losses=Number(document.querySelector('.result-loss[data-entry="'+id+'"]').value||0);
+        const ties=Number(document.querySelector('.result-tie[data-entry="'+id+'"]').value||0);
+        const {error}=await sb.from('entries').update({standing:Number(s.value),wins,losses,ties}).eq('id',id);
+        if(error) return showMsg('standingMsg',error.message,'bad');
+      }
+      await sb.from('tournaments').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',currentTournament.id);
+      showMsg('standingMsg','Final standings and match records saved.','good');
+      await loadEntries();
+    };
+
+    function parseStandingsOCR(text){
+      const rows=[];
+      const lines=String(text||'').split(/\n+/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
+      for(const line of lines){
+        // Typical line: 1 Sahil Parekh ... 5/0/0 ...
+        const place=(line.match(/^\s*(\d{1,3})\b/)||[])[1];
+        const record=line.match(/\b(\d{1,2})\s*[\/\-]\s*(\d{1,2})\s*[\/\-]\s*(\d{1,2})\b/);
+        if(!place) continue;
+        let name=line.replace(/^\s*\d{1,3}\s*/,'');
+        if(record) name=name.slice(0,name.indexOf(record[0]));
+        // Strip common columns that can appear immediately after the name.
+        name=name.replace(/\s+(masters?|seniors?|juniors?)\b.*$/i,'').trim();
+        name=name.replace(/\s+\d+(?:\.\d+)?%.*$/,'').trim();
+        if(name.length<2) continue;
+        rows.push({standing:Number(place),name,wins:record?Number(record[1]):0,losses:record?Number(record[2]):0,ties:record?Number(record[3]):0});
+      }
+      return rows;
+    }
+
+    function bestEntryMatch(name){
+      const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      const n=norm(name);
+      return entries.find(e=>norm(e.player_name)===n) || entries.find(e=>norm(e.player_name).includes(n)||n.includes(norm(e.player_name))) || null;
+    }
+
+    function showPhotoPreview(rows,mode){
+      if(!rows.length){ $('photoImportPreview').innerHTML=''; return showMsg('photoImportMsg','No standings rows were recognized. Try a clearer, straighter photo.','bad'); }
+      const mapped=rows.map(r=>({...r,entry:bestEntryMatch(r.name)}));
+      $('photoImportPreview').innerHTML='<div class="muted" style="margin-bottom:6px">Review recognized data before applying.</div>'+mapped.map((r,i)=>'<div class="hub-row"><div><div class="hub-title">'+r.standing+'. '+esc(r.name)+'</div><div class="hub-meta">'+(mode==='standings'?'Record '+r.wins+'-'+r.losses+'-'+r.ties+' • ':'')+(r.entry?'Matched: '+esc(r.entry.player_name):'⚠ No tournament match')+'</div></div></div>').join('')+'<button id="applyPhotoImport" type="button" class="btn full" style="margin-top:10px">Apply Reviewed Data</button>';
+      $('applyPhotoImport').onclick=async()=>{
+        if(mode==='players'){
+          let added=0;
+          for(const r of mapped){
+            if(r.entry) continue;
+            const {error}=await sb.from('entries').insert({tournament_id:currentTournament.id,player_name:r.name,deck_status:'pending'});
+            if(!error) added++;
+          }
+          showMsg('photoImportMsg',added+' new player'+(added===1?'':'s')+' added. Existing names were skipped.','good');
+        }else{
+          let updated=0;
+          for(const r of mapped){
+            if(!r.entry) continue;
+            const {error}=await sb.from('entries').update({standing:r.standing,wins:r.wins,losses:r.losses,ties:r.ties}).eq('id',r.entry.id);
+            if(!error) updated++;
+          }
+          showMsg('photoImportMsg',updated+' player result'+(updated===1?'':'s')+' applied. Unmatched names were not changed.','good');
+        }
+        await loadEntries();
+      };
+    }
+
+    async function scanStandingsPhoto(mode){
+      const file=$('standingsPhoto')?.files?.[0];
+      if(!file) return showMsg('photoImportMsg','Take or choose a standings photo first.','bad');
+      if(!window.Tesseract) return showMsg('photoImportMsg','Photo reader did not load. Check the internet connection and refresh.','bad');
+      showMsg('photoImportMsg','Reading photo… this can take several seconds.','');
+      $('photoImportPreview').innerHTML='';
+      try{
+        const result=await window.Tesseract.recognize(file,'eng',{logger:m=>{ if(m.status==='recognizing text') showMsg('photoImportMsg','Reading photo… '+Math.round((m.progress||0)*100)+'%',''); }});
+        const rows=parseStandingsOCR(result?.data?.text||'');
+        showPhotoPreview(rows,mode);
+        if(rows.length) showMsg('photoImportMsg',rows.length+' row'+(rows.length===1?'':'s')+' recognized. Review below, then apply.','good');
+      }catch(err){ showMsg('photoImportMsg','Could not read this photo: '+err.message,'bad'); }
+    }
+
+    if($('scanPlayerNames')) $('scanPlayerNames').onclick=()=>scanStandingsPhoto('players');
+    if($('scanFinalStandings')) $('scanFinalStandings').onclick=()=>scanStandingsPhoto('standings');
 
     function renderDiscord(){ const sorted=[...entries].filter(e=>e.standing).sort((a,b)=>a.standing-b.standing); $('discordText').textContent = sorted.length ? sorted.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); const place=e.standing===1?'🥇':e.standing===2?'🥈':e.standing===3?'🥉':e.standing+'.'; return place+' **'+e.player_name+'**'+(m?.discord_emoji_code?' '+m.discord_emoji_code:'')+(s?.discord_emoji_code?' '+s.discord_emoji_code:''); }).join('\n') : 'Complete standings to generate output.'; }
     if($('playerName')){
