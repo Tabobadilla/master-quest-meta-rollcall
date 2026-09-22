@@ -2314,30 +2314,70 @@ $('addPlayer').onclick = async () => {
       return entries.find(e=>norm(e.player_name)===n) || entries.find(e=>norm(e.player_name).includes(n)||n.includes(norm(e.player_name))) || null;
     }
 
-    function showPhotoPreview(rows,mode){
-      if(!rows.length){ $('photoImportPreview').innerHTML=''; return showMsg('photoImportMsg','No standings rows were recognized. Try a clearer, straighter photo.','bad'); }
-      const mapped=rows.map(r=>({...r,entry:bestEntryMatch(r.name)}));
-      $('photoImportPreview').innerHTML='<div class="muted" style="margin-bottom:6px">Review recognized data before applying.</div>'+mapped.map((r,i)=>'<div class="hub-row"><div><div class="hub-title">'+r.standing+'. '+esc(r.name)+'</div><div class="hub-meta">'+(mode==='standings'?'Record '+r.wins+'-'+r.losses+'-'+r.ties+' • ':'')+(r.entry?'Matched: '+esc(r.entry.player_name):'⚠ No tournament match')+'</div></div></div>').join('')+'<button id="applyPhotoImport" type="button" class="btn full" style="margin-top:10px">Apply Reviewed Data</button>';
-      $('applyPhotoImport').onclick=async()=>{
+    let pendingPhotoImport=null;
+
+    async function applyPendingPhotoImport(){
+      if(!pendingPhotoImport) return showMsg('photoImportMsg','Scan a photo first.','bad');
+      if(!currentTournament) return showMsg('photoImportMsg','Select a tournament first.','bad');
+
+      const {mapped,mode}=pendingPhotoImport;
+      const btn=$('applyPhotoImport');
+      if(btn){ btn.disabled=true; btn.textContent='Applying…'; }
+      showMsg('photoImportMsg','Applying reviewed data…','');
+
+      try{
+        let changed=0, failed=0;
+        const errors=[];
+
         if(mode==='players'){
-          let added=0;
           for(const r of mapped){
             if(r.entry) continue;
-            const {error}=await sb.from('entries').insert({tournament_id:currentTournament.id,player_name:r.name,deck_status:'pending'});
-            if(!error) added++;
+            const {error}=await sb.from('entries').insert({
+              tournament_id:currentTournament.id,
+              player_name:r.name,
+              deck_status:'pending'
+            });
+            if(error){ failed++; errors.push(r.name+': '+error.message); }
+            else changed++;
           }
-          showMsg('photoImportMsg',added+' new player'+(added===1?'':'s')+' added. Existing names were skipped.','good');
         }else{
-          let updated=0;
           for(const r of mapped){
             if(!r.entry) continue;
-            const {error}=await sb.from('entries').update({standing:r.standing,wins:r.wins,losses:r.losses,ties:r.ties}).eq('id',r.entry.id);
-            if(!error) updated++;
+            const {data,error}=await sb.from('entries')
+              .update({standing:Number(r.standing),wins:Number(r.wins||0),losses:Number(r.losses||0),ties:Number(r.ties||0)})
+              .eq('id',r.entry.id)
+              .select('id');
+            if(error){ failed++; errors.push(r.name+': '+error.message); }
+            else if(data?.length) changed++;
+            else { failed++; errors.push(r.name+': no row was updated'); }
           }
-          showMsg('photoImportMsg',updated+' player result'+(updated===1?'':'s')+' applied. Unmatched names were not changed.','good');
         }
+
         await loadEntries();
-      };
+        if(mode==='standings'){
+          const matched=mapped.filter(r=>r.entry).length;
+          const unmatched=mapped.length-matched;
+          showMsg('photoImportMsg',changed+' result'+(changed===1?'':'s')+' applied.'+(unmatched?' '+unmatched+' unmatched name'+(unmatched===1?' was':'s were')+' skipped.':'')+(failed?' '+failed+' update'+(failed===1?'':'s')+' failed.':''),failed?'warn':'good');
+        }else{
+          showMsg('photoImportMsg',changed+' new player'+(changed===1?'':'s')+' added.'+(failed?' '+failed+' failed.':''),failed?'warn':'good');
+        }
+        if(errors.length) console.error('Photo import errors:',errors);
+        pendingPhotoImport=null;
+        $('photoImportPreview').innerHTML='';
+      }catch(err){
+        console.error(err);
+        showMsg('photoImportMsg','Apply failed: '+(err?.message||String(err)),'bad');
+        if(btn){ btn.disabled=false; btn.textContent='Apply Reviewed Data'; }
+      }
+    }
+
+    function showPhotoPreview(rows,mode){
+      if(!rows.length){ pendingPhotoImport=null; $('photoImportPreview').innerHTML=''; return showMsg('photoImportMsg','No standings rows were recognized. Try a clearer, straighter photo.','bad'); }
+      const mapped=rows.map(r=>({...r,entry:bestEntryMatch(r.name)}));
+      pendingPhotoImport={mapped,mode};
+      $('photoImportPreview').innerHTML='<div class="muted" style="margin-bottom:6px">Review recognized data before applying.</div>'+mapped.map((r,i)=>'<div class="hub-row"><div><div class="hub-title">'+r.standing+'. '+esc(r.name)+'</div><div class="hub-meta">'+(mode==='standings'?'Record '+r.wins+'-'+r.losses+'-'+r.ties+' • ':'')+(r.entry?'Matched: '+esc(r.entry.player_name):'⚠ No tournament match')+'</div></div></div>').join('')+'<button id="applyPhotoImport" type="button" class="btn full" style="margin-top:10px">Apply Reviewed Data</button>';
+      const btn=$('applyPhotoImport');
+      if(btn) btn.addEventListener('click',applyPendingPhotoImport,{once:true});
     }
 
     async function scanStandingsPhoto(mode){
