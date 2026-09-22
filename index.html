@@ -366,10 +366,20 @@
 
       <section id="entryTab" class="card">
         <div class="head"><div><h3 style="margin:0">Add Player</h3><div class="muted">Only the player name is required. Deck can be added later with Edit.</div></div><span id="playerCount" class="pill">0 Players</span></div>
-        <div class="field"><label>Player Name</label><input id="playerName" placeholder="Enter player name"></div>
+        <div class="field"><label>Player Name</label><input id="playerName" list="savedPlayerSuggestions" autocomplete="off" placeholder="Start typing a returning player..."><datalist id="savedPlayerSuggestions"></datalist></div>
+        <div class="row">
+          <div class="field"><label>Player ID</label><input id="playerId" placeholder="Optional Player ID"></div>
+          <div class="field"><label>Birth Year</label><input id="birthYear" type="number" min="1900" max="2100" placeholder="YYYY"></div>
+          <div class="field"><label>Division</label><input id="playerDivision" placeholder="Optional division"></div>
+        </div>
         <div class="row">
           <div class="field"><label>Main Pokémon / Card</label><select id="mainOption"></select></div>
           <div class="field"><label>Support / Variant</label><select id="supportOption"></select></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Wins</label><input id="playerWins" type="number" min="0" value="0"></div>
+          <div class="field"><label>Losses</label><input id="playerLosses" type="number" min="0" value="0"></div>
+          <div class="field"><label>Ties</label><input id="playerTies" type="number" min="0" value="0"></div>
         </div>
         <button id="addPlayer" class="btn full">Add Player</button><div id="entryMsg"></div>
         <div id="players" style="margin-top:12px"></div>
@@ -1164,6 +1174,7 @@
         '</div>'+
         '<div class="hub-card-actions">'+
           '<button type="button" class="btn hub-open-tournament" data-id="'+tour.id+'" onclick="window.__mqOpenHubTournament(this.dataset.id)">Open Tournament</button>'+
+          '<button type="button" class="btn alt hub-edit-tournament" data-id="'+tour.id+'">Edit Tournament</button>'+
           '<button type="button" class="btn danger hub-delete-tournament" data-id="'+tour.id+'" data-label="'+esc(tour.event_name)+' — '+esc(tour.event_date)+'">Delete Tournament</button>'+
         '</div>'+
       '</div>';
@@ -1245,6 +1256,7 @@
       populateHubMetaTournamentFilter();
       renderHubMetaFromFilters();
       document.querySelectorAll('.hub-delete-tournament').forEach(b=>b.onclick=()=>deleteTournamentOwner(b.dataset.id,b.dataset.label));
+      document.querySelectorAll('.hub-edit-tournament').forEach(b=>b.onclick=()=>editTournamentOwner(b.dataset.id));
     }
 
 
@@ -1945,7 +1957,28 @@
     $('printDecklist').onclick = printActiveDecklist;
     $('markDeckVerified').onclick = verifyActiveDecklist;
 
-    async function loadOptions(){ const {data,error} = await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').eq('active',true).order('name'); if(error) return showMsg('optionMsg',error.message,'bad'); options=data||[]; renderOptions(); populateOptionEditor(); if(currentRole==='owner') fillLibraryOptionMenus(); }
+    async function loadOptions(){
+      showMsg('optionMsg','');
+
+      const {data,error}=await sb.rpc('list_public_deck_options');
+
+      if(error){
+        options=[];
+        renderOptions();
+        return showMsg('entryMsg','Unable to load Pokémon/Card options: '+error.message,'bad');
+      }
+
+      options=(data||[]).map(o=>({
+        ...o,
+        active:true
+      }));
+
+      renderOptions();
+      populateOptionEditor();
+
+      if(currentRole==='owner') fillLibraryOptionMenus();
+    }
+
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
     async function loadTournaments(){
@@ -2073,8 +2106,62 @@
         : '<button type="button" class="btn alt played-toggle played-on" data-id="'+e.id+'">Pin Opponent</button>';
     }
 
+    let savedPlayerMatches=[];
+
+    async function searchSavedPlayers(q=''){
+      if(!['owner','professor'].includes(currentRole)) return;
+      const {data,error}=await sb.rpc('search_saved_players',{p_query:q||''});
+      if(error) return;
+      savedPlayerMatches=data||[];
+      if($('savedPlayerSuggestions')){
+        $('savedPlayerSuggestions').innerHTML=savedPlayerMatches.map(p=>
+          '<option value="'+esc(p.player_name)+'">'+
+          (p.player_id?'Player ID '+esc(p.player_id):'Saved Player')+
+          (p.birth_year?' • '+p.birth_year:'')+
+          '</option>'
+        ).join('');
+      }
+    }
+
+    function applySavedPlayerByName(){
+      const name=$('playerName').value.trim().toLowerCase();
+      const p=savedPlayerMatches.find(x=>String(x.player_name||'').toLowerCase()===name);
+      if(!p) return;
+      $('playerId').value=p.player_id||'';
+      $('birthYear').value=p.birth_year||'';
+      $('playerDivision').value=p.division||'';
+      $('playerName').dataset.savedPlayerId=p.id;
+    }
+
+    async function editTournamentOwner(id){
+      if(currentRole!=='owner') return;
+      const tour=hubTournaments.find(x=>x.id===id);
+      if(!tour) return;
+
+      const eventName=prompt('Tournament Name:',tour.event_name||'');
+      if(eventName===null) return;
+      if(!eventName.trim()) return alert('Tournament name is required.');
+
+      const choices=availableStores.map((s,i)=>(i+1)+'. '+s.name).join('\\n');
+      const currentIndex=Math.max(0,availableStores.findIndex(s=>s.id===tour.store_id));
+      const picked=prompt('Choose Store Number:\\n\\n'+choices,String(currentIndex+1));
+      if(picked===null) return;
+      const store=availableStores[Number(picked)-1];
+      if(!store) return alert('Invalid store selection.');
+
+      const {error}=await sb.rpc('owner_update_tournament',{
+        p_tournament_id:id,
+        p_event_name:eventName.trim(),
+        p_store_id:store.id
+      });
+      if(error) return alert(error.message);
+
+      await loadTournaments();
+      await loadMasterHub();
+    }
+
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year+' • ':'')+'Record: '+(e.wins||0)+'-'+(e.losses||0)+'-'+(e.ties||0)+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
       document.querySelectorAll('.played-on').forEach(b=>b.onclick=async()=>{
         const {error}=await sb.rpc('set_owner_played_against',{p_entry_id:b.dataset.id,p_value:true});
         if(error) return alert(error.message);
@@ -2090,31 +2177,101 @@
       document.querySelectorAll('.undo-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'none',decklist_received_at:null,decklist_verified:false}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.check-in').forEach(b=>b.onclick=async()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e) return; if(e.decklist_method==='none' && !confirm('This player has no decklist recorded. Check them in anyway?')) return; const {error}=await sb.from('entries').update({check_in_status:'checked_in',checked_in_at:new Date().toISOString()}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.undo-checkin').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({check_in_status:'waiting',checked_in_at:null}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
-      document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e)return; $('playerName').value=e.player_name; $('mainOption').value=e.main_option_id||''; $('supportOption').value=e.support_option_id||''; $('addPlayer').dataset.editId=e.id; $('addPlayer').textContent='Save Player'; });
+      document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e)return; $('playerName').value=e.player_name; $('playerId').value=e.player_id||''; $('birthYear').value=e.birth_year||''; $('playerDivision').value=e.division||''; $('playerWins').value=e.wins||0; $('playerLosses').value=e.losses||0; $('playerTies').value=e.ties||0; $('mainOption').value=e.main_option_id||''; $('supportOption').value=e.support_option_id||''; if(e.saved_player_id) $('playerName').dataset.savedPlayerId=e.saved_player_id; $('mainOption').dispatchEvent(new Event('change',{bubbles:true})); $('supportOption').dispatchEvent(new Event('change',{bubbles:true})); $('addPlayer').dataset.editId=e.id; $('addPlayer').textContent='Save Player'; });
       $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
 
     
     function resetPlayerForm(){
-      $('playerName').value='';
+      ['playerName','playerId','birthYear','playerDivision'].forEach(id=>{ if($(id)) $(id).value=''; });
+      ['playerWins','playerLosses','playerTies'].forEach(id=>{ if($(id)) $(id).value='0'; });
+      if($('playerName')) delete $('playerName').dataset.savedPlayerId;
+
+      // Reset native Pokémon values first.
+      $('mainOption').selectedIndex=0;
+      $('supportOption').selectedIndex=0;
       $('mainOption').value='';
       $('supportOption').value='';
+
+      // Force all custom picker listeners to redraw from the blank native value.
+      ['input','change'].forEach(type=>{
+        $('mainOption').dispatchEvent(new Event(type,{bubbles:true}));
+        $('supportOption').dispatchEvent(new Event(type,{bubbles:true}));
+      });
+
       delete $('addPlayer').dataset.editId;
       $('addPlayer').textContent='Add Player';
 
-      // Keep the custom sprite picker display in sync with the native selects.
-      $('mainOption').dispatchEvent(new Event('change',{bubbles:true}));
-      $('supportOption').dispatchEvent(new Event('change',{bubbles:true}));
-
-      if(typeof window.__mqRefreshPickers==='function'){
-        window.__mqRefreshPickers();
-      }
+      // Rebuild the option menus so stale custom picker state cannot survive submission.
+      renderOptions();
+      setTimeout(()=>{
+        $('mainOption').value='';
+        $('supportOption').value='';
+        $('mainOption').dispatchEvent(new Event('change',{bubbles:true}));
+        $('supportOption').dispatchEvent(new Event('change',{bubbles:true}));
+      },0);
     }
 
-$('addPlayer').onclick = async () => { showMsg('entryMsg',''); if(!currentTournament) return showMsg('entryMsg','Create or select a tournament first.','bad'); const player_name=$('playerName').value.trim(),main_option_id=$('mainOption').value||null,support_option_id=$('supportOption').value||null; if(!player_name) return showMsg('entryMsg','Enter a player name.','bad'); const editId=$('addPlayer').dataset.editId; const payload={tournament_id:currentTournament.id,player_name,main_option_id,support_option_id,deck_status:main_option_id?'confirmed':'pending'}; let error; if(editId){ ({error}=await sb.from('entries').update(payload).eq('id',editId)); delete $('addPlayer').dataset.editId; $('addPlayer').textContent='Add Player'; } else { ({error}=await sb.from('entries').insert(payload)); } if(error) return showMsg('entryMsg',error.message,'bad'); $('playerName').value=''; $('mainOption').value=''; $('supportOption').value=''; showMsg('entryMsg',editId?'Player updated.':'Player added.','good'); resetPlayerForm(); await loadEntries(); };
+$('addPlayer').onclick = async () => {
+      showMsg('entryMsg','');
+      if(!currentTournament) return showMsg('entryMsg','Create or select a tournament first.','bad');
+
+      const player_name=$('playerName').value.trim();
+      const player_id=$('playerId').value.trim()||null;
+      const birth_year=$('birthYear').value ? Number($('birthYear').value) : null;
+      const division=$('playerDivision').value.trim()||null;
+      const wins=Number($('playerWins').value||0);
+      const losses=Number($('playerLosses').value||0);
+      const ties=Number($('playerTies').value||0);
+      const main_option_id=$('mainOption').value||null;
+      const support_option_id=$('supportOption').value||null;
+
+      if(!player_name) return showMsg('entryMsg','Enter a player name.','bad');
+      if(birth_year && (birth_year<1900 || birth_year>new Date().getFullYear())) return showMsg('entryMsg','Enter a valid birth year.','bad');
+
+      const {data:savedId,error:saveErr}=await sb.rpc('save_player_directory',{
+        p_player_name:player_name,
+        p_player_id:player_id,
+        p_birth_year:birth_year,
+        p_division:division
+      });
+      if(saveErr) return showMsg('entryMsg',saveErr.message,'bad');
+
+      const editId=$('addPlayer').dataset.editId;
+      const payload={
+        tournament_id:currentTournament.id,
+        player_name,player_id,birth_year,division,wins,losses,ties,
+        saved_player_id:savedId,
+        main_option_id,support_option_id,
+        deck_status:main_option_id?'confirmed':'pending'
+      };
+
+      let error;
+      if(editId) ({error}=await sb.from('entries').update(payload).eq('id',editId));
+      else ({error}=await sb.from('entries').insert(payload));
+
+      if(error) return showMsg('entryMsg',error.message,'bad');
+
+      showMsg('entryMsg',editId?'Player updated.':'Player added.','good');
+      resetPlayerForm();
+      await searchSavedPlayers('');
+      await loadEntries();
+    };
 
     $('saveStandings').onclick = async () => { showMsg('standingMsg',''); const sels=[...document.querySelectorAll('.stand')], vals=sels.map(s=>s.value).filter(Boolean); if(vals.length!==entries.length) return showMsg('standingMsg','Assign a standing to every player.','bad'); if(new Set(vals).size!==vals.length) return showMsg('standingMsg','Each finishing position can only be used once.','bad'); for(const s of sels){ const {error}=await sb.from('entries').update({standing:Number(s.value)}).eq('id',s.dataset.entry); if(error) return showMsg('standingMsg',error.message,'bad'); } await sb.from('tournaments').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',currentTournament.id); showMsg('standingMsg','Final standings saved.','good'); await loadEntries(); };
 
     function renderDiscord(){ const sorted=[...entries].filter(e=>e.standing).sort((a,b)=>a.standing-b.standing); $('discordText').textContent = sorted.length ? sorted.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); const place=e.standing===1?'🥇':e.standing===2?'🥈':e.standing===3?'🥉':e.standing+'.'; return place+' **'+e.player_name+'**'+(m?.discord_emoji_code?' '+m.discord_emoji_code:'')+(s?.discord_emoji_code?' '+s.discord_emoji_code:''); }).join('\n') : 'Complete standings to generate output.'; }
+    if($('playerName')){
+      let playerSearchTimer=null;
+      $('playerName').addEventListener('input',()=>{
+        delete $('playerName').dataset.savedPlayerId;
+        clearTimeout(playerSearchTimer);
+        playerSearchTimer=setTimeout(()=>searchSavedPlayers($('playerName').value.trim()),150);
+      });
+      $('playerName').addEventListener('change',applySavedPlayerByName);
+      $('playerName').addEventListener('blur',applySavedPlayerByName);
+      searchSavedPlayers('');
+    }
+
     $('copyDiscord').onclick = async () => { await navigator.clipboard.writeText($('discordText').textContent); $('copyDiscord').textContent='Copied!'; setTimeout(()=>$('copyDiscord').textContent='Copy Discord Code',1000); };
 
     function populateOptionEditor(){
