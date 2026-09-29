@@ -65,7 +65,7 @@
 .mq-picker-row:hover,.mq-picker-row:focus{background:#edf6f0}
 .mq-picker-row .mq-sprite-fallback{width:34px;height:34px;border-radius:8px;background:#edf3ef;display:grid;place-items:center;font-size:11px;color:#617369;flex:none}
 .mq-picker-clear{font-size:13px;color:#667a70}
-#mainOption,#supportOption{display:none!important}
+#mainOption,#supportOption,#epMain,#epSupport{display:none!important}
 .sync-summary{margin-top:10px;font-size:13px;color:#65786e}
 </style>
 
@@ -2273,6 +2273,7 @@
       $('epMain').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
       $('epSupport').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
       $('epMain').value=e.main_option_id||''; $('epSupport').value=e.support_option_id||'';
+      if(window.buildEditPickers) window.buildEditPickers();
       $('epMsg').textContent=''; $('editPlayerModal').classList.add('open'); document.body.style.overflow='hidden';
     };
     $('editPlayerModal').addEventListener('click',e=>{if(e.target===$('editPlayerModal'))window.__mqCloseEditPlayer();});
@@ -2993,8 +2994,13 @@ function buildPickers(){
   makePicker('mainOption','Main Pokémon / Card',false);
   makePicker('supportOption','Support / Variant',true);
 }
-// Expose this to the module script so Add Player can reset the visible custom pickers.
+function buildEditPickers(){
+  makePicker('epMain','Main Pokémon / Card',false);
+  makePicker('epSupport','Support / Variant',true);
+}
+// Expose picker builders to the module script.
 window.buildPickers = buildPickers;
+window.buildEditPickers = buildEditPickers;
 
 document.addEventListener('click', (e) => {
   document.querySelectorAll('.mq-picker-menu').forEach(menu => {
