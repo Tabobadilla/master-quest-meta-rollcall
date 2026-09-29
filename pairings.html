@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuestDex Tournament Pairings</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f7f5;color:#173d30;font-family:Arial,sans-serif}
+.top{background:#073d2c;color:white;padding:20px}
+.wrap{max-width:900px;margin:auto;padding:18px}
+.brand{font-size:28px;font-weight:900}.sub{opacity:.86;margin-top:3px}
+.card{background:white;border:1px solid #d7e4dd;border-radius:18px;padding:18px;margin:14px 0}
+h2{margin:0 0 4px}.muted{color:#60766d}
+.searchrow{display:flex;gap:8px;margin-top:14px}
+.search{flex:1;padding:14px;border:1px solid #bfd4c9;border-radius:12px;font-size:17px}
+.btn{border:0;border-radius:12px;background:#0f7a49;color:white;font-weight:900;padding:0 18px;cursor:pointer}
+.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:4px;margin-top:16px}
+.tab{white-space:nowrap;border:1px solid #bdd4c8;background:#eef5f1;color:#214b3b;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}
+.tab.on{background:#0f7a49;color:white;border-color:#0f7a49}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th,td{padding:13px 10px;border-bottom:1px solid #dce7e1;text-align:left}
+th{font-size:12px;color:#557064;text-transform:uppercase}
+.tableNo{font-size:20px;font-weight:900}
+.highlight{background:#e9f8ef}
+.hidden{display:none!important}
+.bad{background:#fdeaea;padding:12px;border-radius:10px;color:#8a2e2e;margin-top:12px}
+.good{background:#e5f6eb;padding:12px;border-radius:10px;color:#17613e;margin-top:12px}
+@media(max-width:620px){
+ .wrap{padding:10px}.card{padding:14px;border-radius:14px}
+ .searchrow{display:block}.btn{width:100%;padding:13px;margin-top:8px}
+ th,td{padding:11px 6px;font-size:14px}
+ .brand{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap"><div class="brand">QuestDex</div><div class="sub">Tournament Pairings & Final Standings</div></div></div>
+
+<div class="wrap">
+  <div class="card">
+    <h2 id="eventName">Tournament</h2>
+    <div id="eventInfo" class="muted">Loading tournament…</div>
+
+    <div class="searchrow">
+      <input id="search" class="search" placeholder="Type your name to find your table faster…" autocomplete="off">
+      <button id="searchBtn" class="btn">Search</button>
+    </div>
+    <div id="searchMsg"></div>
+
+    <div id="tabs" class="tabs"></div>
+  </div>
+
+  <div class="card">
+    <div id="sectionTitle"></div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<script type="module">
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
+
+const sb=createClient(
+  'https://njulnumhkxvtdfrjoigx.supabase.co',
+  'sb_publishable_31ke9sSB-21M8MXDWZm1lA_p_sYct8Z'
+);
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const ordinal=n=>{n=Number(n);let s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
+
+const tournamentId=new URLSearchParams(location.search).get('tournament');
+let tournament=null;
+let pairings=[];
+let standings=[];
+let rounds=[];
+let activeView=null;
+
+async function load(){
+  if(!tournamentId){
+    $('eventInfo').innerHTML='<div class="bad">This link is missing a tournament ID.</div>';
+    return;
+  }
+
+  const {data:t,error:te}=await sb.from('tournaments')
+    .select('id,event_name,event_date,store_name,published_round')
+    .eq('id',tournamentId).single();
+
+  if(te){
+    $('eventInfo').innerHTML='<div class="bad">Unable to load this tournament.</div>';
+    return;
+  }
+
+  tournament=t;
+  $('eventName').textContent=t.event_name||'Tournament';
+  $('eventInfo').textContent=[t.store_name,t.event_date].filter(Boolean).join(' • ');
+
+  const {data:p,error:pe}=await sb.from('pairings')
+    .select('*').eq('tournament_id',tournamentId)
+    .order('round_number').order('table_number');
+
+  if(!pe) pairings=p||[];
+
+  const {data:e,error:ee}=await sb.from('entries')
+    .select('player_name,standing,wins,losses,ties')
+    .eq('tournament_id',tournamentId)
+    .not('standing','is',null)
+    .order('standing');
+
+  if(!ee) standings=e||[];
+
+  rounds=[...new Set(pairings.map(p=>Number(p.round_number)).filter(Boolean))].sort((a,b)=>a-b);
+  buildTabs();
+
+  activeView=rounds.length ? 'round-'+(t.published_round && rounds.includes(Number(t.published_round)) ? Number(t.published_round) : rounds[rounds.length-1]) : 'standings';
+  render();
+}
+
+function buildTabs(){
+  $('tabs').innerHTML =
+    rounds.map(r=>`<button class="tab" data-view="round-${r}">Round ${r}</button>`).join('')+
+    `<button class="tab" data-view="standings">Final Standings</button>`;
+
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+    activeView=b.dataset.view;
+    clearSearch();
+    render();
+  });
+}
+
+function render(){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.view===activeView));
+
+  if(activeView==='standings'){
+    $('sectionTitle').innerHTML='<h2>Final Standings</h2><div class="muted">Final tournament placement and match record.</div>';
+    if(!standings.length){
+      $('content').innerHTML='<div class="muted" style="margin-top:14px">Final standings have not been published yet.</div>';
+      return;
+    }
+    $('content').innerHTML=`<table>
+      <thead><tr><th>Standing</th><th>Player</th><th>Record</th></tr></thead>
+      <tbody>${standings.map(e=>`<tr data-player="${esc(e.player_name).toLowerCase()}">
+        <td><b>${ordinal(e.standing)}</b></td>
+        <td><b>${esc(e.player_name)}</b></td>
+        <td>${Number(e.wins)||0}-${Number(e.losses)||0}-${Number(e.ties)||0}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+    return;
+  }
+
+  const round=Number(activeView.split('-')[1]);
+  const rows=pairings.filter(p=>Number(p.round_number)===round);
+  $('sectionTitle').innerHTML=`<h2>Round ${round} Pairings</h2><div class="muted">${rows.length} pairing${rows.length===1?'':'s'} listed.</div>`;
+
+  if(!rows.length){
+    $('content').innerHTML='<div class="muted" style="margin-top:14px">Pairings for this round have not been published yet.</div>';
+    return;
+  }
+
+  $('content').innerHTML=`<table>
+    <thead><tr><th>Table</th><th>Player 1</th><th>Player 2</th></tr></thead>
+    <tbody>${rows.map(p=>`<tr data-p1="${esc(p.player1_name).toLowerCase()}" data-p2="${esc(p.player2_name||'').toLowerCase()}">
+      <td class="tableNo">${p.table_number ? esc(p.table_number) : 'BYE'}</td>
+      <td><b>${esc(p.player1_name)}</b></td>
+      <td><b>${esc(p.player2_name||'BYE')}</b></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function clearSearch(){
+  $('search').value='';
+  $('searchMsg').innerHTML='';
+  document.querySelectorAll('tr.highlight').forEach(r=>r.classList.remove('highlight'));
+}
+
+function doSearch(){
+  const q=$('search').value.trim().toLowerCase();
+  document.querySelectorAll('tr.highlight').forEach(r=>r.classList.remove('highlight'));
+  if(!q){$('searchMsg').innerHTML='';return;}
+
+  if(activeView==='standings'){
+    const row=[...document.querySelectorAll('tbody tr')].find(r=>(r.dataset.player||'').includes(q));
+    if(!row){$('searchMsg').innerHTML='<div class="bad">Player not found in final standings.</div>';return;}
+    row.classList.add('highlight'); row.scrollIntoView({behavior:'smooth',block:'center'});
+    $('searchMsg').innerHTML='<div class="good">Player found. Their final standing is highlighted below.</div>';
+    return;
+  }
+
+  const row=[...document.querySelectorAll('tbody tr')].find(r=>(r.dataset.p1||'').includes(q)||(r.dataset.p2||'').includes(q));
+  if(!row){$('searchMsg').innerHTML='<div class="bad">Player not found in this round.</div>';return;}
+  row.classList.add('highlight'); row.scrollIntoView({behavior:'smooth',block:'center'});
+  const cells=row.querySelectorAll('td');
+  $('searchMsg').innerHTML=`<div class="good"><b>Table ${esc(cells[0].textContent)}</b> — ${esc(cells[1].textContent)} vs. ${esc(cells[2].textContent)}</div>`;
+}
+
+$('searchBtn').onclick=doSearch;
+$('search').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
+
+await load();
+</script>
+</body>
+</html>
