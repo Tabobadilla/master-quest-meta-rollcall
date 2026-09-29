@@ -2273,8 +2273,10 @@
       $('epMain').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
       $('epSupport').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
       $('epMain').value=e.main_option_id||''; $('epSupport').value=e.support_option_id||'';
-      if(window.buildEditPickers) window.buildEditPickers();
       $('epMsg').textContent=''; $('editPlayerModal').classList.add('open'); document.body.style.overflow='hidden';
+      // Use the exact same searchable sprite picker as Add Player.
+      window.pickerOptions = options.map(o=>({id:String(o.id),name:o.name,sprite_url:o.sprite_url||null,discord_emoji:o.discord_emoji||null,active:o.active}));
+      if(window.buildEditPickers) window.buildEditPickers();
     };
     $('editPlayerModal').addEventListener('click',e=>{if(e.target===$('editPlayerModal'))window.__mqCloseEditPlayer();});
     $('epSave').onclick=async()=>{
@@ -2944,7 +2946,8 @@ function makePicker(selectId, label, allowNone){
     select.insertAdjacentElement('afterend', wrap);
   }
 
-  const current = pickerOptions.find(x => x.id === select.value);
+  const sourceOptions = (selectId==='epMain'||selectId==='epSupport') && Array.isArray(window.pickerOptions) ? window.pickerOptions : pickerOptions;
+  const current = sourceOptions.find(x => String(x.id) === String(select.value));
   const display = current
     ? '<span class="mq-picker-value">'+safeImg(spriteFor(current), current.name)+'<span>'+current.name+'</span></span>'
     : '<span class="mq-picker-placeholder">'+(allowNone ? 'None' : 'Choose Main...')+'</span>';
@@ -2963,7 +2966,7 @@ function makePicker(selectId, label, allowNone){
 
   function renderList(term=''){
     const q = term.toLowerCase().trim();
-    const rows = pickerOptions.filter(x => !q || x.name.toLowerCase().includes(q));
+    const rows = sourceOptions.filter(x => !q || x.name.toLowerCase().includes(q));
     let out = '';
     if (allowNone) out += '<button type="button" class="mq-picker-row" data-id=""><span class="mq-sprite-fallback">—</span><span>None</span></button>';
     out += rows.map(x =>
