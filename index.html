@@ -2199,28 +2199,27 @@
       ['playerName','playerId','birthYear','playerDivision'].forEach(id=>{ if($(id)) $(id).value=''; });
       if($('playerName')) delete $('playerName').dataset.savedPlayerId;
 
-      // Reset native Pokémon values first.
-      $('mainOption').selectedIndex=0;
-      $('supportOption').selectedIndex=0;
-      $('mainOption').value='';
-      $('supportOption').value='';
-
-      // Force all custom picker listeners to redraw from the blank native value.
-      ['input','change'].forEach(type=>{
-        $('mainOption').dispatchEvent(new Event(type,{bubbles:true}));
-        $('supportOption').dispatchEvent(new Event(type,{bubbles:true}));
-      });
-
       delete $('addPlayer').dataset.editId;
       $('addPlayer').textContent='Add Player';
 
-      // Rebuild the option menus so stale custom picker state cannot survive submission.
+      // Recreate the native Pokémon selects at their blank/default values.
+      // The visible controls are custom pickers, so resetting only the hidden
+      // <select> elements is not enough.
       renderOptions();
+      $('mainOption').value='';
+      $('supportOption').value='';
+
+      // Rebuild BOTH visible custom pickers from the now-blank native values.
+      // This guarantees Main shows "Choose Main..." and Support shows "None".
+      buildPickers();
+
+      // Run once more after the current event finishes in case another render
+      // occurs during the Add Player submission/load cycle.
       setTimeout(()=>{
         $('mainOption').value='';
         $('supportOption').value='';
-        $('mainOption').dispatchEvent(new Event('change',{bubbles:true}));
-        $('supportOption').dispatchEvent(new Event('change',{bubbles:true}));
+        buildPickers();
+        if($('playerName')) $('playerName').focus();
       },0);
     }
 
