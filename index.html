@@ -2211,14 +2211,14 @@
 
       // Rebuild BOTH visible custom pickers from the now-blank native values.
       // This guarantees Main shows "Choose Main..." and Support shows "None".
-      buildPickers();
+      if(window.buildPickers) window.buildPickers();
 
       // Run once more after the current event finishes in case another render
       // occurs during the Add Player submission/load cycle.
       setTimeout(()=>{
         $('mainOption').value='';
         $('supportOption').value='';
-        buildPickers();
+        if(window.buildPickers) window.buildPickers();
         if($('playerName')) $('playerName').focus();
       },0);
     }
@@ -2887,6 +2887,8 @@ function buildPickers(){
   makePicker('mainOption','Main Pokémon / Card',false);
   makePicker('supportOption','Support / Variant',true);
 }
+// Expose this to the module script so Add Player can reset the visible custom pickers.
+window.buildPickers = buildPickers;
 
 document.addEventListener('click', (e) => {
   document.querySelectorAll('.mq-picker-menu').forEach(menu => {
