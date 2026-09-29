@@ -46,6 +46,10 @@
 .player-search-icon{position:absolute;left:14px;font-size:20px;color:#587166;pointer-events:none}
 .player-search-clear{position:absolute;right:8px;border:0;background:#e8f0ec;color:#214b3b;border-radius:8px;padding:7px 10px;font-weight:800;cursor:pointer}
 .player-search-status{margin-top:7px;font-size:12px}
+
+.player-search-prominent{margin:0 0 20px!important;padding:18px!important;border:2px solid #168653!important;background:#eef8f2!important}
+.player-search-title{font-size:20px;font-weight:950;color:#123f2e;margin-bottom:4px}
+.player-search-prominent .player-search-wrap input{font-size:16px;min-height:48px}
 </style>
 
 <style>
@@ -404,6 +408,15 @@
       </section>
 
       <section id="entryTab" class="card">
+        <div class="player-search-box player-search-prominent">
+          <div class="player-search-title">🔎 Find Player</div>
+          <div class="muted" style="margin-bottom:8px">Search players already added to this tournament for check-in, decklist, or editing.</div>
+          <div class="player-search-wrap">
+            <input id="playerSearch" type="search" autocomplete="off" placeholder="Type player name, Player ID, or deck...">
+            <button id="clearPlayerSearch" type="button" class="player-search-clear hidden">Clear</button>
+          </div>
+          <div id="playerSearchStatus" class="muted player-search-status"></div>
+        </div>
         <div class="head"><div><h3 style="margin:0">Add Player</h3><div class="muted">Only the player name is required. Deck can be added later with Edit.</div></div><span id="playerCount" class="pill">0 Players</span></div>
         <div class="field"><label>Player Name</label><input id="playerName" list="savedPlayerSuggestions" autocomplete="off" placeholder="Start typing a returning player..."><datalist id="savedPlayerSuggestions"></datalist></div>
         <div class="row">
@@ -416,15 +429,6 @@
           <div class="field"><label>Support / Variant</label><select id="supportOption"></select></div>
         </div>
         <button id="addPlayer" class="btn full">Add Player</button><div id="entryMsg"></div>
-        <div class="player-search-box">
-          <label for="playerSearch">Search Tournament Players</label>
-          <div class="player-search-wrap">
-            <span class="player-search-icon">⌕</span>
-            <input id="playerSearch" type="search" autocomplete="off" placeholder="Search name, Player ID, deck, birth year, division...">
-            <button id="clearPlayerSearch" type="button" class="player-search-clear hidden">Clear</button>
-          </div>
-          <div id="playerSearchStatus" class="muted player-search-status"></div>
-        </div>
         <div id="players" style="margin-top:12px"></div>
       </section>
 
