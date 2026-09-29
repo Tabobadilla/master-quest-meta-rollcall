@@ -50,6 +50,12 @@
 .player-search-prominent{margin:0 0 20px!important;padding:18px!important;border:2px solid #168653!important;background:#eef8f2!important}
 .player-search-title{font-size:20px;font-weight:950;color:#123f2e;margin-bottom:4px}
 .player-search-prominent .player-search-wrap input{font-size:16px;min-height:48px}
+
+.added-players-section{margin-top:26px;padding-top:22px;border-top:2px solid #d7e5de}
+.added-players-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.added-players-head h3{margin:0;font-size:22px;color:#173f31}
+.added-player-search{margin:0 0 14px!important;padding:14px!important;border:1px solid #c8ddd2!important;background:#f5f9f7!important}
+.added-player-search>label{font-size:15px;font-weight:900;color:#214b3b;margin-bottom:7px}
 </style>
 
 <style>
@@ -408,15 +414,6 @@
       </section>
 
       <section id="entryTab" class="card">
-        <div class="player-search-box player-search-prominent">
-          <div class="player-search-title">🔎 Find Player</div>
-          <div class="muted" style="margin-bottom:8px">Search players already added to this tournament for check-in, decklist, or editing.</div>
-          <div class="player-search-wrap">
-            <input id="playerSearch" type="search" autocomplete="off" placeholder="Type player name, Player ID, or deck...">
-            <button id="clearPlayerSearch" type="button" class="player-search-clear hidden">Clear</button>
-          </div>
-          <div id="playerSearchStatus" class="muted player-search-status"></div>
-        </div>
         <div class="head"><div><h3 style="margin:0">Add Player</h3><div class="muted">Only the player name is required. Deck can be added later with Edit.</div></div><span id="playerCount" class="pill">0 Players</span></div>
         <div class="field"><label>Player Name</label><input id="playerName" list="savedPlayerSuggestions" autocomplete="off" placeholder="Start typing a returning player..."><datalist id="savedPlayerSuggestions"></datalist></div>
         <div class="row">
@@ -429,7 +426,24 @@
           <div class="field"><label>Support / Variant</label><select id="supportOption"></select></div>
         </div>
         <button id="addPlayer" class="btn full">Add Player</button><div id="entryMsg"></div>
-        <div id="players" style="margin-top:12px"></div>
+        <div class="added-players-section">
+          <div class="added-players-head">
+            <div>
+              <h3>Added Players</h3>
+              <div class="muted">Players currently entered in this tournament.</div>
+            </div>
+            <span id="addedPlayerCount" class="pill">0 Players</span>
+          </div>
+          <div class="player-search-box added-player-search">
+            <label for="playerSearch">🔎 Find Added Player</label>
+            <div class="player-search-wrap">
+              <input id="playerSearch" type="search" autocomplete="off" placeholder="Type player name, Player ID, or deck...">
+              <button id="clearPlayerSearch" type="button" class="player-search-clear hidden">Clear</button>
+            </div>
+            <div id="playerSearchStatus" class="muted player-search-status"></div>
+          </div>
+          <div id="players" style="margin-top:12px"></div>
+        </div>
       </section>
 
       <section id="standingsTab" class="card hidden">
@@ -2239,7 +2253,8 @@
       });
     }
 
-    function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
+    function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s');
+      if($('addedPlayerCount')) $('addedPlayerCount').textContent=entries.length+' Players'; $('standingCount').textContent=$('playerCount').textContent;
       const visibleEntries=filteredTournamentEntries();
       if($('playerSearchStatus')){
         const q=String($('playerSearch')?.value||'').trim();
