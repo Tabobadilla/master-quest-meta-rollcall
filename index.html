@@ -59,6 +59,19 @@
 
 #addedPlayersCard{margin-top:18px}
 #addedPlayersCard .added-player-search{margin-top:14px!important}
+
+.tdf-import-card{margin-top:18px;padding:16px;border:1px solid #c9ddd2;border-radius:14px;background:#f7faf8}
+.tdf-preview{margin-top:10px;max-height:360px;overflow:auto}
+.round-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.round-btn{border:1px solid #bdd4c8;background:#eef5f1;color:#214b3b;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}
+.round-btn.on{background:#0f7a49;color:white;border-color:#0f7a49}
+.round-workspace{border:1px solid #d2e1da;border-radius:14px;padding:16px;background:#fafcfb}
+.pairing-table{width:100%;border-collapse:collapse;margin-top:12px}
+.pairing-table th,.pairing-table td{padding:10px;border-bottom:1px solid #dce7e1;text-align:left}
+.pairing-table th{font-size:12px;color:#557064}
+.tdf-row{padding:8px 0;border-bottom:1px solid #dce7e1}
+.public-link-box{margin-top:14px;padding:12px;border-radius:10px;background:#eef6f2}
+@media(max-width:650px){.pairing-table th:nth-child(4),.pairing-table td:nth-child(4){display:none}}
 </style>
 
 <style>
@@ -406,7 +419,7 @@
       </section>
 
 
-      <section class="card"><div class="tabs" style="grid-template-columns:repeat(3,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button></div></section>
+      <section class="card"><div class="tabs" style="grid-template-columns:repeat(4,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button></div></section>
 
       <section id="adminNavCard" class="card hidden">
         <div class="head"><div><h3 style="margin:0">Owner Tools</h3><div class="muted">Private Master Quest controls.</div></div></div>
@@ -429,6 +442,13 @@
           <div class="field"><label>Support / Variant</label><select id="supportOption"></select></div>
         </div>
         <button id="addPlayer" class="btn full">Add Player</button><div id="entryMsg"></div>
+
+        <div class="tdf-import-card">
+          <div class="head"><div><h3 style="margin:0">Import Players from TOM</h3><div class="muted">Upload a Pokémon TOM .tdf file to preview roster data before adding players.</div></div><span class="pill">TDF</span></div>
+          <div class="field"><label>Tournament Data File</label><input id="rosterTdfFile" type="file" accept=".tdf,application/octet-stream,text/xml,application/xml"></div>
+          <button id="previewRosterTdf" type="button" class="btn alt full">Preview TDF Players</button>
+          <div id="rosterTdfMsg"></div><div id="rosterTdfPreview" class="tdf-preview"></div>
+        </div>
       </section>
 
       <section id="addedPlayersCard" class="card">
@@ -452,19 +472,25 @@
         <div id="players" style="margin-top:12px"></div>
       </section>
 
+      <section id="pairingsTab" class="card hidden">
+        <div class="head">
+          <div><h3 style="margin:0">Pairings</h3><div class="muted">Each Swiss round has its own TOM TDF upload and saved pairings.</div></div>
+          <span id="pairingRoundSummary" class="pill">0 Players</span>
+        </div>
+        <div id="roundButtons" class="round-buttons"></div>
+        <div id="roundWorkspace" class="round-workspace">
+          <div class="muted">Select a round above.</div>
+        </div>
+      </section>
+
       <section id="standingsTab" class="card hidden">
         <div class="head"><div><h3 style="margin:0">Final Standings</h3><div class="muted">Record final placement and match record (Wins / Losses / Ties).</div></div><span id="standingCount" class="pill">0 Players</span></div>
 
-        <div class="card" style="margin-top:12px;background:#f8fbf9">
-          <h3 style="margin-top:0">Import from Photo</h3>
-          <div class="muted">Take or upload a photo of the final standings. The app reads only Player Name, Match Record, and Final Standing. Review the results before saving.</div>
-          <div class="field"><label>Standings Photo</label><input id="standingsPhoto" type="file" accept="image/*" capture="environment"></div>
-          <div class="row">
-            <button id="scanPlayerNames" type="button" class="btn alt">Scan Player Names</button>
-            <button id="scanFinalStandings" type="button" class="btn">Scan Final Standings</button>
-          </div>
-          <div id="photoImportMsg"></div>
-          <div id="photoImportPreview" style="margin-top:10px"></div>
+        <div class="tdf-import-card">
+          <div class="head"><div><h3 style="margin:0">Import Final TDF</h3><div class="muted">Upload the final Pokémon TOM .tdf file. QuestDex will preview final standing and match record before applying anything.</div></div><span class="pill">TDF</span></div>
+          <div class="field"><label>Final Tournament Data File</label><input id="finalTdfFile" type="file" accept=".tdf,application/octet-stream,text/xml,application/xml"></div>
+          <button id="previewFinalTdf" type="button" class="btn full">Preview Final TDF</button>
+          <div id="finalTdfMsg"></div><div id="finalTdfPreview" class="tdf-preview"></div>
         </div>
 
         <div id="standings" style="margin-top:10px"></div>
@@ -764,7 +790,7 @@
 </main>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
   <div id="editPlayerModal"><div id="editPlayerBox"><div class="ep-head"><h2 style="margin:0">Edit Player</h2><button type="button" onclick="window.__mqCloseEditPlayer()">×</button></div><div class="ep-grid"><div class="ep-full"><label>Player Name</label><input id="epName"></div><div><label>Player ID</label><input id="epId"></div><div><label>Birth Year</label><input id="epYear" type="number" placeholder="YYYY"></div><div><label>Division</label><input id="epDivision"></div><div></div><div><label>Main Pokémon / Card</label><select id="epMain"></select></div><div><label>Support / Variant</label><select id="epSupport"></select></div></div><div id="epMsg"></div><div class="ep-actions"><button type="button" onclick="window.__mqCloseEditPlayer()">Cancel</button><button id="epSave" type="button" class="ep-save">Save Changes</button></div></div></div><script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -773,6 +799,7 @@
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const $ = (id) => document.getElementById(id);
     let currentTournament = null, options = [], entries = [], currentRole = 'trainer';
+    let activePairingRound=1, savedPairingsByRound={};
     let currentProfileRole='trainer', currentAccessStatus='active', currentStoreId=null, currentStoreName='', availableStores=[];
     window.__mqOpenHubTournament = window.__mqOpenHubTournament || function(){ alert('Tournament viewer is still loading. Refresh the page and try again.'); };
 
@@ -2063,6 +2090,160 @@
 
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
 
+
+    function swissRoundCount(n){
+      n=Number(n)||0;
+      if(n<4) return 0;
+      if(n<=8) return 3;
+      if(n<=12) return 4;
+      if(n<=32) return 5;
+      if(n<=64) return 6;
+      if(n<=128) return 7;
+      if(n<=226) return 8;
+      if(n<=409) return 9;
+      return 10;
+    }
+
+    async function readTdfPayload(file){
+      if(!file) throw new Error('Choose a .tdf file first.');
+      const buf=await file.arrayBuffer();
+      const bytes=new Uint8Array(buf);
+      const isZip=bytes[0]===0x50 && bytes[1]===0x4b;
+      if(isZip && window.JSZip){
+        const zip=await JSZip.loadAsync(buf);
+        const parts=[];
+        for(const [name,item] of Object.entries(zip.files)){
+          if(item.dir) continue;
+          if(/\.(xml|json|txt|csv|tdf)$/i.test(name) || !/\.[a-z0-9]{2,5}$/i.test(name)){
+            try{ parts.push(await item.async('string')); }catch(_){}
+          }
+        }
+        if(parts.length) return parts.join('\n');
+      }
+      return new TextDecoder('utf-8',{fatal:false}).decode(buf);
+    }
+
+    function parseTdfExperimental(text){
+      // TOM versions can differ. This parser intentionally previews before any database write.
+      const result={players:[],pairings:[],standings:[],round:null,recognized:false};
+      const raw=String(text||'').replace(/\u0000/g,' ');
+      const xmlLike=raw.includes('<') && raw.includes('>');
+      let doc=null;
+      if(xmlLike){ try{ doc=new DOMParser().parseFromString(raw,'text/xml'); }catch(_){} }
+
+      const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
+      const num=v=>{const m=String(v||'').match(/\d+/);return m?Number(m[0]):null};
+      const record=v=>{const m=String(v||'').match(/(\d+)\s*[/\-]\s*(\d+)\s*[/\-]\s*(\d+)/);return m?{wins:+m[1],losses:+m[2],ties:+m[3]}:null};
+
+      if(doc && !doc.querySelector('parsererror')){
+        const nodes=[...doc.querySelectorAll('player,Player,competitor,Competitor,participant,Participant')];
+        nodes.forEach(n=>{
+          const get=(...names)=>{
+            for(const name of names){
+              const a=n.getAttribute(name); if(a) return clean(a);
+              const el=n.querySelector(name); if(el?.textContent) return clean(el.textContent);
+            } return '';
+          };
+          const name=get('name','Name','playerName','PlayerName','fullName','FullName');
+          if(name && !result.players.some(p=>p.name.toLowerCase()===name.toLowerCase())){
+            result.players.push({name,player_id:get('id','playerId','PlayerID','popId','POP_ID'),division:get('division','Division')});
+          }
+        });
+
+        const roundNodes=[...doc.querySelectorAll('round,Round')];
+        roundNodes.forEach(r=>{
+          const rn=num(r.getAttribute('number')||r.getAttribute('round')||r.querySelector('number,Number')?.textContent);
+          if(rn) result.round=Math.max(result.round||0,rn);
+          [...r.querySelectorAll('pairing,Pairing,match,Match,table,Table')].forEach(m=>{
+            const txt=clean(m.textContent);
+            const attrs=[...m.attributes||[]].map(a=>a.value);
+            const table=num(m.getAttribute('table')||m.getAttribute('tableNumber')||m.querySelector('tableNumber,TableNumber')?.textContent);
+            const p1=clean(m.getAttribute('player1')||m.getAttribute('playerOne')||m.querySelector('player1,Player1,playerOne,PlayerOne')?.textContent);
+            const p2=clean(m.getAttribute('player2')||m.getAttribute('playerTwo')||m.querySelector('player2,Player2,playerTwo,PlayerTwo')?.textContent);
+            if(p1 && (p2||/bye/i.test(txt))) result.pairings.push({round:rn||result.round||1,table:table||null,player1:p1,player2:p2||'BYE'});
+          });
+        });
+      }
+
+      // Text fallback for human-readable exports embedded in some tournament files.
+      raw.split(/\r?\n/).forEach(line=>{
+        const l=clean(line);
+        let m=l.match(/(?:table\s*)?(\d+)\s*[:\-]\s*(.+?)\s+(?:vs\.?|v\.?)\s+(.+)/i);
+        if(m) result.pairings.push({round:result.round||1,table:+m[1],player1:clean(m[2]),player2:clean(m[3])});
+        m=l.match(/^(\d+)\s+(.+?)\s+(\d+)\s*[/\-]\s*(\d+)\s*[/\-]\s*(\d+)(?:\s|$)/);
+        if(m) result.standings.push({standing:+m[1],name:clean(m[2]),wins:+m[3],losses:+m[4],ties:+m[5]});
+      });
+
+      result.recognized=!!(result.players.length||result.pairings.length||result.standings.length);
+      return result;
+    }
+
+    function renderTdfPreview(target,data,type){
+      const el=$(target); if(!el) return;
+      const rows=type==='players'?data.players:type==='standings'?data.standings:data.pairings;
+      if(!rows.length){ el.innerHTML='<div class="msg bad">TDF opened, but this TOM structure is not recognized yet. Keep the file; once we have a real TOM sample we can map its exact fields without changing the rest of QuestDex.</div>'; return; }
+      el.innerHTML=rows.slice(0,100).map((r,i)=>{
+        if(type==='players') return '<div class="tdf-row"><b>'+esc(r.name)+'</b>'+(r.player_id?' • '+esc(r.player_id):'')+'</div>';
+        if(type==='standings') return '<div class="tdf-row"><b>'+ordinal(r.standing)+' — '+esc(r.name)+'</b> • '+r.wins+'-'+r.losses+'-'+r.ties+'</div>';
+        return '<div class="tdf-row"><b>Table '+esc(r.table||'—')+'</b> — '+esc(r.player1)+' vs. '+esc(r.player2)+'</div>';
+      }).join('');
+    }
+
+    async function loadSavedPairings(){
+      savedPairingsByRound={};
+      if(!currentTournament) return;
+      const {data,error}=await sb.from('pairings').select('*').eq('tournament_id',currentTournament.id).order('round_number').order('table_number');
+      if(error){
+        if($('pairingDbMsg')) $('pairingDbMsg').textContent=error.message;
+        return;
+      }
+      (data||[]).forEach(p=>(savedPairingsByRound[p.round_number]??=[]).push(p));
+    }
+
+    async function renderPairings(){
+      if(!$('roundButtons')) return;
+      const n=entries.length, rounds=swissRoundCount(n);
+      $('pairingRoundSummary').textContent=n+' Players • '+rounds+' Swiss Round'+(rounds===1?'':'s');
+      if(!rounds){
+        $('roundButtons').innerHTML='<div class="muted">At least 4 players are needed to calculate Swiss rounds.</div>';
+        $('roundWorkspace').innerHTML='<div class="muted">Add players first.</div>'; return;
+      }
+      if(activePairingRound>rounds) activePairingRound=1;
+      $('roundButtons').innerHTML=Array.from({length:rounds},(_,i)=>'<button class="round-btn '+(activePairingRound===i+1?'on':'')+'" data-round="'+(i+1)+'">Round '+(i+1)+'</button>').join('');
+      document.querySelectorAll('.round-btn').forEach(b=>b.onclick=()=>{activePairingRound=Number(b.dataset.round);renderPairings();});
+      const saved=savedPairingsByRound[activePairingRound]||[];
+      $('roundWorkspace').innerHTML=
+        '<div class="head"><div><h3 style="margin:0">Round '+activePairingRound+'</h3><div class="muted">'+(saved.length?saved.length+' saved pairing'+(saved.length===1?'':'s'):'Upload the TOM TDF generated for this round.')+'</div></div></div>'+
+        '<div class="field"><label>Round '+activePairingRound+' TDF</label><input id="roundTdfFile" type="file" accept=".tdf,application/octet-stream,text/xml,application/xml"></div>'+
+        '<div class="row"><button id="previewRoundTdf" class="btn alt" type="button">Preview TDF</button><button id="saveRoundTdf" class="btn" type="button" disabled>Save / Replace Round '+activePairingRound+'</button></div>'+
+        '<div id="roundTdfMsg"></div><div id="roundTdfPreview" class="tdf-preview"></div>'+
+        '<div class="public-link-box"><b>Player Pairings Page</b><div class="muted">Players can use pairings.html?tournament='+encodeURIComponent(currentTournament?.id||'')+' to search their table and opponent.</div></div>'+
+        (saved.length?'<table class="pairing-table"><thead><tr><th>Table</th><th>Player</th><th>Opponent</th><th>Round</th></tr></thead><tbody>'+saved.map(p=>'<tr><td><b>'+esc(p.table_number||'BYE')+'</b></td><td>'+esc(p.player1_name)+'</td><td>'+esc(p.player2_name||'BYE')+'</td><td>'+p.round_number+'</td></tr>').join('')+'</tbody></table>':'');
+      let preview=null;
+      $('previewRoundTdf').onclick=async()=>{
+        try{
+          preview=parseTdfExperimental(await readTdfPayload($('roundTdfFile').files[0]));
+          const pairings=preview.pairings.filter(p=>!p.round||p.round===activePairingRound);
+          preview={...preview,pairings};
+          renderTdfPreview('roundTdfPreview',preview,'pairings');
+          $('saveRoundTdf').disabled=!pairings.length;
+          showMsg('roundTdfMsg',pairings.length?pairings.length+' pairing rows recognized. Review before saving.':'No Round '+activePairingRound+' pairings recognized yet.',pairings.length?'good':'bad');
+        }catch(e){showMsg('roundTdfMsg',e.message,'bad');}
+      };
+      $('saveRoundTdf').onclick=async()=>{
+        if(!preview?.pairings?.length||!currentTournament) return;
+        if(!confirm('Replace saved Round '+activePairingRound+' pairings with this TDF preview?')) return;
+        const del=await sb.from('pairings').delete().eq('tournament_id',currentTournament.id).eq('round_number',activePairingRound);
+        if(del.error) return showMsg('roundTdfMsg',del.error.message,'bad');
+        const rows=preview.pairings.map(p=>({tournament_id:currentTournament.id,round_number:activePairingRound,table_number:p.table,player1_name:p.player1,player2_name:p.player2==='BYE'?null:p.player2}));
+        const ins=await sb.from('pairings').insert(rows);
+        if(ins.error) return showMsg('roundTdfMsg',ins.error.message,'bad');
+        await sb.from('tournaments').update({published_round:activePairingRound}).eq('id',currentTournament.id);
+        showMsg('roundTdfMsg','Round '+activePairingRound+' saved and published.','good');
+        await loadSavedPairings(); await renderPairings();
+      };
+    }
+
     async function loadTournaments(){
       const {data,error}=await sb.from('tournaments')
         .select('*')
@@ -2149,7 +2330,7 @@
     $('playerSearch').addEventListener('keydown',e=>{if(e.key==='Escape'){e.currentTarget.value='';renderEntries();}});
     $('clearPlayerSearch').onclick=()=>{$('playerSearch').value='';renderEntries();$('playerSearch').focus();};
 
-    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,wins,losses,ties,saved_player_id,deck_status,player_id,birth_year,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,owner_played_against,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); if(currentRole==='owner' && $('pinnedOpponents')){ const pinned=entries.filter(e=>e.owner_played_against); $('pinnedOpponents').innerHTML=pinned.length?pinned.map(e=>'<div class="hub-row"><div><div class="hub-title">'+esc(e.player_name)+'</div><div class="hub-meta">'+esc(opt(e.main_option_id)?.name||'Deck Pending')+(opt(e.support_option_id)?' • '+esc(opt(e.support_option_id).name):'')+'</div></div></div>').join(''):'<div class="muted">No opponents pinned for this tournament.</div>'; } }
+    async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,wins,losses,ties,saved_player_id,deck_status,player_id,birth_year,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,owner_played_against,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); await loadSavedPairings(); await renderPairings(); if(currentRole==='owner' && $('pinnedOpponents')){ const pinned=entries.filter(e=>e.owner_played_against); $('pinnedOpponents').innerHTML=pinned.length?pinned.map(e=>'<div class="hub-row"><div><div class="hub-title">'+esc(e.player_name)+'</div><div class="hub-meta">'+esc(opt(e.main_option_id)?.name||'Deck Pending')+(opt(e.support_option_id)?' • '+esc(opt(e.support_option_id).name):'')+'</div></div></div>').join(''):'<div class="muted">No opponents pinned for this tournament.</div>'; } }
 
     function decklistBadge(e){
       if(e.decklist_method==='paper') return '<span class="status-badge status-paper">📄 Paper Received</span>';
@@ -2398,6 +2579,23 @@ $('addPlayer').onclick = async () => {
       // Reset LAST, after every post-save refresh has finished.
       // This prevents later rendering from restoring the Pokémon that was just submitted.
       resetPlayerForm();
+    };
+
+
+    if($('previewRosterTdf')) $('previewRosterTdf').onclick=async()=>{
+      try{
+        const data=parseTdfExperimental(await readTdfPayload($('rosterTdfFile').files[0]));
+        renderTdfPreview('rosterTdfPreview',data,'players');
+        showMsg('rosterTdfMsg',data.players.length?data.players.length+' player names recognized. Preview only for now; no players were changed.':'The file opened, but its roster structure is not recognized yet.',data.players.length?'good':'bad');
+      }catch(e){showMsg('rosterTdfMsg',e.message,'bad');}
+    };
+
+    if($('previewFinalTdf')) $('previewFinalTdf').onclick=async()=>{
+      try{
+        const data=parseTdfExperimental(await readTdfPayload($('finalTdfFile').files[0]));
+        renderTdfPreview('finalTdfPreview',data,'standings');
+        showMsg('finalTdfMsg',data.standings.length?data.standings.length+' final standings recognized. Preview only until the TOM parser is validated.':'The file opened, but final standings were not recognized in this TOM structure yet.',data.standings.length?'good':'bad');
+      }catch(e){showMsg('finalTdfMsg',e.message,'bad');}
     };
 
     $('saveStandings').onclick = async () => {
@@ -2825,7 +3023,7 @@ $('addPlayer').onclick = async () => {
       showMsg('optionMsg',editId?'Option updated.':'Option added.','good');
     };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab);  if($('hubTab')) $('hubTab').classList.add('hidden'); });  if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab);  if($('hubTab')) $('hubTab').classList.add('hidden'); });  if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
     document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ 
       document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); 
