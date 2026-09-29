@@ -3023,12 +3023,12 @@ $('addPlayer').onclick = async () => {
       showMsg('optionMsg',editId?'Option updated.':'Option added.','good');
     };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab);  if($('hubTab')) $('hubTab').classList.add('hidden'); });  if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
     document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ 
       document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); 
       b.classList.add('on'); 
-      ['entry','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); 
+      ['entry','pairings','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.add('hidden'); 
       if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); 
       if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); await loadRibbonTournaments(); } 
     });
