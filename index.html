@@ -2216,11 +2216,25 @@
       // Run once more after the current event finishes in case another render
       // occurs during the Add Player submission/load cycle.
       setTimeout(()=>{
+        $('mainOption').selectedIndex=0;
+        $('supportOption').selectedIndex=0;
         $('mainOption').value='';
         $('supportOption').value='';
         if(window.buildPickers) window.buildPickers();
+
+        // Final visual safeguard: the custom picker must reflect the blank native selects.
+        const mainWrap=document.getElementById('mainOptionCustomPicker');
+        const supportWrap=document.getElementById('supportOptionCustomPicker');
+        if(mainWrap && $('mainOption').value===''){
+          const span=mainWrap.querySelector('.mq-picker-btn > span:first-child');
+          if(span) span.innerHTML='<span class="mq-picker-placeholder">Choose Main...</span>';
+        }
+        if(supportWrap && $('supportOption').value===''){
+          const span=supportWrap.querySelector('.mq-picker-btn > span:first-child');
+          if(span) span.innerHTML='<span class="mq-picker-placeholder">None</span>';
+        }
         if($('playerName')) $('playerName').focus();
-      },0);
+      },25);
     }
 
 $('addPlayer').onclick = async () => {
@@ -2265,9 +2279,12 @@ $('addPlayer').onclick = async () => {
       if(error) return showMsg('entryMsg',error.message,'bad');
 
       showMsg('entryMsg',editId?'Player updated.':'Player added.','good');
-      resetPlayerForm();
       await searchSavedPlayers('');
       await loadEntries();
+
+      // Reset LAST, after every post-save refresh has finished.
+      // This prevents later rendering from restoring the Pokémon that was just submitted.
+      resetPlayerForm();
     };
 
     $('saveStandings').onclick = async () => {
