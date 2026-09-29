@@ -37,6 +37,15 @@
 .qd-brand-title{font-size:25px;font-weight:950;line-height:1;color:#fff;letter-spacing:-.4px}
 .qd-brand-sub{font-size:12px;color:#d8e7df;margin-top:5px}
 @media(max-width:600px){.qd-brand-logo{width:58px;height:44px}.qd-brand-title{font-size:21px}}
+
+.player-search-box{margin-top:18px;padding:14px;background:#f4f8f6;border:1px solid #d5e4dc;border-radius:14px}
+.player-search-box>label{display:block;font-weight:900;color:#365a4b;margin-bottom:7px}
+.player-search-wrap{position:relative;display:flex;align-items:center}
+.player-search-wrap input{width:100%;box-sizing:border-box;padding:12px 74px 12px 40px;border:1px solid #bfd5c9;border-radius:12px;background:#fff;font:inherit;color:#173d30}
+.player-search-wrap input:focus{outline:2px solid #16865333;border-color:#168653}
+.player-search-icon{position:absolute;left:14px;font-size:20px;color:#587166;pointer-events:none}
+.player-search-clear{position:absolute;right:8px;border:0;background:#e8f0ec;color:#214b3b;border-radius:8px;padding:7px 10px;font-weight:800;cursor:pointer}
+.player-search-status{margin-top:7px;font-size:12px}
 </style>
 
 <style>
@@ -407,6 +416,15 @@
           <div class="field"><label>Support / Variant</label><select id="supportOption"></select></div>
         </div>
         <button id="addPlayer" class="btn full">Add Player</button><div id="entryMsg"></div>
+        <div class="player-search-box">
+          <label for="playerSearch">Search Tournament Players</label>
+          <div class="player-search-wrap">
+            <span class="player-search-icon">⌕</span>
+            <input id="playerSearch" type="search" autocomplete="off" placeholder="Search name, Player ID, deck, birth year, division...">
+            <button id="clearPlayerSearch" type="button" class="player-search-clear hidden">Clear</button>
+          </div>
+          <div id="playerSearchStatus" class="muted player-search-status"></div>
+        </div>
         <div id="players" style="margin-top:12px"></div>
       </section>
 
@@ -2103,6 +2121,10 @@
       if(currentRole==='owner') await loadMasterHub();
     };
 
+    $('playerSearch').addEventListener('input',()=>renderEntries());
+    $('playerSearch').addEventListener('keydown',e=>{if(e.key==='Escape'){e.currentTarget.value='';renderEntries();}});
+    $('clearPlayerSearch').onclick=()=>{$('playerSearch').value='';renderEntries();$('playerSearch').focus();};
+
     async function loadEntries(){ if(!currentTournament) return; const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,wins,losses,ties,saved_player_id,deck_status,player_id,birth_year,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,owner_played_against,created_at').eq('tournament_id',currentTournament.id).order('created_at'); if(error) return alert(error.message); entries=data||[]; renderEntries(); if(currentRole==='owner' && $('pinnedOpponents')){ const pinned=entries.filter(e=>e.owner_played_against); $('pinnedOpponents').innerHTML=pinned.length?pinned.map(e=>'<div class="hub-row"><div><div class="hub-title">'+esc(e.player_name)+'</div><div class="hub-meta">'+esc(opt(e.main_option_id)?.name||'Deck Pending')+(opt(e.support_option_id)?' • '+esc(opt(e.support_option_id).name):'')+'</div></div></div>').join(''):'<div class="muted">No opponents pinned for this tournament.</div>'; } }
 
     function decklistBadge(e){
@@ -2200,8 +2222,27 @@
       await loadMasterHub();
     }
 
+    function filteredTournamentEntries(){
+      const q=String($('playerSearch')?.value||'').trim().toLowerCase();
+      if(!q) return entries;
+      return entries.filter(e=>{
+        const main=opt(e.main_option_id)?.name||'';
+        const support=opt(e.support_option_id)?.name||'';
+        return [
+          e.player_name,e.player_id,e.birth_year,e.division,main,support,
+          e.check_in_status,e.decklist_method
+        ].some(v=>String(v||'').toLowerCase().includes(q));
+      });
+    }
+
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year:'')+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button type="button" class="btn alt edit" data-id="'+e.id+'" onclick="window.__mqEditPlayer(this.dataset.id)">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      const visibleEntries=filteredTournamentEntries();
+      if($('playerSearchStatus')){
+        const q=String($('playerSearch')?.value||'').trim();
+        $('playerSearchStatus').textContent=q ? visibleEntries.length+' of '+entries.length+' players shown' : '';
+        $('clearPlayerSearch').classList.toggle('hidden',!q);
+      }
+      $('players').innerHTML = visibleEntries.length ? visibleEntries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year:'')+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button type="button" class="btn alt edit" data-id="'+e.id+'" onclick="window.__mqEditPlayer(this.dataset.id)">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">'+(entries.length?'No players match your search.':'No players entered yet.')+'</div>';
       document.querySelectorAll('.played-on').forEach(b=>b.onclick=async()=>{
         const {error}=await sb.rpc('set_owner_played_against',{p_entry_id:b.dataset.id,p_value:true});
         if(error) return alert(error.message);
