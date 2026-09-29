@@ -18,17 +18,18 @@
     .discord{background:#101914;color:#dbf4e5;border-radius:10px;padding:12px;white-space:pre-wrap;min-height:90px;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}.auth{max-width:430px;margin:54px auto}.full{width:100%}
     @media(max-width:560px){.row{grid-template-columns:1fr}.wrap{padding:9px}.tabs button{font-size:12px;padding:8px 4px}.player{align-items:flex-start}.actions{flex-direction:column}}
   
-.edit-player-overlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px}
-.edit-player-overlay.is-open{display:flex}
-.edit-player-dialog{width:min(700px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.3)}
-.edit-player-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
-.edit-player-header h2{margin:0}.edit-player-x{border:0;background:#e9efec;border-radius:10px;width:40px;height:40px;font-size:22px;font-weight:900;cursor:pointer}
-.edit-player-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.edit-player-grid .full{grid-column:1/-1}
-.edit-player-dialog label{display:block;font-weight:800;font-size:13px;margin-bottom:6px;color:#536e62}
-.edit-player-dialog input,.edit-player-dialog select{width:100%;box-sizing:border-box;padding:12px;border:1px solid #c9dbd2;border-radius:12px;background:#fff;font:inherit}
-.edit-player-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.edit-player-actions button{border:0;border-radius:10px;padding:12px 17px;font-weight:900;cursor:pointer}
-.edit-player-save{background:#12844d;color:#fff}.edit-player-cancel{background:#e9efec;color:#214b3b}
-@media(max-width:650px){.edit-player-grid{grid-template-columns:1fr}.edit-player-grid .full{grid-column:auto}}
+#editPlayerModal{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px}
+#editPlayerModal.open{display:flex}
+#editPlayerBox{width:min(700px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.3)}
+#editPlayerBox .ep-head,#editPlayerBox .ep-actions{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#editPlayerBox .ep-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+#editPlayerBox .ep-full{grid-column:1/-1}
+#editPlayerBox label{display:block;font-size:13px;font-weight:800;margin-bottom:6px;color:#536e62}
+#editPlayerBox input,#editPlayerBox select{width:100%;box-sizing:border-box;padding:12px;border:1px solid #c9dbd2;border-radius:12px;background:#fff;font:inherit}
+#editPlayerBox button{border:0;border-radius:10px;padding:12px 16px;font-weight:900;cursor:pointer}
+#editPlayerBox .ep-save{background:#12844d;color:#fff}
+#editPlayerBox .ep-actions{justify-content:flex-end;margin-top:18px}
+@media(max-width:650px){#editPlayerBox .ep-grid{grid-template-columns:1fr}#editPlayerBox .ep-full{grid-column:auto}}
 </style>
 
 <style>
@@ -710,30 +711,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-  
-<div id="editPlayerOverlay" class="edit-player-overlay" aria-hidden="true">
-  <div class="edit-player-dialog" role="dialog" aria-modal="true" aria-labelledby="editPlayerHeading">
-    <div class="edit-player-header">
-      <h2 id="editPlayerHeading">Edit Player</h2>
-      <button id="editPlayerX" class="edit-player-x" type="button" aria-label="Close">×</button>
-    </div>
-    <div class="edit-player-grid">
-      <div class="full"><label>Player Name</label><input id="modalPlayerName"></div>
-      <div><label>Player ID</label><input id="modalPlayerId"></div>
-      <div><label>Birth Year</label><input id="modalBirthYear" type="number" min="1900" max="2100" placeholder="YYYY"></div>
-      <div><label>Division</label><input id="modalDivision"></div><div></div>
-      <div><label>Main Pokémon / Card</label><select id="modalMain"></select></div>
-      <div><label>Support / Variant</label><select id="modalSupport"></select></div>
-    </div>
-    <div id="modalPlayerMsg" class="msg"></div>
-    <div class="edit-player-actions">
-      <button id="editPlayerCancel" class="edit-player-cancel" type="button">Cancel</button>
-      <button id="editPlayerSave" class="edit-player-save" type="button">Save Changes</button>
-    </div>
-  </div>
-</div>
-
-<script type="module">
+  <div id="editPlayerModal"><div id="editPlayerBox"><div class="ep-head"><h2 style="margin:0">Edit Player</h2><button type="button" onclick="window.__mqCloseEditPlayer()">×</button></div><div class="ep-grid"><div class="ep-full"><label>Player Name</label><input id="epName"></div><div><label>Player ID</label><input id="epId"></div><div><label>Birth Year</label><input id="epYear" type="number" placeholder="YYYY"></div><div><label>Division</label><input id="epDivision"></div><div></div><div><label>Main Pokémon / Card</label><select id="epMain"></select></div><div><label>Support / Variant</label><select id="epSupport"></select></div></div><div id="epMsg"></div><div class="ep-actions"><button type="button" onclick="window.__mqCloseEditPlayer()">Cancel</button><button id="epSave" type="button" class="ep-save">Save Changes</button></div></div></div><script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     const SUPABASE_URL = 'https://njulnumhkxvtdfrjoigx.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_31ke9sSB-21M8MXDWZm1lA_p_sYct8Z';
@@ -2210,7 +2188,7 @@
     }
 
     function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s'); $('standingCount').textContent=$('playerCount').textContent;
-      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year:'')+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button class="btn alt edit" data-id="'+e.id+'">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
+      $('players').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year:'')+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button type="button" class="btn alt edit" data-id="'+e.id+'" onclick="window.__mqEditPlayer(this.dataset.id)">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">No players entered yet.</div>';
       document.querySelectorAll('.played-on').forEach(b=>b.onclick=async()=>{
         const {error}=await sb.rpc('set_owner_played_against',{p_entry_id:b.dataset.id,p_value:true});
         if(error) return alert(error.message);
@@ -2226,52 +2204,26 @@
       document.querySelectorAll('.undo-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'none',decklist_received_at:null,decklist_verified:false}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.check-in').forEach(b=>b.onclick=async()=>{ const e=entries.find(x=>x.id===b.dataset.id); if(!e) return; if(e.decklist_method==='none' && !confirm('This player has no decklist recorded. Check them in anyway?')) return; const {error}=await sb.from('entries').update({check_in_status:'checked_in',checked_in_at:new Date().toISOString()}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.undo-checkin').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({check_in_status:'waiting',checked_in_at:null}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
-      document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>window.dispatchEvent(new CustomEvent('mq-edit-player',{detail:{id:b.dataset.id}})));
+
       $('standings').innerHTML = entries.length ? entries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); let choices='<option value="">—</option>'; for(let i=1;i<=entries.length;i++) choices+='<option value="'+i+'" '+(e.standing===i?'selected':'')+'>'+ordinal(i)+'</option>'; return '<div class="player" style="display:grid;grid-template-columns:minmax(0,1fr) 92px repeat(3,70px);gap:8px"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):'<span class="pending-deck">Deck Pending</span>')+'</div></div><div><label>Standing</label><select class="stand" data-entry="'+e.id+'">'+choices+'</select></div><div><label>W</label><input class="result-win" data-entry="'+e.id+'" type="number" min="0" value="'+(e.wins||0)+'"></div><div><label>L</label><input class="result-loss" data-entry="'+e.id+'" type="number" min="0" value="'+(e.losses||0)+'"></div><div><label>T</label><input class="result-tie" data-entry="'+e.id+'" type="number" min="0" value="'+(e.ties||0)+'"></div></div>'; }).join('') : '<div class="muted">Add players first.</div>'; renderDiscord(); }
 
     
-
-    function modalClose(){
-      const o=$('editPlayerOverlay');
-      o.classList.remove('is-open'); o.setAttribute('aria-hidden','true');
-      o.dataset.entryId=''; $('modalPlayerMsg').textContent=''; document.body.style.overflow='';
-    }
-    function modalOpenById(id){
-      const e=entries.find(x=>String(x.id)===String(id)); if(!e) return;
-      $('modalPlayerName').value=e.player_name||''; $('modalPlayerId').value=e.player_id||'';
-      $('modalBirthYear').value=e.birth_year||''; $('modalDivision').value=e.division||'';
-      const m=$('modalMain'),u=$('modalSupport');
-      m.innerHTML='<option value="">Choose Main...</option>';
-      u.innerHTML='<option value="">None</option>';
-      options.filter(x=>x.active!==false).forEach(x=>{m.add(new Option(x.name,x.id));u.add(new Option(x.name,x.id));});
-      m.value=e.main_option_id||''; u.value=e.support_option_id||'';
-      const o=$('editPlayerOverlay'); o.dataset.entryId=e.id; o.classList.add('is-open');
-      o.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden';
-    }
-    window.addEventListener('mq-edit-player',ev=>modalOpenById(ev.detail.id));
-    $('editPlayerX').onclick=modalClose; $('editPlayerCancel').onclick=modalClose;
-    $('editPlayerOverlay').onclick=ev=>{if(ev.target===$('editPlayerOverlay'))modalClose();};
-    document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&$('editPlayerOverlay').classList.contains('is-open'))modalClose();});
-    $('editPlayerSave').onclick=async()=>{
-      const id=$('editPlayerOverlay').dataset.entryId, name=$('modalPlayerName').value.trim();
-      if(!id||!name) return showMsg('modalPlayerMsg','Player name is required.','bad');
-      const by=$('modalBirthYear').value?Number($('modalBirthYear').value):null;
-      if(by&&(by<1900||by>new Date().getFullYear())) return showMsg('modalPlayerMsg','Enter a valid birth year.','bad');
-      const oldEntry=entries.find(x=>String(x.id)===String(id));
-      const payload={
-        player_name:name,player_id:$('modalPlayerId').value.trim()||null,birth_year:by,
-        division:$('modalDivision').value.trim()||null,
-        main_option_id:$('modalMain').value||null,support_option_id:$('modalSupport').value||null,
-        deck_status:$('modalMain').value?'confirmed':'pending'
-      };
-      const btn=$('editPlayerSave');btn.disabled=true;btn.textContent='Saving...';
-      const {data:savedId,error:dirErr}=await sb.rpc('save_player_directory',{p_player_name:name,p_player_id:payload.player_id,p_birth_year:by,p_division:payload.division});
-      if(dirErr){btn.disabled=false;btn.textContent='Save Changes';return showMsg('modalPlayerMsg',dirErr.message,'bad');}
-      payload.saved_player_id=savedId||oldEntry?.saved_player_id||null;
-      const {error}=await sb.from('entries').update(payload).eq('id',id);
-      btn.disabled=false;btn.textContent='Save Changes';
-      if(error)return showMsg('modalPlayerMsg',error.message,'bad');
-      modalClose();showMsg('entryMsg','Player updated.','good');await searchSavedPlayers('');await loadEntries();
+    window.__mqCloseEditPlayer=()=>{ $('editPlayerModal').classList.remove('open'); document.body.style.overflow=''; };
+    window.__mqEditPlayer=(id)=>{
+      const e=entries.find(x=>String(x.id)===String(id)); if(!e){ alert('Player could not be found.'); return; }
+      $('editPlayerModal').dataset.id=e.id; $('epName').value=e.player_name||''; $('epId').value=e.player_id||''; $('epYear').value=e.birth_year||''; $('epDivision').value=e.division||'';
+      $('epMain').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
+      $('epSupport').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
+      $('epMain').value=e.main_option_id||''; $('epSupport').value=e.support_option_id||'';
+      $('epMsg').textContent=''; $('editPlayerModal').classList.add('open'); document.body.style.overflow='hidden';
+    };
+    $('editPlayerModal').addEventListener('click',e=>{if(e.target===$('editPlayerModal'))window.__mqCloseEditPlayer();});
+    $('epSave').onclick=async()=>{
+      const id=$('editPlayerModal').dataset.id,name=$('epName').value.trim(); if(!name){showMsg('epMsg','Player name is required.','bad');return;}
+      const year=$('epYear').value?Number($('epYear').value):null;
+      const payload={player_name:name,player_id:$('epId').value.trim()||null,birth_year:year,division:$('epDivision').value.trim()||null,main_option_id:$('epMain').value||null,support_option_id:$('epSupport').value||null,deck_status:$('epMain').value?'confirmed':'pending'};
+      const {error}=await sb.from('entries').update(payload).eq('id',id); if(error){showMsg('epMsg',error.message,'bad');return;}
+      window.__mqCloseEditPlayer(); showMsg('entryMsg','Player updated.','good'); await loadEntries();
     };
 
     function resetPlayerForm(){
