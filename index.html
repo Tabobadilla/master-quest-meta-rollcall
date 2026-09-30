@@ -71,6 +71,15 @@
 .pairing-table th{font-size:12px;color:#557064}
 .tdf-row{padding:8px 0;border-bottom:1px solid #dce7e1}
 .public-link-box{margin-top:14px;padding:12px;border-radius:10px;background:#eef6f2}
+.store-pairings-share{margin-top:14px;padding:16px;border:1px solid #c9ddd2;border-radius:14px;background:#f4f9f6}
+.store-pairings-share-grid{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:center;margin-top:12px}
+.store-pairings-qr{width:150px;height:150px;background:#fff;border:1px solid #d7e4dd;border-radius:12px;padding:8px;display:flex;align-items:center;justify-content:center}
+.store-pairings-qr img,.store-pairings-qr canvas{max-width:100%;max-height:100%}
+.store-pairings-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.store-pairings-actions .btn{width:auto}
+.store-public-url{font-size:12px;word-break:break-all;color:#60766d;margin-top:8px}
+@media(max-width:560px){.store-pairings-share-grid{grid-template-columns:1fr}.store-pairings-qr{margin:auto}}
+
 @media(max-width:650px){.pairing-table th:nth-child(4),.pairing-table td:nth-child(4){display:none}}
 </style>
 
@@ -791,6 +800,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <div id="editPlayerModal"><div id="editPlayerBox"><div class="ep-head"><h2 style="margin:0">Edit Player</h2><button type="button" onclick="window.__mqCloseEditPlayer()">×</button></div><div class="ep-grid"><div class="ep-full"><label>Player Name</label><input id="epName"></div><div><label>Player ID</label><input id="epId"></div><div><label>Birth Year</label><input id="epYear" type="number" placeholder="YYYY"></div><div><label>Division</label><input id="epDivision"></div><div></div><div><label>Main Pokémon / Card</label><select id="epMain"></select></div><div><label>Support / Variant</label><select id="epSupport"></select></div></div><div id="epMsg"></div><div class="ep-actions"><button type="button" onclick="window.__mqCloseEditPlayer()">Cancel</button><button id="epSave" type="button" class="ep-save">Save Changes</button></div></div></div><script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -2217,8 +2227,39 @@
         '<div class="field"><label>Round '+activePairingRound+' TDF</label><input id="roundTdfFile" type="file" accept=".tdf,application/octet-stream,text/xml,application/xml"></div>'+
         '<div class="row"><button id="previewRoundTdf" class="btn alt" type="button">Preview TDF</button><button id="saveRoundTdf" class="btn" type="button" disabled>Save / Replace Round '+activePairingRound+'</button></div>'+
         '<div id="roundTdfMsg"></div><div id="roundTdfPreview" class="tdf-preview"></div>'+
-        '<div class="public-link-box"><b>Player Pairings Page</b><div class="muted">Players can use pairings.html?tournament='+encodeURIComponent(currentTournament?.id||'')+' to search their table and opponent.</div></div>'+
+        '<div class="store-pairings-share">'+
+          '<b>Store Player Pairings Page</b>'+
+          '<div class="muted">This QR and link stay the same for '+esc(currentTournament?.store_name||'this store')+'. The newest tournament created for this store is shown automatically.</div>'+
+          '<div class="store-pairings-share-grid"><div id="storePairingsQr" class="store-pairings-qr"></div><div>'+
+            '<div><b>'+esc(currentTournament?.store_name||'Store')+'</b></div>'+
+            '<div class="muted">Players can scan this QR to view all published rounds and final standings.</div>'+
+            '<div id="storePublicUrl" class="store-public-url"></div>'+
+            '<div class="store-pairings-actions"><button id="openStorePairings" type="button" class="btn">Open Player Page</button><button id="copyStorePairings" type="button" class="btn alt">Copy Link</button><button id="downloadStoreQr" type="button" class="btn alt">Download QR</button></div>'+
+          '</div></div>'+
+        '</div>'+
         (saved.length?'<table class="pairing-table"><thead><tr><th>Table</th><th>Player</th><th>Opponent</th><th>Round</th></tr></thead><tbody>'+saved.map(p=>'<tr><td><b>'+esc(p.table_number||'BYE')+'</b></td><td>'+esc(p.player1_name)+'</td><td>'+esc(p.player2_name||'BYE')+'</td><td>'+p.round_number+'</td></tr>').join('')+'</tbody></table>':'');
+
+      const storePublicUrl=new URL('pairings.html',window.location.href);
+      storePublicUrl.searchParams.set('store',currentTournament?.store_name||'');
+      const storePublicUrlText=storePublicUrl.toString();
+      if($('storePublicUrl')) $('storePublicUrl').textContent=storePublicUrlText;
+      if($('storePairingsQr')){
+        $('storePairingsQr').innerHTML='';
+        if(window.QRCode) new QRCode($('storePairingsQr'),{text:storePublicUrlText,width:132,height:132,correctLevel:QRCode.CorrectLevel.M});
+      }
+      if($('openStorePairings')) $('openStorePairings').onclick=()=>window.open(storePublicUrlText,'_blank','noopener');
+      if($('copyStorePairings')) $('copyStorePairings').onclick=async()=>{
+        try{await navigator.clipboard.writeText(storePublicUrlText);showMsg('roundTdfMsg','Store Pairings link copied.','good');}
+        catch(e){prompt('Copy this Store Pairings link:',storePublicUrlText);}
+      };
+      if($('downloadStoreQr')) $('downloadStoreQr').onclick=()=>{
+        const box=$('storePairingsQr'), canvas=box?.querySelector('canvas'), img=box?.querySelector('img');
+        const href=canvas?.toDataURL('image/png')||img?.src;
+        if(!href) return alert('QR code is still loading.');
+        const a=document.createElement('a'); a.href=href;
+        a.download=((currentTournament?.store_name||'QuestDex-Store').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'')||'QuestDex-Store')+'-Pairings-QR.png';
+        a.click();
+      };
       let preview=null;
       $('previewRoundTdf').onclick=async()=>{
         try{
@@ -2305,17 +2346,25 @@
 
       const {data:{user}}=await sb.auth.getUser();
 
-      const {error}=await sb.from('tournaments').insert({
+      const {data:newTournament,error}=await sb.from('tournaments').insert({
         event_name,
         store_id:store.id,
         store_name:store.name,
         event_date,
         location,
         status:'registration',
-        created_by:user?.id||null
-      });
+        created_by:user?.id||null,
+        public_pairings_enabled:true
+      }).select('id').single();
 
       if(error) return alert(error.message);
+
+      // One public tournament per store. The newest created tournament takes precedence.
+      const disableOld=await sb.from('tournaments')
+        .update({public_pairings_enabled:false})
+        .eq('store_id',store.id)
+        .neq('id',newTournament.id);
+      if(disableOld.error) console.warn('Could not disable older public tournaments:',disableOld.error.message);
 
       $('newTournament').classList.add('hidden');
       $('eventName').value='';
