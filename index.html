@@ -274,6 +274,9 @@
 
 <style>
 .judge-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.judge-panel{border:1px solid #d3e2da;border-radius:14px;padding:16px;background:#f8fbf9}.judge-timer{text-align:center;font-size:56px;font-weight:950;letter-spacing:-2px;color:#123f2e;margin:12px 0}.judge-timer.running{color:#0f7a49}.judge-timer.low{color:#8b2b2b}.judge-controls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.judge-controls .btn{width:auto}.judge-match{border:2px solid #168653;border-radius:14px;padding:14px;background:#eef8f2;margin-top:12px}.judge-table{font-size:13px;font-weight:900;color:#557064;text-transform:uppercase}.judge-vs{font-size:19px;font-weight:900;margin-top:4px}.judge-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}.judge-log-row{padding:12px 0;border-top:1px solid #dce7e1}.judge-log-row:first-child{border-top:0}.judge-log-title{font-weight:900}.judge-log-meta{font-size:12px;color:#667a70;margin-top:3px}.judge-type{display:inline-block;padding:3px 8px;border-radius:999px;background:#e8f2ec;color:#1d5d3b;font-size:11px;font-weight:850}.judge-modal{position:fixed;inset:0;z-index:100100;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px}.judge-modal.hidden{display:none!important}.judge-modal-box{width:min(620px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.judge-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.judge-modal-actions .btn{width:auto}@media(max-width:650px){.judge-grid{grid-template-columns:1fr}.judge-timer{font-size:46px}.judge-actions{grid-template-columns:1fr}}
+
+.judge-timeup{margin-top:10px;padding:12px;border-radius:12px;background:#f8e5e5;color:#8b2b2b;text-align:center;font-size:20px;font-weight:950;letter-spacing:.04em}
+.judge-timeup.hidden{display:none!important}
 </style>
 </head>
 <body>
@@ -517,7 +520,8 @@
             <div class="head"><div><b>Synchronized Round Timer</b><div class="muted">Shared across Professor devices for this tournament.</div></div></div>
             <div id="judgeTimerDisplay" class="judge-timer">50:00</div>
             <div class="field"><label>Round Length (minutes)</label><input id="judgeTimerMinutes" type="number" min="1" max="180" value="50"></div>
-            <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button></div>
+            <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button><button id="judgeAlarmStop" class="btn danger hidden" type="button">Stop Alarm</button></div>
+            <div id="judgeTimeUp" class="judge-timeup hidden">ROUND TIME!</div>
             <div id="judgeTimerMsg"></div>
           </div>
           <div class="judge-panel">
@@ -836,7 +840,7 @@
     const $ = (id) => document.getElementById(id);
     let currentTournament = null, options = [], entries = [], currentRole = 'trainer';
     let activePairingRound=1, savedPairingsByRound={};
-    let judgeTimerState=null, judgeTimerTicker=null, judgeRealtimeChannel=null, judgeSelectedPairing=null, judgeSelectedType=null;
+    let judgeTimerState=null, judgeTimerTicker=null, judgeRealtimeChannel=null, judgeSelectedPairing=null, judgeSelectedType=null, judgeAudioCtx=null, judgeAlarmActive=false, judgeAlarmInterval=null, judgeLastTimerSeconds=null;
     let currentProfileRole='trainer', currentAccessStatus='active', currentStoreId=null, currentStoreName='', availableStores=[];
     window.__mqOpenHubTournament = window.__mqOpenHubTournament || function(){ alert('Tournament viewer is still loading. Refresh the page and try again.'); };
 
@@ -2326,12 +2330,48 @@
       }
       return Math.max(0,Number(judgeTimerState.remaining_seconds||0));
     }
+    function judgeUnlockAudio(){
+      try{
+        if(!judgeAudioCtx) judgeAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        if(judgeAudioCtx.state==='suspended') judgeAudioCtx.resume();
+      }catch(e){}
+    }
+    function judgeBeep(){
+      try{
+        judgeUnlockAudio(); if(!judgeAudioCtx) return;
+        const osc=judgeAudioCtx.createOscillator(), gain=judgeAudioCtx.createGain();
+        osc.type='sine'; osc.frequency.value=880; gain.gain.value=.18;
+        osc.connect(gain); gain.connect(judgeAudioCtx.destination);
+        const t=judgeAudioCtx.currentTime;
+        gain.gain.setValueAtTime(.18,t); gain.gain.exponentialRampToValueAtTime(.001,t+.35);
+        osc.start(t); osc.stop(t+.36);
+      }catch(e){}
+    }
+    function judgeStartAlarm(){
+      if(judgeAlarmActive) return;
+      judgeAlarmActive=true;
+      if($('judgeTimeUp')) $('judgeTimeUp').classList.remove('hidden');
+      if($('judgeAlarmStop')) $('judgeAlarmStop').classList.remove('hidden');
+      judgeBeep(); setTimeout(judgeBeep,500); setTimeout(judgeBeep,1000);
+      judgeAlarmInterval=setInterval(()=>{judgeBeep();setTimeout(judgeBeep,500);setTimeout(judgeBeep,1000);},4000);
+    }
+    function judgeStopAlarm(){
+      judgeAlarmActive=false;
+      if(judgeAlarmInterval){clearInterval(judgeAlarmInterval);judgeAlarmInterval=null;}
+      if($('judgeTimeUp')) $('judgeTimeUp').classList.add('hidden');
+      if($('judgeAlarmStop')) $('judgeAlarmStop').classList.add('hidden');
+    }
     function renderJudgeTimer(){
       if(!$('judgeTimerDisplay')) return;
       const sec=judgeSecondsRemaining(); $('judgeTimerDisplay').textContent=judgeFormatTime(sec);
-      $('judgeTimerDisplay').classList.toggle('running',judgeTimerState?.status==='running');
+      $('judgeTimerDisplay').classList.toggle('running',judgeTimerState?.status==='running' && sec>0);
       $('judgeTimerDisplay').classList.toggle('low',sec<=300);
-      if(sec===0 && judgeTimerState?.status==='running') $('judgeTimerDisplay').classList.remove('running');
+      if(sec===0 && judgeTimerState?.status==='running'){
+        $('judgeTimerDisplay').classList.remove('running');
+        if(judgeLastTimerSeconds!==0) judgeStartAlarm();
+      }
+      if(sec>0 && judgeAlarmActive) judgeStopAlarm();
+      judgeLastTimerSeconds=sec;
     }
     async function loadJudgeTimer(){
       if(!currentTournament) return;
@@ -2340,6 +2380,8 @@
       judgeTimerState=data||null; renderJudgeTimer();
     }
     async function saveJudgeTimer(action){
+      if(action==='start'||action==='resume'){judgeUnlockAudio();judgeStopAlarm();}
+      if(action==='reset') judgeStopAlarm();
       if(!currentTournament) return showMsg('judgeTimerMsg','Select a tournament first.','bad');
       const {data:{user}}=await sb.auth.getUser(); const now=new Date().toISOString(); const current=judgeSecondsRemaining();
       let row={tournament_id:currentTournament.id,updated_at:now,updated_by:user?.id||null};
@@ -3199,6 +3241,7 @@ $('addPlayer').onclick = async () => {
     if($('judgeTimerPause')) $('judgeTimerPause').onclick=()=>saveJudgeTimer('pause');
     if($('judgeTimerResume')) $('judgeTimerResume').onclick=()=>saveJudgeTimer('resume');
     if($('judgeTimerReset')) $('judgeTimerReset').onclick=()=>saveJudgeTimer('reset');
+    if($('judgeAlarmStop')) $('judgeAlarmStop').onclick=judgeStopAlarm;
     if($('refreshJudgeLog')) $('refreshJudgeLog').onclick=loadJudgeLog;
     if($('judgeModalClose')) $('judgeModalClose').onclick=()=>$('judgeCallModal').classList.add('hidden');
     if($('judgeModalCancel')) $('judgeModalCancel').onclick=()=>$('judgeCallModal').classList.add('hidden');
