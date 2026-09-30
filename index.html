@@ -271,6 +271,10 @@
 <style>
 @media(max-width:700px){#standings .player{grid-template-columns:1fr 1fr 1fr 1fr!important}#standings .player>div:first-child{grid-column:1/-1}}
 </style>
+
+<style>
+.judge-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.judge-panel{border:1px solid #d3e2da;border-radius:14px;padding:16px;background:#f8fbf9}.judge-timer{text-align:center;font-size:56px;font-weight:950;letter-spacing:-2px;color:#123f2e;margin:12px 0}.judge-timer.running{color:#0f7a49}.judge-timer.low{color:#8b2b2b}.judge-controls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.judge-controls .btn{width:auto}.judge-match{border:2px solid #168653;border-radius:14px;padding:14px;background:#eef8f2;margin-top:12px}.judge-table{font-size:13px;font-weight:900;color:#557064;text-transform:uppercase}.judge-vs{font-size:19px;font-weight:900;margin-top:4px}.judge-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}.judge-log-row{padding:12px 0;border-top:1px solid #dce7e1}.judge-log-row:first-child{border-top:0}.judge-log-title{font-weight:900}.judge-log-meta{font-size:12px;color:#667a70;margin-top:3px}.judge-type{display:inline-block;padding:3px 8px;border-radius:999px;background:#e8f2ec;color:#1d5d3b;font-size:11px;font-weight:850}.judge-modal{position:fixed;inset:0;z-index:100100;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px}.judge-modal.hidden{display:none!important}.judge-modal-box{width:min(620px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:20px}.judge-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.judge-modal-actions .btn{width:auto}@media(max-width:650px){.judge-grid{grid-template-columns:1fr}.judge-timer{font-size:46px}.judge-actions{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
   <header class="top"><div class="qd-brand">
@@ -428,7 +432,7 @@
       </section>
 
 
-      <section class="card"><div class="tabs" style="grid-template-columns:repeat(4,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="discord">Discord</button></div></section>
+      <section class="card"><div class="tabs" style="grid-template-columns:repeat(5,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="judge">Judge Tools</button><button type="button" data-tab="discord">Discord</button></div></section>
 
       <section id="adminNavCard" class="card hidden">
         <div class="head"><div><h3 style="margin:0">Owner Tools</h3><div class="muted">Private Master Quest controls.</div></div></div>
@@ -505,6 +509,28 @@
         <div id="standings" style="margin-top:10px"></div>
         <button id="saveStandings" class="btn full" style="margin-top:10px">Save Final Standings + Records</button><div id="standingMsg"></div>
       </section>
+
+      <section id="judgeTab" class="card hidden">
+        <div class="head"><div><h3 style="margin:0">Judge Tools</h3><div class="muted">Shared tournament timer, table lookup, and judge log.</div></div><span id="judgeRoundPill" class="pill">Round —</span></div>
+        <div class="judge-grid" style="margin-top:14px">
+          <div class="judge-panel">
+            <div class="head"><div><b>Synchronized Round Timer</b><div class="muted">Shared across Professor devices for this tournament.</div></div></div>
+            <div id="judgeTimerDisplay" class="judge-timer">50:00</div>
+            <div class="field"><label>Round Length (minutes)</label><input id="judgeTimerMinutes" type="number" min="1" max="180" value="50"></div>
+            <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button></div>
+            <div id="judgeTimerMsg"></div>
+          </div>
+          <div class="judge-panel">
+            <b>Judge Call</b><div class="muted">Search the current round by table number or player name.</div>
+            <div class="field"><label>Table # or Player</label><input id="judgeLookup" autocomplete="off" placeholder="Example: 6 or Christopher"></div>
+            <div id="judgeLookupResults"></div>
+            <div id="judgeSelectedMatch"></div>
+          </div>
+        </div>
+        <div class="judge-panel" style="margin-top:12px"><div class="head"><div><b>Tournament Judge Log</b><div class="muted">Visible to authenticated tournament staff.</div></div><button id="refreshJudgeLog" class="btn alt" type="button" style="width:auto">Refresh</button></div><div id="judgeLog" style="margin-top:8px"><div class="muted">No judge calls yet.</div></div></div>
+      </section>
+
+      <div id="judgeCallModal" class="judge-modal hidden"><div class="judge-modal-box"><div class="head"><div><h3 id="judgeModalTitle" style="margin:0">Judge Call</h3><div id="judgeModalMatch" class="muted"></div></div><button id="judgeModalClose" class="btn alt" type="button" style="width:auto">×</button></div><div class="field"><label>Applies To</label><select id="judgeTarget"></select></div><div class="field"><label>Penalty / Ruling Type</label><input id="judgePenaltyType" placeholder="Optional"></div><div class="field"><label>Rule Reference</label><input id="judgeRuleReference" placeholder="Optional rule or policy reference"></div><div class="field"><label>Notes</label><input id="judgeNotes" placeholder="What happened / ruling given"></div><div class="field"><label>Time Extension (minutes)</label><input id="judgeExtension" type="number" min="0" max="120" value="0"></div><div id="judgeCallMsg"></div><div class="judge-modal-actions"><button id="judgeModalCancel" class="btn alt" type="button">Cancel</button><button id="judgeSaveCall" class="btn" type="button">Save Judge Call</button></div></div></div>
 
       <section id="discordTab" class="card hidden">
         <h3 style="margin-top:0">Discord Output</h3><div class="muted" style="margin-bottom:10px">Placement + player name + Main/Support Discord emoji codes.</div>
@@ -810,6 +836,7 @@
     const $ = (id) => document.getElementById(id);
     let currentTournament = null, options = [], entries = [], currentRole = 'trainer';
     let activePairingRound=1, savedPairingsByRound={};
+    let judgeTimerState=null, judgeTimerTicker=null, judgeRealtimeChannel=null, judgeSelectedPairing=null, judgeSelectedType=null;
     let currentProfileRole='trainer', currentAccessStatus='active', currentStoreId=null, currentStoreName='', availableStores=[];
     window.__mqOpenHubTournament = window.__mqOpenHubTournament || function(){ alert('Tournament viewer is still loading. Refresh the page and try again.'); };
 
@@ -2285,6 +2312,91 @@
       };
     }
 
+    function judgeCurrentRound(){
+      const nums=Object.keys(savedPairingsByRound).map(Number).filter(Number.isFinite);
+      return nums.length?Math.max(...nums):Number(currentTournament?.published_round||activePairingRound||1);
+    }
+
+    function judgeFormatTime(sec){ sec=Math.max(0,Math.floor(Number(sec)||0)); return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); }
+    function judgeSecondsRemaining(){
+      if(!judgeTimerState) return Number($('judgeTimerMinutes')?.value||50)*60;
+      if(judgeTimerState.status==='running' && judgeTimerState.started_at){
+        const elapsed=Math.floor((Date.now()-new Date(judgeTimerState.started_at).getTime())/1000);
+        return Math.max(0,Number(judgeTimerState.remaining_seconds||0)-elapsed);
+      }
+      return Math.max(0,Number(judgeTimerState.remaining_seconds||0));
+    }
+    function renderJudgeTimer(){
+      if(!$('judgeTimerDisplay')) return;
+      const sec=judgeSecondsRemaining(); $('judgeTimerDisplay').textContent=judgeFormatTime(sec);
+      $('judgeTimerDisplay').classList.toggle('running',judgeTimerState?.status==='running');
+      $('judgeTimerDisplay').classList.toggle('low',sec<=300);
+      if(sec===0 && judgeTimerState?.status==='running') $('judgeTimerDisplay').classList.remove('running');
+    }
+    async function loadJudgeTimer(){
+      if(!currentTournament) return;
+      const {data,error}=await sb.from('judge_timers').select('*').eq('tournament_id',currentTournament.id).maybeSingle();
+      if(error) return showMsg('judgeTimerMsg',error.message,'bad');
+      judgeTimerState=data||null; renderJudgeTimer();
+    }
+    async function saveJudgeTimer(action){
+      if(!currentTournament) return showMsg('judgeTimerMsg','Select a tournament first.','bad');
+      const {data:{user}}=await sb.auth.getUser(); const now=new Date().toISOString(); const current=judgeSecondsRemaining();
+      let row={tournament_id:currentTournament.id,updated_at:now,updated_by:user?.id||null};
+      if(action==='start'){ const sec=Math.max(60,Number($('judgeTimerMinutes').value||50)*60); Object.assign(row,{duration_seconds:sec,remaining_seconds:sec,status:'running',started_at:now,paused_at:null}); }
+      if(action==='pause'){ Object.assign(row,{remaining_seconds:current,status:'paused',started_at:null,paused_at:now}); }
+      if(action==='resume'){ Object.assign(row,{remaining_seconds:current,status:'running',started_at:now,paused_at:null}); }
+      if(action==='reset'){ const sec=Math.max(60,Number($('judgeTimerMinutes').value||50)*60); Object.assign(row,{duration_seconds:sec,remaining_seconds:sec,status:'stopped',started_at:null,paused_at:null}); }
+      const {data,error}=await sb.from('judge_timers').upsert(row,{onConflict:'tournament_id'}).select().single();
+      if(error) return showMsg('judgeTimerMsg',error.message,'bad'); judgeTimerState=data; renderJudgeTimer(); showMsg('judgeTimerMsg','Timer updated for all Professor devices.','good');
+    }
+    function judgeMatches(){ return savedPairingsByRound[judgeCurrentRound()]||[]; }
+    function renderJudgeLookup(){
+      if(!$('judgeLookupResults')) return; const q=String($('judgeLookup')?.value||'').trim().toLowerCase();
+      if(!q){ $('judgeLookupResults').innerHTML='<div class="muted">Enter a table number or player name.</div>'; return; }
+      const rows=judgeMatches().filter(p=>String(p.table_number||'').toLowerCase()===q || String(p.player1_name||'').toLowerCase().includes(q) || String(p.player2_name||'').toLowerCase().includes(q)).slice(0,12);
+      $('judgeLookupResults').innerHTML=rows.length?rows.map((p,i)=>'<button type="button" class="round-btn judge-match-pick" data-i="'+i+'" style="width:100%;text-align:left;margin-bottom:6px"><b>Table '+esc(p.table_number||'BYE')+'</b> — '+esc(p.player1_name)+' vs. '+esc(p.player2_name||'BYE')+'</button>').join(''):'<div class="msg bad">No match found in Round '+judgeCurrentRound()+'.</div>';
+      document.querySelectorAll('.judge-match-pick').forEach((b,i)=>b.onclick=()=>selectJudgeMatch(rows[i]));
+    }
+    function selectJudgeMatch(p){
+      judgeSelectedPairing=p; $('judgeLookupResults').innerHTML=''; $('judgeLookup').value='';
+      $('judgeSelectedMatch').innerHTML='<div class="judge-match"><div class="judge-table">Round '+judgeCurrentRound()+' • Table '+esc(p.table_number||'BYE')+'</div><div class="judge-vs">'+esc(p.player1_name)+' <span class="muted">vs.</span> '+esc(p.player2_name||'BYE')+'</div><div class="judge-actions"><button class="btn judge-call-type" data-type="penalty">Penalty</button><button class="btn alt judge-call-type" data-type="ruling">Ruling / Note</button><button class="btn alt judge-call-type" data-type="late">Late Arrival</button><button class="btn alt judge-call-type" data-type="deck_check">Deck Check</button></div></div>';
+      document.querySelectorAll('.judge-call-type').forEach(b=>b.onclick=()=>openJudgeCall(b.dataset.type));
+    }
+    function openJudgeCall(type){
+      if(!judgeSelectedPairing) return; judgeSelectedType=type; const p=judgeSelectedPairing;
+      $('judgeModalTitle').textContent=type==='deck_check'?'Deck Check':type==='late'?'Late Arrival':type==='ruling'?'Ruling / Note':'Penalty';
+      $('judgeModalMatch').textContent='Round '+judgeCurrentRound()+' • Table '+(p.table_number||'BYE')+' • '+p.player1_name+' vs. '+(p.player2_name||'BYE');
+      $('judgeTarget').innerHTML='<option value="match">Match / Both Players</option><option value="'+esc(p.player1_name)+'">'+esc(p.player1_name)+'</option>'+(p.player2_name?'<option value="'+esc(p.player2_name)+'">'+esc(p.player2_name)+'</option>':'');
+      $('judgePenaltyType').value=''; $('judgeRuleReference').value=''; $('judgeNotes').value=''; $('judgeExtension').value='0'; showMsg('judgeCallMsg',''); $('judgeCallModal').classList.remove('hidden');
+    }
+    async function saveJudgeCall(){
+      if(!currentTournament||!judgeSelectedPairing||!judgeSelectedType) return;
+      const {data:{user}}=await sb.auth.getUser(); const p=judgeSelectedPairing, target=$('judgeTarget').value;
+      const row={tournament_id:currentTournament.id,round_number:judgeCurrentRound(),table_number:Number(p.table_number)||null,call_type:judgeSelectedType,penalty_type:$('judgePenaltyType').value.trim()||null,rule_reference:$('judgeRuleReference').value.trim()||null,notes:$('judgeNotes').value.trim()||null,extension_minutes:Number($('judgeExtension').value)||0,created_by:user?.id||null,target_player_name:target==='match'?null:target,player1_name:p.player1_name||null,player2_name:p.player2_name||null};
+      const {error}=await sb.from('judge_calls').insert(row); if(error) return showMsg('judgeCallMsg',error.message,'bad');
+      $('judgeCallModal').classList.add('hidden'); await loadJudgeLog();
+    }
+    async function loadJudgeLog(){
+      if(!$('judgeLog')||!currentTournament) return;
+      const {data,error}=await sb.from('judge_calls').select('*').eq('tournament_id',currentTournament.id).order('created_at',{ascending:false}).limit(200);
+      if(error){ $('judgeLog').innerHTML='<div class="msg bad">'+esc(error.message)+'</div>'; return; }
+      const rows=data||[]; $('judgeLog').innerHTML=rows.length?rows.map(r=>'<div class="judge-log-row"><div><span class="judge-type">'+esc(String(r.call_type||'call').replace('_',' '))+'</span> <span class="judge-log-title">Round '+esc(r.round_number||'—')+' • Table '+esc(r.table_number||'—')+'</span></div><div class="judge-log-meta">'+esc(r.player1_name||'')+(r.player2_name?' vs. '+esc(r.player2_name):'')+(r.target_player_name?' • Applies to '+esc(r.target_player_name):'')+(r.extension_minutes?' • +'+r.extension_minutes+' min':'')+'</div>'+(r.penalty_type?'<div><b>'+esc(r.penalty_type)+'</b></div>':'')+(r.rule_reference?'<div class="muted">Rule: '+esc(r.rule_reference)+'</div>':'')+(r.notes?'<div>'+esc(r.notes)+'</div>':'')+'</div>').join(''):'<div class="muted">No judge calls yet.</div>';
+    }
+    async function setupJudgeRealtime(){
+      if(judgeRealtimeChannel){ await sb.removeChannel(judgeRealtimeChannel); judgeRealtimeChannel=null; }
+      if(!currentTournament) return;
+      judgeRealtimeChannel=sb.channel('judge-'+currentTournament.id)
+        .on('postgres_changes',{event:'*',schema:'public',table:'judge_timers',filter:'tournament_id=eq.'+currentTournament.id},()=>loadJudgeTimer())
+        .on('postgres_changes',{event:'*',schema:'public',table:'judge_calls',filter:'tournament_id=eq.'+currentTournament.id},()=>loadJudgeLog())
+        .subscribe();
+    }
+    async function loadJudgeTools(){
+      if(!currentTournament) return; if($('judgeRoundPill')) $('judgeRoundPill').textContent='Round '+judgeCurrentRound();
+      await loadSavedPairings(); if($('judgeRoundPill')) $('judgeRoundPill').textContent='Round '+judgeCurrentRound(); await loadJudgeTimer(); await loadJudgeLog(); await setupJudgeRealtime(); renderJudgeLookup();
+      if(!judgeTimerTicker) judgeTimerTicker=setInterval(renderJudgeTimer,500);
+    }
+
     async function loadTournaments(){
       const {data,error}=await sb.from('tournaments')
         .select('*')
@@ -3072,15 +3184,25 @@ $('addPlayer').onclick = async () => {
       showMsg('optionMsg',editId?'Option updated.':'Option added.','good');
     };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='judge') await loadJudgeTools(); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
     document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ 
       document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); 
       b.classList.add('on'); 
-      ['entry','pairings','standings','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.add('hidden'); 
+      ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.add('hidden'); 
       if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); 
       if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); await loadRibbonTournaments(); } 
     });
+
+    if($('judgeLookup')) $('judgeLookup').oninput=renderJudgeLookup;
+    if($('judgeTimerStart')) $('judgeTimerStart').onclick=()=>saveJudgeTimer('start');
+    if($('judgeTimerPause')) $('judgeTimerPause').onclick=()=>saveJudgeTimer('pause');
+    if($('judgeTimerResume')) $('judgeTimerResume').onclick=()=>saveJudgeTimer('resume');
+    if($('judgeTimerReset')) $('judgeTimerReset').onclick=()=>saveJudgeTimer('reset');
+    if($('refreshJudgeLog')) $('refreshJudgeLog').onclick=loadJudgeLog;
+    if($('judgeModalClose')) $('judgeModalClose').onclick=()=>$('judgeCallModal').classList.add('hidden');
+    if($('judgeModalCancel')) $('judgeModalCancel').onclick=()=>$('judgeCallModal').classList.add('hidden');
+    if($('judgeSaveCall')) $('judgeSaveCall').onclick=saveJudgeCall;
 
     boot();
   </script>
