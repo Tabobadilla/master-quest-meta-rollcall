@@ -109,7 +109,7 @@ async function load(){
   if(!pe) pairings=p||[];
 
   const {data:e,error:ee}=await sb.from('entries')
-    .select('player_name,standing,wins,losses,ties,main_option_id')
+    .select('player_name,standing,wins,losses,ties,main_option_id,support_option_id')
     .eq('tournament_id',t.id)
     .not('standing','is',null)
     .order('standing');
@@ -117,9 +117,9 @@ async function load(){
   if(!ee) standings=e||[];
 
   // Deck/Pokémon information is used only for Final Standings.
-  const pokemonIds=[...new Set(standings.map(x=>x.main_option_id).filter(Boolean))];
+  const pokemonIds=[...new Set(standings.flatMap(x=>[x.main_option_id,x.support_option_id]).filter(Boolean))];
   if(pokemonIds.length){
-    const {data:o}=await sb.from('options').select('id,name,sprite_url').in('id',pokemonIds);
+    const {data:o}=await sb.from('deck_options').select('id,name,sprite_url').in('id',pokemonIds);
     (o||[]).forEach(x=>pokemonById[String(x.id)]=x);
   }
 
@@ -153,9 +153,9 @@ function render(){
     }
     $('content').innerHTML=`<table>
       <thead><tr><th>Standing</th><th>Player</th><th>Record</th></tr></thead>
-      <tbody>${standings.map(e=>{const pk=pokemonById[String(e.main_option_id)]||null;return `<tr data-player="${esc(e.player_name).toLowerCase()}">
+      <tbody>${standings.map(e=>{const main=pokemonById[String(e.main_option_id)]||null,support=pokemonById[String(e.support_option_id)]||null;return `<tr data-player="${esc(e.player_name).toLowerCase()}">
         <td><b>${ordinal(e.standing)}</b></td>
-        <td><div class="final-player">${pk?.sprite_url?`<img class="final-pokemon" src="${esc(pk.sprite_url)}" alt="">`:''}<div><b>${esc(e.player_name)}</b></div></div></td>
+        <td><div class="final-player">${main?.sprite_url?`<img class="final-pokemon" src="${esc(main.sprite_url)}" alt="">`:''}${support?.sprite_url?`<img class="final-pokemon" src="${esc(support.sprite_url)}" alt="">`:''}<div><b>${esc(e.player_name)}</b></div></div></td>
         <td>${Number(e.wins)||0}-${Number(e.losses)||0}-${Number(e.ties)||0}</td>
       </tr>`}).join('')}</tbody>
     </table>`;
