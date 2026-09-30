@@ -69,7 +69,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const ordinal=n=>{n=Number(n);let s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
 
-const tournamentId=new URLSearchParams(location.search).get('tournament');
+const storeName=new URLSearchParams(location.search).get('store');
 let tournament=null;
 let pairings=[];
 let standings=[];
@@ -77,14 +77,18 @@ let rounds=[];
 let activeView=null;
 
 async function load(){
-  if(!tournamentId){
-    $('eventInfo').innerHTML='<div class="bad">This link is missing a tournament ID.</div>';
+  if(!storeName){
+    $('eventInfo').innerHTML='<div class="bad">This Store Pairings link is missing its store name. Open the link or QR shown inside QuestDex.</div>';
     return;
   }
 
   const {data:t,error:te}=await sb.from('tournaments')
-    .select('id,event_name,event_date,store_name,published_round')
-    .eq('id',tournamentId).single();
+    .select('id,event_name,event_date,store_name,published_round,created_at')
+    .eq('store_name',storeName)
+    .eq('public_pairings_enabled',true)
+    .order('created_at',{ascending:false})
+    .limit(1)
+    .maybeSingle();
 
   if(te){
     $('eventInfo').innerHTML='<div class="bad">Unable to load this tournament.</div>';
@@ -96,14 +100,14 @@ async function load(){
   $('eventInfo').textContent=[t.store_name,t.event_date].filter(Boolean).join(' • ');
 
   const {data:p,error:pe}=await sb.from('pairings')
-    .select('*').eq('tournament_id',tournamentId)
+    .select('*').eq('tournament_id',t.id)
     .order('round_number').order('table_number');
 
   if(!pe) pairings=p||[];
 
   const {data:e,error:ee}=await sb.from('entries')
     .select('player_name,standing,wins,losses,ties')
-    .eq('tournament_id',tournamentId)
+    .eq('tournament_id',t.id)
     .not('standing','is',null)
     .order('standing');
 
