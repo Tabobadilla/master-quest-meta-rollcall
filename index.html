@@ -570,20 +570,6 @@
           <button id="refreshIntel" type="button" class="btn alt" style="width:auto">Refresh</button>
         </div>
         <div id="intelSummary" class="hub-kpi-grid" style="margin-top:12px"></div>
-        <div class="judge-grid" style="margin-top:14px">
-          <div class="judge-panel">
-            <div class="head"><div><b>Main Meta</b><div class="muted">Current Main Pokémon / card distribution.</div></div></div>
-            <div id="intelMainMeta"></div>
-          </div>
-          <div class="judge-panel">
-            <div class="head"><div><b>Archetype Meta</b><div class="muted">Current Main + Support combinations.</div></div></div>
-            <div id="intelArchetypes"></div>
-          </div>
-        </div>
-        <div class="judge-panel" style="margin-top:12px">
-          <div class="head"><div><b>Tournament Results by Archetype</b><div class="muted">Populates as standings and match records are entered.</div></div></div>
-          <div id="intelResults"></div>
-        </div>
       </section>
 
       <section id="discordTab" class="card hidden owner-only">
@@ -2795,7 +2781,6 @@
       if(!$('intelSummary')) return;
       if(!currentTournament){
         $('intelSummary').innerHTML='<div class="muted">Select a tournament first.</div>';
-        $('intelMainMeta').innerHTML=''; $('intelArchetypes').innerHTML=''; $('intelResults').innerHTML='';
         return;
       }
       const rows=entries||[], total=rows.length;
@@ -2809,37 +2794,6 @@
         '<div class="hub-kpi"><div class="hub-kpi-label">Missing</div><div class="hub-kpi-value">'+missing+'</div></div>'+
         '<div class="hub-kpi"><div class="hub-kpi-label">Verified</div><div class="hub-kpi-value">'+verified+'</div></div>'+
         '<div class="hub-kpi"><div class="hub-kpi-label">Checked In</div><div class="hub-kpi-value">'+checked+'</div></div>';
-
-      const mainMap=new Map();
-      rows.filter(e=>e.main_option_id).forEach(e=>{
-        const o=opt(e.main_option_id); if(!o)return;
-        const x=mainMap.get(e.main_option_id)||{o,count:0}; x.count++; mainMap.set(e.main_option_id,x);
-      });
-      const mainRows=[...mainMap.values()].sort((a,b)=>b.count-a.count||a.o.name.localeCompare(b.o.name));
-      $('intelMainMeta').innerHTML=mainRows.length?mainRows.map(x=>intelRow(x.o.name,x.count,total,coreSpriteImg(x.o))).join(''):'<div class="muted">No archetypes detected yet.</div>';
-
-      const archMap=new Map();
-      rows.filter(e=>e.main_option_id).forEach(e=>{
-        const m=opt(e.main_option_id), sp=opt(e.support_option_id); if(!m)return;
-        const key=e.main_option_id+'|'+(e.support_option_id||'');
-        const x=archMap.get(key)||{m,s:sp,count:0,rows:[]}; x.count++; x.rows.push(e); archMap.set(key,x);
-      });
-      const arches=[...archMap.values()].sort((a,b)=>b.count-a.count||a.m.name.localeCompare(b.m.name));
-      $('intelArchetypes').innerHTML=arches.length?arches.map(x=>{
-        const label=x.m.name+(x.s?' / '+x.s.name:'');
-        return intelRow(label,x.count,total,coreSpriteImg(x.m)+coreSpriteImg(x.s));
-      }).join(''):'<div class="muted">No archetypes detected yet.</div>';
-
-      const resultArches=arches.filter(x=>x.rows.some(e=>e.standing||e.wins||e.losses||e.ties));
-      $('intelResults').innerHTML=resultArches.length?resultArches.map(x=>{
-        const placed=x.rows.filter(e=>e.standing);
-        const best=placed.length?Math.min(...placed.map(e=>Number(e.standing))):null;
-        const avg=placed.length?(placed.reduce((a,e)=>a+Number(e.standing),0)/placed.length).toFixed(1):'—';
-        const w=x.rows.reduce((a,e)=>a+Number(e.wins||0),0), l=x.rows.reduce((a,e)=>a+Number(e.losses||0),0), t=x.rows.reduce((a,e)=>a+Number(e.ties||0),0);
-        const games=w+l+t, winpct=games?((w/games)*100).toFixed(1)+'%':'—';
-        const label=x.m.name+(x.s?' / '+x.s.name:'');
-        return '<div class="hub-row"><div><div class="hub-title">'+coreSpriteImg(x.m)+coreSpriteImg(x.s)+esc(label)+'</div><div class="hub-meta">'+x.count+' player'+(x.count===1?'':'s')+' • '+w+'-'+l+'-'+t+' • Win '+winpct+'</div></div><div style="text-align:right"><b>Best '+(best?ordinal(best):'—')+'</b><div class="hub-meta">Avg '+avg+'</div></div></div>';
-      }).join(''):'<div class="muted">Enter standings and records to generate results intelligence.</div>';
     }
 
     function filteredTournamentEntries(){
