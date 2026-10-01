@@ -85,6 +85,7 @@
           <option value="">Loading this store's tournaments...</option>
         </select>
         <div id="storeTournamentCard" class="msg warn">Loading store events...</div>
+        <div id="submissionDeadlineCard" class="msg warn" style="display:none"></div>
       </div>
 
       <div class="row">
@@ -142,7 +143,8 @@ Example:
 
       <div id="deckWarning"></div>
 
-      <button id="submitBtn" class="btn" style="margin-top:16px">Submit Decklist</button>
+      <div class="msg warn" style="margin-top:16px"><b>Changing decks?</b> Submit again using the same Pokémon Player ID and tournament. Tournex will replace your current decklist instead of creating another player entry.</div>
+      <button id="submitBtn" class="btn" style="margin-top:12px">Submit / Replace Decklist</button>
       <div class="privacy">Your submission is sent directly to the tournament Professor/Organizer for check-in and decklist review.</div>
     </section>
 
@@ -298,9 +300,43 @@ Example:
       }
     }
 
+    function tournamentDeadlineState(tournament){
+      if(!tournament?.decklist_deadline) return {closed:false,date:null};
+      const date=new Date(tournament.decklist_deadline);
+      if(Number.isNaN(date.getTime())) return {closed:false,date:null};
+      return {closed:Date.now()>date.getTime(),date};
+    }
+
+    function refreshSubmissionDeadline(){
+      const card=$('submissionDeadlineCard');
+      const submit=$('submitBtn');
+      if(!card || !submit) return;
+      if(!activeTournament){
+        card.style.display='none';
+        submit.disabled=true;
+        return;
+      }
+      const state=tournamentDeadlineState(activeTournament);
+      card.style.display='block';
+      if(!state.date){
+        card.className='msg warn';
+        card.textContent='No decklist submission deadline has been posted for this tournament.';
+        submit.disabled=false;
+      }else if(state.closed){
+        card.className='msg bad';
+        card.innerHTML='<b>Decklist submissions are closed.</b><br>The deadline was '+esc(state.date.toLocaleString())+'. Contact a Professor if you need assistance.';
+        submit.disabled=true;
+      }else{
+        card.className='msg good';
+        card.innerHTML='<b>Decklist submissions are open.</b><br>You may submit or replace your decklist until '+esc(state.date.toLocaleString())+'.';
+        submit.disabled=false;
+      }
+    }
+
     function selectTournament(){
       const id=$('tournament').value;
       activeTournament=storeTournaments.find(x=>String(x.id)===String(id))||null;
+      refreshSubmissionDeadline();
     }
 
     async function loadData(){
@@ -359,8 +395,9 @@ Example:
         $('storeTournamentCard').className='msg good';
         $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>Choose the tournament you are entering. Only events for this store are shown.';
         sel.disabled=false;
-        $('submitBtn').disabled=false;
+        $('submitBtn').disabled=true;
       }
+      refreshSubmissionDeadline();
       analyze();
     }
 
@@ -379,6 +416,13 @@ Example:
 
       if(!tournament_id){
         showMsg('This store does not currently have a tournament accepting decklist submissions.','bad');
+        return;
+      }
+
+      const deadlineState=tournamentDeadlineState(activeTournament);
+      if(deadlineState.closed){
+        showMsg('Decklist submissions are closed for this tournament. Please contact a Professor.','bad');
+        refreshSubmissionDeadline();
         return;
       }
 
@@ -414,7 +458,8 @@ Example:
         showMsg(err.message||String(err),'bad');
       }finally{
         $('submitBtn').disabled=false;
-        $('submitBtn').textContent='Submit Decklist';
+        $('submitBtn').textContent='Submit / Replace Decklist';
+        refreshSubmissionDeadline();
       }
     }
 
