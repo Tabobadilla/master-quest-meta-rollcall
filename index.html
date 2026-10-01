@@ -80,6 +80,9 @@
 @media(max-width:560px){.store-pairings-share-grid{grid-template-columns:1fr}.store-pairings-qr{margin:auto}}
 
 @media(max-width:650px){.pairing-table th:nth-child(4),.pairing-table td:nth-child(4){display:none}}
+
+    body[data-role="professor"] .tabs{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
+    body[data-role="owner"] .tabs{grid-template-columns:repeat(5,minmax(0,1fr)) !important}
 </style>
 
 <style>
@@ -446,7 +449,7 @@
       </section>
 
 
-      <section class="card"><div class="tabs" style="grid-template-columns:repeat(6,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="judge">Judge Tools</button><button type="button" data-tab="intel" class="staff-only">Intel</button><button type="button" data-tab="discord" class="owner-only hidden">Discord</button></div></section>
+      <section class="card"><div class="tabs" style="grid-template-columns:repeat(5,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="judge">Judge Tools</button><button type="button" data-tab="discord" class="owner-only hidden">Discord</button></div></section>
 
       <section id="adminNavCard" class="card hidden">
         <div class="head"><div><h3 style="margin:0">Owner Tools</h3><div class="muted">Private Tournex owner controls.</div></div></div>
@@ -563,15 +566,6 @@
       </section>
 
       <div id="judgeCallModal" class="judge-modal hidden"><div class="judge-modal-box"><div class="head"><div><h3 id="judgeModalTitle" style="margin:0">Judge Call</h3><div id="judgeModalMatch" class="muted"></div></div><button id="judgeModalClose" class="btn alt" type="button" style="width:auto">×</button></div><div class="field"><label>Applies To</label><select id="judgeTarget"></select></div><div class="field"><label>Penalty / Ruling Type</label><input id="judgePenaltyType" placeholder="Optional"></div><div class="field"><label>Rule Reference</label><input id="judgeRuleReference" placeholder="Optional rule or policy reference"></div><div class="field"><label>Notes</label><input id="judgeNotes" placeholder="What happened / ruling given"></div><div class="field"><label>Time Extension (minutes)</label><input id="judgeExtension" type="number" min="0" max="120" value="0"></div><div id="judgeCallMsg"></div><div class="judge-modal-actions"><button id="judgeModalCancel" class="btn alt" type="button">Cancel</button><button id="judgeSaveCall" class="btn" type="button">Save Judge Call</button></div></div></div>
-
-      <section id="intelTab" class="card hidden staff-only">
-        <div class="head">
-          <div><h3 style="margin:0">Tournament Intel</h3><div class="muted">Live staff-only overview of the currently selected tournament.</div></div>
-          <button id="refreshIntel" type="button" class="btn alt" style="width:auto">Refresh</button>
-        </div>
-        <div id="intelSummary" class="hub-kpi-grid" style="margin-top:12px"></div>
-      </section>
-
       <section id="discordTab" class="card hidden owner-only">
         <h3 style="margin-top:0">Discord Output</h3><div class="muted" style="margin-bottom:10px">Placement + player name + Main/Support Discord emoji codes.</div>
         <div id="discordText" class="discord">Complete standings to generate output.</div>
@@ -1007,6 +1001,7 @@
     }
 
     function applyRoleUI(){
+      document.body.dataset.role=currentRole||'';
       const label = currentRole === 'owner'
         ? 'Owner'
         : currentRole === 'professor'
@@ -2772,30 +2767,6 @@
       await loadTournaments();
       await loadMasterHub();
     }
-
-    function intelPct(n,total){ return total ? ((n/total)*100).toFixed(1)+'%' : '0.0%'; }
-    function intelRow(label,count,total,sprites=''){
-      return '<div class="hub-row"><div><div class="hub-title">'+sprites+esc(label)+'</div><div class="hub-meta">'+count+' player'+(count===1?'':'s')+'</div></div><div class="pill">'+intelPct(count,total)+'</div></div>';
-    }
-    function renderIntel(){
-      if(!$('intelSummary')) return;
-      if(!currentTournament){
-        $('intelSummary').innerHTML='<div class="muted">Select a tournament first.</div>';
-        return;
-      }
-      const rows=entries||[], total=rows.length;
-      const submitted=rows.filter(e=>e.decklist_method==='digital'||e.decklist_method==='paper').length;
-      const missing=total-submitted;
-      const verified=rows.filter(e=>e.decklist_verified).length;
-      const checked=rows.filter(e=>e.check_in_status==='checked_in').length;
-      $('intelSummary').innerHTML=
-        '<div class="hub-kpi"><div class="hub-kpi-label">Players</div><div class="hub-kpi-value">'+total+'</div></div>'+
-        '<div class="hub-kpi"><div class="hub-kpi-label">Decklists</div><div class="hub-kpi-value">'+submitted+'</div></div>'+
-        '<div class="hub-kpi"><div class="hub-kpi-label">Missing</div><div class="hub-kpi-value">'+missing+'</div></div>'+
-        '<div class="hub-kpi"><div class="hub-kpi-label">Verified</div><div class="hub-kpi-value">'+verified+'</div></div>'+
-        '<div class="hub-kpi"><div class="hub-kpi-label">Checked In</div><div class="hub-kpi-value">'+checked+'</div></div>';
-    }
-
     function filteredTournamentEntries(){
       const q=String($('playerSearch')?.value||'').trim().toLowerCase();
       if(!q) return entries;
@@ -2809,7 +2780,7 @@
       });
     }
 
-    function renderEntries(){ renderIntel(); $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s');
+    function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s');
       if($('addedPlayerCount')) $('addedPlayerCount').textContent=entries.length+' Players'; $('standingCount').textContent=$('playerCount').textContent;
       const visibleEntries=filteredTournamentEntries();
       if($('playerSearchStatus')){
@@ -3392,17 +3363,16 @@ $('addPlayer').onclick = async () => {
       showMsg('optionMsg',editId?'Option updated.':'Option added.','good');
     };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','judge','intel','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='judge') await loadJudgeTools(); if(b.dataset.tab==='intel') renderIntel(); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='judge') await loadJudgeTools(); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
     document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ 
       document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); 
       b.classList.add('on'); 
-      ['entry','pairings','standings','judge','intel','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.add('hidden'); 
+      ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.add('hidden'); 
       if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); 
       if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); await loadRibbonTournaments(); } 
     });
 
-    if($('refreshIntel')) $('refreshIntel').onclick=renderIntel;
     if($('judgeLookup')) $('judgeLookup').oninput=renderJudgeLookup;
     if($('judgeTimerStart')) $('judgeTimerStart').onclick=()=>saveJudgeTimer('start');
     if($('judgeTimerPause')) $('judgeTimerPause').onclick=()=>saveJudgeTimer('pause');
