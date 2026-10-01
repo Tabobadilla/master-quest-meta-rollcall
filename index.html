@@ -550,6 +550,10 @@
           <div class="field"><label>Final Tournament Data File</label><input id="finalTdfFile" type="file" accept=".tdf,application/octet-stream,text/xml,application/xml"></div>
           <button id="previewFinalTdf" type="button" class="btn full">Preview Final TDF</button>
           <div id="finalTdfMsg"></div><div id="finalTdfPreview" class="tdf-preview"></div>
+          <div id="finalTdfActions" class="hidden" style="margin-top:12px">
+            <button id="applyFinalTdf" type="button" class="btn full">Apply Final TDF Results</button>
+            <div class="muted" style="margin-top:8px;text-align:center">Review or change any player match above before applying.</div>
+          </div>
         </div>
 
         <div id="standings" style="margin-top:10px"></div>
@@ -2262,6 +2266,8 @@
       return new TextDecoder('utf-8',{fatal:false}).decode(buf);
     }
 
+    let finalTdfReviewData=null;
+
     function tdfNormalizeName(value){
       return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
         .toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
@@ -2376,8 +2382,14 @@
         }
         if(type==='standings'){
           const match=tdfMatchEntry(r.player_id,r.name);
+          const autoId=match.entry?.id||'';
           const badge=match.entry?'<span class="pill">'+esc(match.method)+' Match</span>':'<span class="pill" style="background:#fff4d9;color:#795b0a">Needs Review</span>';
-          return '<div class="tdf-row"><b>'+ordinal(r.standing)+' — '+esc(r.name)+'</b>'+(r.player_id?' • ID '+esc(r.player_id):'')+(r.category!==''?' • Category '+esc(r.category):'')+' • '+r.wins+'-'+r.losses+'-'+r.ties+' '+badge+'</div>';
+          const options=['<option value="">Keep as TDF name only</option>'].concat(entries.map(e=>'<option value="'+esc(e.id)+'" '+(e.id===autoId?'selected':'')+'>'+esc(e.player_name)+(e.player_id?' — ID '+esc(e.player_id):'')+'</option>')).join('');
+          return '<div class="tdf-row" style="padding:12px 0;border-bottom:1px solid #dce7e1">'+
+            '<div><b>'+ordinal(r.standing)+' — '+esc(r.name)+'</b> '+badge+'</div>'+
+            '<div class="muted">'+(r.player_id?'TDF Player ID: '+esc(r.player_id)+' • ':'')+'Record: '+r.wins+'-'+r.losses+'-'+r.ties+'</div>'+
+            '<div class="field" style="margin-top:8px"><label>Match to Tournex Player</label><select class="final-tdf-match" data-index="'+rows.indexOf(r)+'">'+options+'</select></div>'+
+            '</div>';
         }
         return '<div class="tdf-row"><b>Table '+esc(r.table||'—')+'</b> — '+esc(r.player1)+' vs. '+esc(r.player2)+'</div>';
       }).join('');
@@ -3004,13 +3016,60 @@ $('addPlayer').onclick = async () => {
     if($('previewFinalTdf')) $('previewFinalTdf').onclick=async()=>{
       try{
         const data=parseTdfExperimental(await readTdfPayload($('finalTdfFile').files[0]));
+        finalTdfReviewData=data;
         renderTdfPreview('finalTdfPreview',data,'standings');
         if(data.standings.length){
           const matched=data.standings.filter(r=>tdfMatchEntry(r.player_id,r.name).entry).length;
           const review=data.standings.length-matched;
-          showMsg('finalTdfMsg',data.standings.length+' final standings recognized • '+matched+' matched to Tournex'+(review?' • '+review+' need review':'')+'. Player ID is checked first, then exact normalized name. Preview only; nothing has been changed.','good');
-        }else showMsg('finalTdfMsg','The file opened, but final standings were not recognized in this TOM structure yet.','bad');
+          $('finalTdfActions')?.classList.remove('hidden');
+          showMsg('finalTdfMsg',data.standings.length+' final standings recognized • '+matched+' automatically matched'+(review?' • '+review+' need review':'')+'. Review the player matches below, then apply when ready.','good');
+        }else{
+          $('finalTdfActions')?.classList.add('hidden');
+          showMsg('finalTdfMsg','The file opened, but final standings were not recognized in this TOM structure yet.','bad');
+        }
       }catch(e){showMsg('finalTdfMsg',e.message,'bad');}
+    };
+
+    if($('applyFinalTdf')) $('applyFinalTdf').onclick=async()=>{
+      if(!currentTournament || !finalTdfReviewData?.standings?.length) return showMsg('finalTdfMsg','Preview a Final TDF first.','bad');
+
+      const rows=finalTdfReviewData.standings;
+      const selectors=[...document.querySelectorAll('.final-tdf-match')];
+      const selectedIds=selectors.map(x=>x.value).filter(Boolean);
+      if(new Set(selectedIds).size!==selectedIds.length) return showMsg('finalTdfMsg','The same Tournex player is matched to more than one TDF standing. Review the player matches before applying.','bad');
+
+      const unmatched=selectors.filter(x=>!x.value).length;
+      const message='Apply '+rows.length+' final TDF standings to this tournament?'+
+        (unmatched?' '+unmatched+' TDF player'+(unmatched===1?' is':'s are')+' name-only and will not overwrite a Tournex entry.':'')+
+        ' This will update placement and W-L-T for matched players and mark the tournament completed.';
+      if(!confirm(message)) return;
+
+      const btn=$('applyFinalTdf');
+      btn.disabled=true; btn.textContent='Applying Final TDF...';
+      try{
+        for(let i=0;i<rows.length;i++){
+          const r=rows[i], entryId=selectors[i]?.value||'';
+          if(!entryId) continue; // Name-only TDF rows remain visible in preview but do not create/overwrite an entry.
+          const {error}=await sb.from('entries').update({
+            standing:Number(r.standing),
+            wins:Number(r.wins||0),
+            losses:Number(r.losses||0),
+            ties:Number(r.ties||0)
+          }).eq('id',entryId).eq('tournament_id',currentTournament.id);
+          if(error) throw error;
+        }
+        const {error:tErr}=await sb.from('tournaments').update({
+          status:'completed',completed_at:new Date().toISOString()
+        }).eq('id',currentTournament.id);
+        if(tErr) throw tErr;
+
+        showMsg('finalTdfMsg','Final TDF applied successfully. Matched players now have final placement and W-L-T records. Name-only/unmatched TDF players were left unchanged for safety.','good');
+        await loadEntries();
+      }catch(e){
+        showMsg('finalTdfMsg','Could not apply Final TDF: '+e.message,'bad');
+      }finally{
+        btn.disabled=false; btn.textContent='Apply Final TDF Results';
+      }
     };
 
     $('saveStandings').onclick = async () => {
