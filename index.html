@@ -358,6 +358,14 @@
           </div>
         </div>
         <div class="field"><label>Current Tournament</label><select id="tournamentSelect"></select></div>
+        <div id="currentDeadlineArea" class="field staff-only hidden">
+          <label>Decklist Submission Deadline</label>
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px">
+            <input id="currentDecklistDeadline" type="datetime-local">
+            <button id="saveDecklistDeadline" type="button" class="btn alt" style="width:auto">Save Deadline</button>
+          </div>
+          <div id="decklistDeadlineStatus" class="muted"></div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
           <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
           <button id="deleteCurrentTournament" class="btn danger owner-only hidden" style="width:auto;padding-left:16px;padding-right:16px">Delete Tournament</button>
@@ -368,6 +376,11 @@
             <div class="field"><label>Store</label><select id="tournamentStoreSelect"><option value="">Choose store...</option></select></div>
           </div>
           <div class="row"><div class="field"><label>Date</label><input id="eventDate" type="date"></div><div class="field"><label>Location</label><input id="location" placeholder="Snellville, GA"></div></div>
+          <div class="field">
+            <label>Decklist Submission Deadline</label>
+            <input id="decklistDeadline" type="datetime-local">
+            <div class="muted">Players can submit or replace their decklist until this time. Professors can still review decklists afterward.</div>
+          </div>
           <button id="createTournament" class="btn full">Create Tournament</button>
         </div>
       </section>
@@ -433,7 +446,7 @@
       </section>
 
 
-      <section class="card"><div class="tabs" style="grid-template-columns:repeat(5,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="judge">Judge Tools</button><button type="button" data-tab="discord" class="owner-only hidden">Discord</button></div></section>
+      <section class="card"><div class="tabs" style="grid-template-columns:repeat(6,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="judge">Judge Tools</button><button type="button" data-tab="intel" class="staff-only">Intel</button><button type="button" data-tab="discord" class="owner-only hidden">Discord</button></div></section>
 
       <section id="adminNavCard" class="card hidden">
         <div class="head"><div><h3 style="margin:0">Owner Tools</h3><div class="muted">Private Tournex owner controls.</div></div></div>
@@ -550,6 +563,28 @@
       </section>
 
       <div id="judgeCallModal" class="judge-modal hidden"><div class="judge-modal-box"><div class="head"><div><h3 id="judgeModalTitle" style="margin:0">Judge Call</h3><div id="judgeModalMatch" class="muted"></div></div><button id="judgeModalClose" class="btn alt" type="button" style="width:auto">×</button></div><div class="field"><label>Applies To</label><select id="judgeTarget"></select></div><div class="field"><label>Penalty / Ruling Type</label><input id="judgePenaltyType" placeholder="Optional"></div><div class="field"><label>Rule Reference</label><input id="judgeRuleReference" placeholder="Optional rule or policy reference"></div><div class="field"><label>Notes</label><input id="judgeNotes" placeholder="What happened / ruling given"></div><div class="field"><label>Time Extension (minutes)</label><input id="judgeExtension" type="number" min="0" max="120" value="0"></div><div id="judgeCallMsg"></div><div class="judge-modal-actions"><button id="judgeModalCancel" class="btn alt" type="button">Cancel</button><button id="judgeSaveCall" class="btn" type="button">Save Judge Call</button></div></div></div>
+
+      <section id="intelTab" class="card hidden staff-only">
+        <div class="head">
+          <div><h3 style="margin:0">Tournament Intel</h3><div class="muted">Live staff-only overview of the currently selected tournament.</div></div>
+          <button id="refreshIntel" type="button" class="btn alt" style="width:auto">Refresh</button>
+        </div>
+        <div id="intelSummary" class="hub-kpi-grid" style="margin-top:12px"></div>
+        <div class="judge-grid" style="margin-top:14px">
+          <div class="judge-panel">
+            <div class="head"><div><b>Main Meta</b><div class="muted">Current Main Pokémon / card distribution.</div></div></div>
+            <div id="intelMainMeta"></div>
+          </div>
+          <div class="judge-panel">
+            <div class="head"><div><b>Archetype Meta</b><div class="muted">Current Main + Support combinations.</div></div></div>
+            <div id="intelArchetypes"></div>
+          </div>
+        </div>
+        <div class="judge-panel" style="margin-top:12px">
+          <div class="head"><div><b>Tournament Results by Archetype</b><div class="muted">Populates as standings and match records are entered.</div></div></div>
+          <div id="intelResults"></div>
+        </div>
+      </section>
 
       <section id="discordTab" class="card hidden owner-only">
         <h3 style="margin-top:0">Discord Output</h3><div class="muted" style="margin-bottom:10px">Placement + player name + Main/Support Discord emoji codes.</div>
@@ -940,6 +975,31 @@
           : 'trainer';
     }
 
+    function toLocalDateTimeInput(iso){
+      if(!iso) return '';
+      const d=new Date(iso);
+      if(Number.isNaN(d.getTime())) return '';
+      const pad=n=>String(n).padStart(2,'0');
+      return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+    }
+
+    function refreshDeadlineUI(){
+      const area=$('currentDeadlineArea');
+      if(!area) return;
+      const canEdit=['owner','professor'].includes(currentRole) && !!currentTournament;
+      area.classList.toggle('hidden',!canEdit);
+      if(!canEdit) return;
+      $('currentDecklistDeadline').value=toLocalDateTimeInput(currentTournament.decklist_deadline);
+      const status=$('decklistDeadlineStatus');
+      if(!currentTournament.decklist_deadline){
+        status.textContent='No deadline set.';
+      }else{
+        const d=new Date(currentTournament.decklist_deadline);
+        const closed=Date.now()>d.getTime();
+        status.textContent=(closed?'Submissions closed • ':'Submissions open until • ')+d.toLocaleString();
+      }
+    }
+
     function applyRoleUI(){
       const label = currentRole === 'owner'
         ? 'Owner'
@@ -964,6 +1024,7 @@
       if($('accountSettingsBtn')) $('accountSettingsBtn').classList.toggle('hidden', currentRole==='owner');
 
       populateTournamentStoreSelector();
+      refreshDeadlineUI();
     }
 
 
@@ -994,14 +1055,20 @@
 
       activeDeckSubmission=sub;
 
-      const dob=sub.birthdate
-        ? new Date(sub.birthdate+'T00:00:00').toLocaleDateString('en-US')
-        : '—';
+      const birthYear=sub.birthdate ? String(sub.birthdate).slice(0,4) : '—';
+      const mainOpt=opt(sub.parsed_main_option_id);
+      const supportOpt=opt(sub.parsed_support_option_id);
+      const revision=Number(sub.revision_number||1);
 
-      $('deckModalTitle').textContent=sub.trainer_name+' — Decklist';
+      $('deckModalTitle').textContent=sub.trainer_name+' — Submitted Decklist';
       $('deckModalMeta').textContent=
         (sub.player_id?'Player ID '+sub.player_id+' • ':'')+
-        (sub.division||'')+' • DOB '+dob+' • '+(sub.format||'Standard');
+        (sub.division||'')+' • Birth Year '+birthYear+
+        ' • Standard • Revision '+revision+
+        (sub.is_replacement?' • Replacement':'')+
+        (sub.updated_at?' • Last submitted '+new Date(sub.updated_at).toLocaleString():'')+
+        ' • Main: '+(mainOpt?.name||'—')+
+        ' • Support: '+(supportOpt?.name||'—');
 
       $('deckModalStatus').innerHTML=
         sub.professor_status==='verified'
@@ -2509,6 +2576,7 @@
       if(d.length){
         $('tournamentSelect').value=d[0].id;
         currentTournament=d[0];
+        refreshDeadlineUI();
         if($('eventSummary')) $('eventSummary').textContent=(d[0].store_name||'Unassigned Store')+' — '+d[0].event_name+' — '+d[0].event_date;
         await loadEntries();
       }else{
@@ -2529,15 +2597,29 @@
       }
       const {data}=await sb.from('tournaments').select('*').eq('id',id).single();
       currentTournament=data;
+      refreshDeadlineUI();
       if($('eventSummary')) $('eventSummary').textContent=
         (data.store_name||'Unassigned Store')+' — '+data.event_name+' — '+data.event_date;
       await loadEntries();
     };
+    $('saveDecklistDeadline').onclick = async () => {
+      if(!currentTournament) return alert('Choose a tournament first.');
+      const raw=$('currentDecklistDeadline').value;
+      const value=raw ? new Date(raw).toISOString() : null;
+      const {error}=await sb.from('tournaments').update({decklist_deadline:value}).eq('id',currentTournament.id);
+      if(error) return alert(error.message);
+      currentTournament.decklist_deadline=value;
+      refreshDeadlineUI();
+      alert(value ? 'Decklist deadline saved.' : 'Decklist deadline cleared.');
+    };
+
     $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
     $('createTournament').onclick = async () => {
       const event_name=$('eventName').value.trim();
       const event_date=$('eventDate').value;
       const location=$('location').value.trim();
+      const deadlineLocal=$('decklistDeadline').value;
+      const decklist_deadline=deadlineLocal ? new Date(deadlineLocal).toISOString() : null;
       const store=selectedStoreRecord();
 
       if(!event_name || !event_date) return alert('Enter tournament name and date.');
@@ -2557,7 +2639,8 @@
         location,
         status:'registration',
         created_by:user?.id||null,
-        public_pairings_enabled:true
+        public_pairings_enabled:true,
+        decklist_deadline
       }).select('id').single();
 
       if(error) return alert(error.message);
@@ -2573,6 +2656,7 @@
       $('eventName').value='';
       $('eventDate').value='';
       $('location').value='';
+      $('decklistDeadline').value='';
       await loadTournaments();
 
       if(currentRole==='owner') await loadMasterHub();
@@ -2679,6 +2763,61 @@
       await loadMasterHub();
     }
 
+    function intelPct(n,total){ return total ? ((n/total)*100).toFixed(1)+'%' : '0.0%'; }
+    function intelRow(label,count,total,sprites=''){
+      return '<div class="hub-row"><div><div class="hub-title">'+sprites+esc(label)+'</div><div class="hub-meta">'+count+' player'+(count===1?'':'s')+'</div></div><div class="pill">'+intelPct(count,total)+'</div></div>';
+    }
+    function renderIntel(){
+      if(!$('intelSummary')) return;
+      if(!currentTournament){
+        $('intelSummary').innerHTML='<div class="muted">Select a tournament first.</div>';
+        $('intelMainMeta').innerHTML=''; $('intelArchetypes').innerHTML=''; $('intelResults').innerHTML='';
+        return;
+      }
+      const rows=entries||[], total=rows.length;
+      const submitted=rows.filter(e=>e.decklist_method==='digital'||e.decklist_method==='paper').length;
+      const missing=total-submitted;
+      const verified=rows.filter(e=>e.decklist_verified).length;
+      const checked=rows.filter(e=>e.check_in_status==='checked_in').length;
+      $('intelSummary').innerHTML=
+        '<div class="hub-kpi"><div class="hub-kpi-label">Players</div><div class="hub-kpi-value">'+total+'</div></div>'+
+        '<div class="hub-kpi"><div class="hub-kpi-label">Decklists</div><div class="hub-kpi-value">'+submitted+'</div></div>'+
+        '<div class="hub-kpi"><div class="hub-kpi-label">Missing</div><div class="hub-kpi-value">'+missing+'</div></div>'+
+        '<div class="hub-kpi"><div class="hub-kpi-label">Verified</div><div class="hub-kpi-value">'+verified+'</div></div>'+
+        '<div class="hub-kpi"><div class="hub-kpi-label">Checked In</div><div class="hub-kpi-value">'+checked+'</div></div>';
+
+      const mainMap=new Map();
+      rows.filter(e=>e.main_option_id).forEach(e=>{
+        const o=opt(e.main_option_id); if(!o)return;
+        const x=mainMap.get(e.main_option_id)||{o,count:0}; x.count++; mainMap.set(e.main_option_id,x);
+      });
+      const mainRows=[...mainMap.values()].sort((a,b)=>b.count-a.count||a.o.name.localeCompare(b.o.name));
+      $('intelMainMeta').innerHTML=mainRows.length?mainRows.map(x=>intelRow(x.o.name,x.count,total,coreSpriteImg(x.o))).join(''):'<div class="muted">No archetypes detected yet.</div>';
+
+      const archMap=new Map();
+      rows.filter(e=>e.main_option_id).forEach(e=>{
+        const m=opt(e.main_option_id), sp=opt(e.support_option_id); if(!m)return;
+        const key=e.main_option_id+'|'+(e.support_option_id||'');
+        const x=archMap.get(key)||{m,s:sp,count:0,rows:[]}; x.count++; x.rows.push(e); archMap.set(key,x);
+      });
+      const arches=[...archMap.values()].sort((a,b)=>b.count-a.count||a.m.name.localeCompare(b.m.name));
+      $('intelArchetypes').innerHTML=arches.length?arches.map(x=>{
+        const label=x.m.name+(x.s?' / '+x.s.name:'');
+        return intelRow(label,x.count,total,coreSpriteImg(x.m)+coreSpriteImg(x.s));
+      }).join(''):'<div class="muted">No archetypes detected yet.</div>';
+
+      const resultArches=arches.filter(x=>x.rows.some(e=>e.standing||e.wins||e.losses||e.ties));
+      $('intelResults').innerHTML=resultArches.length?resultArches.map(x=>{
+        const placed=x.rows.filter(e=>e.standing);
+        const best=placed.length?Math.min(...placed.map(e=>Number(e.standing))):null;
+        const avg=placed.length?(placed.reduce((a,e)=>a+Number(e.standing),0)/placed.length).toFixed(1):'—';
+        const w=x.rows.reduce((a,e)=>a+Number(e.wins||0),0), l=x.rows.reduce((a,e)=>a+Number(e.losses||0),0), t=x.rows.reduce((a,e)=>a+Number(e.ties||0),0);
+        const games=w+l+t, winpct=games?((w/games)*100).toFixed(1)+'%':'—';
+        const label=x.m.name+(x.s?' / '+x.s.name:'');
+        return '<div class="hub-row"><div><div class="hub-title">'+coreSpriteImg(x.m)+coreSpriteImg(x.s)+esc(label)+'</div><div class="hub-meta">'+x.count+' player'+(x.count===1?'':'s')+' • '+w+'-'+l+'-'+t+' • Win '+winpct+'</div></div><div style="text-align:right"><b>Best '+(best?ordinal(best):'—')+'</b><div class="hub-meta">Avg '+avg+'</div></div></div>';
+      }).join(''):'<div class="muted">Enter standings and records to generate results intelligence.</div>';
+    }
+
     function filteredTournamentEntries(){
       const q=String($('playerSearch')?.value||'').trim().toLowerCase();
       if(!q) return entries;
@@ -2692,7 +2831,7 @@
       });
     }
 
-    function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s');
+    function renderEntries(){ renderIntel(); $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s');
       if($('addedPlayerCount')) $('addedPlayerCount').textContent=entries.length+' Players'; $('standingCount').textContent=$('playerCount').textContent;
       const visibleEntries=filteredTournamentEntries();
       if($('playerSearchStatus')){
@@ -2700,7 +2839,7 @@
         $('playerSearchStatus').textContent=q ? visibleEntries.length+' of '+entries.length+' players shown' : '';
         $('clearPlayerSearch').classList.toggle('hidden',!q);
       }
-      $('players').innerHTML = visibleEntries.length ? visibleEntries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year:'')+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<a class="btn alt" style="display:inline-flex;align-items:center;text-decoration:none;width:auto" href="decklist.html?'+(e.source_submission_id?'submission='+encodeURIComponent(e.source_submission_id):'entry='+encodeURIComponent(e.id))+'">View Decklist</a>':'')+ownerPlayedButton(e)+'<button type="button" class="btn alt edit" data-id="'+e.id+'" onclick="window.__mqEditPlayer(this.dataset.id)">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">'+(entries.length?'No players match your search.':'No players entered yet.')+'</div>';
+      $('players').innerHTML = visibleEntries.length ? visibleEntries.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); return '<div class="player"><div><div class="player-name-with-sprites">'+coreSpriteImg(m)+coreSpriteImg(s)+'<span class="name">'+esc(e.player_name)+'</span></div><div class="muted">'+(e.birth_year?'Birth Year: '+e.birth_year:'')+'</div><div class="deck">'+(m?esc(m.name)+(s?' • '+esc(s.name):''):(e.decklist_method==='digital'?(e.decklist_verified?'<span class="deck-review-verified">Deck Verified — Archetype Review</span>':'<span class="deck-review-pending">Deck Submitted — Archetype Review</span>'):'<span class="pending-deck">Deck Pending</span>'))+'</div><div class="status-row">'+decklistBadge(e)+checkinBadge(e)+(e.decklist_method==='digital'&&e.decklist_verified?'<span class="status-badge status-good">Archetype Review Complete</span>':'')+ownerPlayedRibbon(e)+'</div>'+checkActionButtons(e)+'</div><div class="actions">'+((e.source_submission_id||e.decklist_method==='digital')?'<button type="button" class="btn alt view-decklist" style="width:auto" data-id="'+e.id+'">View Decklist</button>':'')+ownerPlayedButton(e)+'<button type="button" class="btn alt edit" data-id="'+e.id+'" onclick="window.__mqEditPlayer(this.dataset.id)">Edit</button><button class="btn danger remove" data-id="'+e.id+'">Remove</button></div></div>'; }).join('') : '<div class="muted">'+(entries.length?'No players match your search.':'No players entered yet.')+'</div>';
       document.querySelectorAll('.played-on').forEach(b=>b.onclick=async()=>{
         const {error}=await sb.rpc('set_owner_played_against',{p_entry_id:b.dataset.id,p_value:true});
         if(error) return alert(error.message);
@@ -2711,6 +2850,7 @@
         if(error) return alert(error.message);
         await loadEntries();
       });
+      document.querySelectorAll('.view-decklist').forEach(b=>b.onclick=()=>openDeckSubmission(b.dataset.id));
       document.querySelectorAll('.remove').forEach(b=>b.onclick=async()=>{ if(!confirm('Remove this player?')) return; const {error}=await sb.from('entries').delete().eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.mark-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'paper',decklist_received_at:new Date().toISOString(),decklist_verified:true}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
       document.querySelectorAll('.undo-paper').forEach(b=>b.onclick=async()=>{ const {error}=await sb.from('entries').update({decklist_method:'none',decklist_received_at:null,decklist_verified:false}).eq('id',b.dataset.id); if(error) return alert(error.message); await loadEntries(); });
@@ -3275,16 +3415,17 @@ $('addPlayer').onclick = async () => {
       showMsg('optionMsg',editId?'Option updated.':'Option added.','good');
     };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='judge') await loadJudgeTools(); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','judge','intel','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='judge') await loadJudgeTools(); if(b.dataset.tab==='intel') renderIntel(); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
     document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ 
       document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); 
       b.classList.add('on'); 
-      ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.add('hidden'); 
+      ['entry','pairings','standings','judge','intel','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.add('hidden'); 
       if($('hubTab')) $('hubTab').classList.toggle('hidden', b.dataset.adminTab!=='hub'); 
       if(b.dataset.adminTab==='hub'){ await loadMasterHub(); await loadMetaLibrary(); fillLibraryOptionMenus(); populateOptionEditor(); await loadRibbonTournaments(); } 
     });
 
+    if($('refreshIntel')) $('refreshIntel').onclick=renderIntel;
     if($('judgeLookup')) $('judgeLookup').oninput=renderJudgeLookup;
     if($('judgeTimerStart')) $('judgeTimerStart').onclick=()=>saveJudgeTimer('start');
     if($('judgeTimerPause')) $('judgeTimerPause').onclick=()=>saveJudgeTimer('pause');
