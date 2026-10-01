@@ -212,7 +212,7 @@ Example:
       for(const v of variants){
         if(!v || v.length<4) continue;
         const safe=v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-        const re=new RegExp('^(\\\\d+)\\\\s+.*\\\\b'+safe+'\\\\b','gim');
+        const re=new RegExp('^(\\d+)\\s+.*\\b'+safe+'\\b','gim');
         let m;
         while((m=re.exec(hay))!==null) best += Number(m[1]||1);
       }
