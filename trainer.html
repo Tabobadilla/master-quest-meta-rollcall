@@ -80,10 +80,8 @@
       <div id="pageMsg"></div>
 
       <div class="field">
-        <label for="tournament">Tournament *</label>
-        <select id="tournament">
-          <option value="">Loading tournaments...</option>
-        </select>
+        <label>Store / Current Tournament</label>
+        <div id="storeTournamentCard" class="msg warn">Loading this store's current tournament...</div>
       </div>
 
       <div class="row">
@@ -179,6 +177,8 @@ Example:
     let options = [];
     let detectedMain = null;
     let detectedSupport = null;
+    const storeName = new URLSearchParams(location.search).get('store');
+    let activeTournament = null;
 
     function esc(s=''){
       return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -253,28 +253,53 @@ Example:
     }
 
     async function loadData(){
+      if(!storeName){
+        $('storeTournamentCard').className='msg bad';
+        $('storeTournamentCard').textContent='This decklist link is missing its store. Please scan the QR code or use the Decklist Submission link provided by the store.';
+        $('submitBtn').disabled=true;
+        return;
+      }
+
       const [{data:tours,error:tErr},{data:opts,error:oErr}] = await Promise.all([
         sb.rpc('list_open_tournaments'),
         sb.rpc('list_public_deck_options')
       ]);
 
+      options=oErr?[]:(opts||[]);
+
       if(tErr){
-        $('tournament').innerHTML='<option value="">Unable to load tournaments</option>';
-        showMsg(tErr.message,'bad');
-      }else{
-        const t=tours||[];
-        $('tournament').innerHTML='<option value="">Choose tournament...</option>'+
-          t.map(x=>'<option value="'+x.id+'">'+esc(x.event_name)+' — '+x.event_date+(x.location?' • '+esc(x.location):'')+'</option>').join('');
-        if(!t.length) showMsg('There are currently no tournaments accepting decklist submissions.','warn');
+        $('storeTournamentCard').className='msg bad';
+        $('storeTournamentCard').textContent='Unable to load this store’s tournament: '+tErr.message;
+        $('submitBtn').disabled=true;
+        analyze();
+        return;
       }
 
-      options=oErr?[]:(opts||[]);
+      const matching=(tours||[]).filter(x=>
+        String(x.store_name||'').trim().toLowerCase()===String(storeName).trim().toLowerCase()
+      ).sort((a,b)=>{
+        const ad=String(a.event_date||''), bd=String(b.event_date||'');
+        if(ad!==bd) return bd.localeCompare(ad);
+        return String(b.created_at||'').localeCompare(String(a.created_at||''));
+      });
+
+      activeTournament=matching[0]||null;
+
+      if(!activeTournament){
+        $('storeTournamentCard').className='msg warn';
+        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>No tournament at this store is currently accepting decklist submissions.';
+        $('submitBtn').disabled=true;
+      }else{
+        $('storeTournamentCard').className='msg good';
+        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>'+esc(activeTournament.event_name)+' • '+esc(activeTournament.event_date)+(activeTournament.location?' • '+esc(activeTournament.location):'');
+        $('submitBtn').disabled=false;
+      }
       analyze();
     }
 
     async function submit(){
       showMsg('');
-      const tournament_id=$('tournament').value;
+      const tournament_id=activeTournament?.id||'';
       const trainer_name=$('trainerName').value.trim();
       const player_id=$('playerId').value.trim();
       const birthdate=$('birthdate').value||null;
@@ -283,8 +308,13 @@ Example:
       const decklist_text=$('decklist').value.trim();
       const card_total=countCards(decklist_text);
 
-      if(!tournament_id || !trainer_name || !player_id || !birthdate || !division || !decklist_text){
-        showMsg('Please complete Tournament, Player Name, Player ID, Birthdate, Division, and Decklist.','bad');
+      if(!tournament_id){
+        showMsg('This store does not currently have a tournament accepting decklist submissions.','bad');
+        return;
+      }
+
+      if(!trainer_name || !player_id || !birthdate || !division || !decklist_text){
+        showMsg('Please complete Player Name, Player ID, Birthdate, Division, and Decklist.','bad');
         return;
       }
 
