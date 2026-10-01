@@ -2262,57 +2262,104 @@
       return new TextDecoder('utf-8',{fatal:false}).decode(buf);
     }
 
+    function tdfNormalizeName(value){
+      return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+    }
+
+    function tdfMatchEntry(playerId,name){
+      const pid=String(playerId||'').trim(), normalized=tdfNormalizeName(name);
+      if(pid){
+        const byId=entries.find(e=>String(e.player_id||'').trim()===pid);
+        if(byId) return {entry:byId,method:'Player ID'};
+      }
+      if(normalized){
+        const byName=entries.filter(e=>tdfNormalizeName(e.player_name)===normalized);
+        if(byName.length===1) return {entry:byName[0],method:'Name'};
+        if(byName.length>1) return {entry:null,method:'Ambiguous Name'};
+      }
+      return {entry:null,method:'Needs Review'};
+    }
+
     function parseTdfExperimental(text){
-      // TOM versions can differ. This parser intentionally previews before any database write.
       const result={players:[],pairings:[],standings:[],round:null,recognized:false};
       const raw=String(text||'').replace(/\u0000/g,' ');
-      const xmlLike=raw.includes('<') && raw.includes('>');
       let doc=null;
-      if(xmlLike){ try{ doc=new DOMParser().parseFromString(raw,'text/xml'); }catch(_){} }
-
+      if(raw.includes('<')&&raw.includes('>')){
+        try{ doc=new DOMParser().parseFromString(raw,'text/xml'); }catch(_){}
+      }
       const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
       const num=v=>{const m=String(v||'').match(/\d+/);return m?Number(m[0]):null};
-      const record=v=>{const m=String(v||'').match(/(\d+)\s*[/\-]\s*(\d+)\s*[/\-]\s*(\d+)/);return m?{wins:+m[1],losses:+m[2],ties:+m[3]}:null};
+      const playerMap=new Map(), records=new Map();
+      const ensureRecord=id=>{
+        const key=String(id||'').trim();
+        if(!records.has(key)) records.set(key,{wins:0,losses:0,ties:0});
+        return records.get(key);
+      };
 
       if(doc && !doc.querySelector('parsererror')){
-        const nodes=[...doc.querySelectorAll('player,Player,competitor,Competitor,participant,Participant')];
-        nodes.forEach(n=>{
-          const get=(...names)=>{
-            for(const name of names){
-              const a=n.getAttribute(name); if(a) return clean(a);
-              const el=n.querySelector(name); if(el?.textContent) return clean(el.textContent);
-            } return '';
-          };
-          const name=get('name','Name','playerName','PlayerName','fullName','FullName');
-          if(name && !result.players.some(p=>p.name.toLowerCase()===name.toLowerCase())){
-            result.players.push({name,player_id:get('id','playerId','PlayerID','popId','POP_ID'),division:get('division','Division')});
+        [...doc.querySelectorAll('tournament > players > player')].forEach(n=>{
+          const id=clean(n.getAttribute('userid')||n.getAttribute('id'));
+          const first=clean(n.querySelector(':scope > firstname')?.textContent);
+          const last=clean(n.querySelector(':scope > lastname')?.textContent);
+          const explicit=clean(n.getAttribute('name')||n.querySelector(':scope > name')?.textContent);
+          const name=clean(explicit||[first,last].filter(Boolean).join(' '));
+          const birthdate=clean(n.querySelector(':scope > birthdate')?.textContent);
+          if(name){
+            const p={name,player_id:id||'',birthdate};
+            result.players.push(p);
+            if(id) playerMap.set(id,p);
           }
         });
 
-        const roundNodes=[...doc.querySelectorAll('round,Round')];
-        roundNodes.forEach(r=>{
-          const rn=num(r.getAttribute('number')||r.getAttribute('round')||r.querySelector('number,Number')?.textContent);
-          if(rn) result.round=Math.max(result.round||0,rn);
-          [...r.querySelectorAll('pairing,Pairing,match,Match,table,Table')].forEach(m=>{
-            const txt=clean(m.textContent);
-            const attrs=[...m.attributes||[]].map(a=>a.value);
-            const table=num(m.getAttribute('table')||m.getAttribute('tableNumber')||m.querySelector('tableNumber,TableNumber')?.textContent);
-            const p1=clean(m.getAttribute('player1')||m.getAttribute('playerOne')||m.querySelector('player1,Player1,playerOne,PlayerOne')?.textContent);
-            const p2=clean(m.getAttribute('player2')||m.getAttribute('playerTwo')||m.querySelector('player2,Player2,playerTwo,PlayerTwo')?.textContent);
-            if(p1 && (p2||/bye/i.test(txt))) result.pairings.push({round:rn||result.round||1,table:table||null,player1:p1,player2:p2||'BYE'});
+        [...doc.querySelectorAll('tournament > pods > pod > rounds > round')].forEach(r=>{
+          const rn=num(r.getAttribute('number'))||1;
+          result.round=Math.max(result.round||0,rn);
+          [...r.querySelectorAll(':scope > matches > match')].forEach(m=>{
+            const table=num(m.querySelector(':scope > tablenumber')?.textContent);
+            const outcome=Number(m.getAttribute('outcome')||0);
+            const p1Node=m.querySelector(':scope > player1'), p2Node=m.querySelector(':scope > player2');
+            const byeNode=m.querySelector(':scope > player');
+            if(byeNode){
+              const id=clean(byeNode.getAttribute('userid')||byeNode.getAttribute('id')), p=playerMap.get(id);
+              if(p){
+                result.pairings.push({round:rn,table:table||null,player1:p.name,player1_id:id,player2:'BYE',player2_id:''});
+                if(outcome===5) ensureRecord(id).wins++;
+              }
+              return;
+            }
+            const id1=clean(p1Node?.getAttribute('userid')||p1Node?.getAttribute('id'));
+            const id2=clean(p2Node?.getAttribute('userid')||p2Node?.getAttribute('id'));
+            const a=playerMap.get(id1), b=playerMap.get(id2);
+            if(a||b) result.pairings.push({round:rn,table:table||null,player1:a?.name||id1||'Unknown',player1_id:id1,player2:b?.name||id2||'Unknown',player2_id:id2});
+            if(id1&&id2){
+              const r1=ensureRecord(id1),r2=ensureRecord(id2);
+              if(outcome===1){r1.wins++;r2.losses++;}
+              else if(outcome===2){r2.wins++;r1.losses++;}
+              else if(outcome===3){r1.ties++;r2.ties++;}
+            }
+          });
+        });
+
+        [...doc.querySelectorAll('tournament > standings > pod[type="finished"]')].forEach(pod=>{
+          const category=clean(pod.getAttribute('category'));
+          [...pod.querySelectorAll(':scope > player')].forEach(n=>{
+            const id=clean(n.getAttribute('id')||n.getAttribute('userid')), place=num(n.getAttribute('place'));
+            const p=playerMap.get(id), rec=records.get(id)||{wins:0,losses:0,ties:0};
+            if(place) result.standings.push({standing:place,category,player_id:id,name:p?.name||('Player '+id),wins:rec.wins,losses:rec.losses,ties:rec.ties});
           });
         });
       }
 
-      // Text fallback for human-readable exports embedded in some tournament files.
-      raw.split(/\r?\n/).forEach(line=>{
-        const l=clean(line);
-        let m=l.match(/(?:table\s*)?(\d+)\s*[:\-]\s*(.+?)\s+(?:vs\.?|v\.?)\s+(.+)/i);
-        if(m) result.pairings.push({round:result.round||1,table:+m[1],player1:clean(m[2]),player2:clean(m[3])});
-        m=l.match(/^(\d+)\s+(.+?)\s+(\d+)\s*[/\-]\s*(\d+)\s*[/\-]\s*(\d+)(?:\s|$)/);
-        if(m) result.standings.push({standing:+m[1],name:clean(m[2]),wins:+m[3],losses:+m[4],ties:+m[5]});
-      });
-
+      if(!result.standings.length){
+        raw.split(/\r?\n/).forEach(line=>{
+          const l=clean(line);
+          let m=l.match(/(?:table\s*)?(\d+)\s*[:\-]\s*(.+?)\s+(?:vs\.?|v\.?)\s+(.+)/i);
+          if(m) result.pairings.push({round:result.round||1,table:+m[1],player1:clean(m[2]),player2:clean(m[3])});
+          m=l.match(/^(\d+)\s+(.+?)\s+(\d+)\s*[/\-]\s*(\d+)\s*[/\-]\s*(\d+)(?:\s|$)/);
+          if(m) result.standings.push({standing:+m[1],name:clean(m[2]),player_id:'',wins:+m[3],losses:+m[4],ties:+m[5],category:''});
+        });
+      }
       result.recognized=!!(result.players.length||result.pairings.length||result.standings.length);
       return result;
     }
@@ -2320,10 +2367,18 @@
     function renderTdfPreview(target,data,type){
       const el=$(target); if(!el) return;
       const rows=type==='players'?data.players:type==='standings'?data.standings:data.pairings;
-      if(!rows.length){ el.innerHTML='<div class="msg bad">TDF opened, but this TOM structure is not recognized yet. Keep the file; once we have a real TOM sample we can map its exact fields without changing the rest of Tournex.</div>'; return; }
-      el.innerHTML=rows.slice(0,100).map((r,i)=>{
-        if(type==='players') return '<div class="tdf-row"><b>'+esc(r.name)+'</b>'+(r.player_id?' • '+esc(r.player_id):'')+'</div>';
-        if(type==='standings') return '<div class="tdf-row"><b>'+ordinal(r.standing)+' — '+esc(r.name)+'</b> • '+r.wins+'-'+r.losses+'-'+r.ties+'</div>';
+      if(!rows.length){ el.innerHTML='<div class="msg bad">TDF opened, but this TOM structure is not recognized yet.</div>'; return; }
+      el.innerHTML=rows.slice(0,150).map(r=>{
+        if(type==='players'){
+          const match=tdfMatchEntry(r.player_id,r.name);
+          const badge=match.entry?'<span class="pill">'+esc(match.method)+' Match</span>':'<span class="pill" style="background:#fff4d9;color:#795b0a">Needs Review</span>';
+          return '<div class="tdf-row"><b>'+esc(r.name)+'</b>'+(r.player_id?' • ID '+esc(r.player_id):'')+' '+badge+'</div>';
+        }
+        if(type==='standings'){
+          const match=tdfMatchEntry(r.player_id,r.name);
+          const badge=match.entry?'<span class="pill">'+esc(match.method)+' Match</span>':'<span class="pill" style="background:#fff4d9;color:#795b0a">Needs Review</span>';
+          return '<div class="tdf-row"><b>'+ordinal(r.standing)+' — '+esc(r.name)+'</b>'+(r.player_id?' • ID '+esc(r.player_id):'')+(r.category!==''?' • Category '+esc(r.category):'')+' • '+r.wins+'-'+r.losses+'-'+r.ties+' '+badge+'</div>';
+        }
         return '<div class="tdf-row"><b>Table '+esc(r.table||'—')+'</b> — '+esc(r.player1)+' vs. '+esc(r.player2)+'</div>';
       }).join('');
     }
@@ -2950,7 +3005,11 @@ $('addPlayer').onclick = async () => {
       try{
         const data=parseTdfExperimental(await readTdfPayload($('finalTdfFile').files[0]));
         renderTdfPreview('finalTdfPreview',data,'standings');
-        showMsg('finalTdfMsg',data.standings.length?data.standings.length+' final standings recognized. Preview only until the TOM parser is validated.':'The file opened, but final standings were not recognized in this TOM structure yet.',data.standings.length?'good':'bad');
+        if(data.standings.length){
+          const matched=data.standings.filter(r=>tdfMatchEntry(r.player_id,r.name).entry).length;
+          const review=data.standings.length-matched;
+          showMsg('finalTdfMsg',data.standings.length+' final standings recognized • '+matched+' matched to Tournex'+(review?' • '+review+' need review':'')+'. Player ID is checked first, then exact normalized name. Preview only; nothing has been changed.','good');
+        }else showMsg('finalTdfMsg','The file opened, but final standings were not recognized in this TOM structure yet.','bad');
       }catch(e){showMsg('finalTdfMsg',e.message,'bad');}
     };
 
