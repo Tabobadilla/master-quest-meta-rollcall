@@ -882,7 +882,27 @@
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-  <div id="editPlayerModal"><div id="editPlayerBox"><div class="ep-head"><h2 style="margin:0">Edit Player</h2><button type="button" onclick="window.__mqCloseEditPlayer()">×</button></div><div class="ep-grid"><div class="ep-full"><label>Player Name</label><input id="epName"></div><div><label>Player ID</label><input id="epId"></div><div><label>Birth Year</label><input id="epYear" type="number" placeholder="YYYY"></div><div><label>Division</label><input id="epDivision"></div><div></div><div><label>Main Pokémon / Card</label><select id="epMain"></select></div><div><label>Support / Variant</label><select id="epSupport"></select></div></div><div id="epMsg"></div><div class="ep-actions"><button type="button" onclick="window.__mqCloseEditPlayer()">Cancel</button><button id="epSave" type="button" class="ep-save">Save Changes</button></div></div></div><script type="module">
+  <div id="editPlayerModal"><div id="editPlayerBox"><div class="ep-head"><h2 style="margin:0">Edit Player</h2><button type="button" onclick="window.__mqCloseEditPlayer()">×</button></div><div class="ep-grid"><div class="ep-full"><label>Player Name</label><input id="epName"></div><div><label>Player ID</label><input id="epId"></div><div><label>Birth Year</label><input id="epYear" type="number" placeholder="YYYY"></div><div><label>Division</label><input id="epDivision"></div><div></div><div><label>Main Pokémon / Card</label><select id="epMain"></select></div><div><label>Support / Variant</label><select id="epSupport"></select></div></div><div id="epMsg"></div><div class="ep-actions"><button type="button" onclick="window.__mqCloseEditPlayer()">Cancel</button><button id="epSave" type="button" class="ep-save">Save Changes</button></div></div></div>
+
+<div id="deckModal" class="deck-modal hidden">
+    <div class="deck-modal-card">
+      <div class="deck-modal-head">
+        <div>
+          <h3 id="deckModalTitle" style="margin:0">Decklist</h3>
+          <div id="deckModalMeta" class="muted"></div>
+        </div>
+        <button id="closeDeckModal" class="btn alt" style="width:auto">Close</button>
+      </div>
+      <div id="deckModalStatus"></div>
+      <pre id="deckModalText" class="decklist-pre"></pre>
+      <div class="row" style="margin-top:10px">
+        <button id="printDecklist" class="btn">Print Decklist</button>
+        <button id="markDeckVerified" class="btn alt">Mark Verified</button>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     const SUPABASE_URL = 'https://njulnumhkxvtdfrjoigx.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_31ke9sSB-21M8MXDWZm1lA_p_sYct8Z';
@@ -2189,9 +2209,9 @@
     if($('spriteUrl')) $('spriteUrl').addEventListener('input',refreshSpritePreview);
     if($('saveLibraryProfile')) $('saveLibraryProfile').onclick=saveMetaLibraryProfile;
     if($('refreshLibrary')) $('refreshLibrary').onclick=loadMetaLibrary;
-    $('closeDeckModal').onclick = () => { $('deckModal').classList.add('hidden'); activeDeckSubmission=null; if($('markDeckVerified')){ $('markDeckVerified').disabled=false; $('markDeckVerified').textContent='Mark Verified'; } };
-    $('printDecklist').onclick = printActiveDecklist;
-    $('markDeckVerified').onclick = verifyActiveDecklist;
+    if($('closeDeckModal')) $('closeDeckModal').onclick = () => { $('deckModal').classList.add('hidden'); activeDeckSubmission=null; if($('markDeckVerified')){ $('markDeckVerified').disabled=false; $('markDeckVerified').textContent='Mark Verified'; } };
+    if($('printDecklist')) $('printDecklist').onclick = printActiveDecklist;
+    if($('markDeckVerified')) $('markDeckVerified').onclick = verifyActiveDecklist;
 
     async function loadOptions(){
       showMsg('optionMsg','');
@@ -3445,24 +3465,6 @@ $('addPlayer').onclick = async () => {
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 
-
-<div id="deckModal" class="deck-modal hidden">
-    <div class="deck-modal-card">
-      <div class="deck-modal-head">
-        <div>
-          <h3 id="deckModalTitle" style="margin:0">Decklist</h3>
-          <div id="deckModalMeta" class="muted"></div>
-        </div>
-        <button id="closeDeckModal" class="btn alt" style="width:auto">Close</button>
-      </div>
-      <div id="deckModalStatus"></div>
-      <pre id="deckModalText" class="decklist-pre"></pre>
-      <div class="row" style="margin-top:10px">
-        <button id="printDecklist" class="btn">Print Decklist</button>
-        <button id="markDeckVerified" class="btn alt">Mark Verified</button>
-      </div>
-    </div>
-  </div>
 
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
