@@ -455,6 +455,13 @@
 
 
       <section class="card"><div class="tabs" style="grid-template-columns:repeat(5,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="judge">Judge Tools</button><button type="button" data-tab="discord" class="owner-only hidden">Discord</button></div></section>
+      <section id="globalRoundTimerCard" class="card staff-only">
+        <div style="text-align:center">
+          <div style="font-weight:900">Round Timer</div>
+          <div id="globalRoundTimerDisplay" class="judge-timer">50:00</div>
+          <div id="globalRoundTimerStatus" class="muted">Waiting for round timer.</div>
+        </div>
+      </section>
 
       <section id="adminNavCard" class="card hidden" style="text-align:center">
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center">
@@ -554,7 +561,6 @@
         <div class="judge-grid" style="margin-top:14px">
           <div class="judge-panel">
             <div class="head"><div><b>Synchronized Round Timer</b><div class="muted">Shared across Professor devices for this tournament.</div></div></div>
-            <div id="judgeTimerDisplay" class="judge-timer">50:00</div>
             <div class="field"><label>Round Length (minutes)</label><input id="judgeTimerMinutes" type="number" min="1" max="180" value="50"></div>
             <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button><button id="judgeAlarmStop" class="btn danger hidden" type="button">Stop Alarm</button></div>
             <div id="judgeTimeUp" class="judge-timeup hidden">ROUND TIME!</div>
@@ -2454,15 +2460,20 @@
       if($('judgeAlarmStop')) $('judgeAlarmStop').classList.add('hidden');
     }
     function renderJudgeTimer(){
-      if(!$('judgeTimerDisplay')) return;
-      const sec=judgeSecondsRemaining(); $('judgeTimerDisplay').textContent=judgeFormatTime(sec);
-      $('judgeTimerDisplay').classList.toggle('running',judgeTimerState?.status==='running' && sec>0);
-      $('judgeTimerDisplay').classList.toggle('low',sec<=300);
+      const display=$('globalRoundTimerDisplay');
+      if(!display) return;
+      const sec=judgeSecondsRemaining();
+      display.textContent=judgeFormatTime(sec);
+      display.classList.toggle('running',judgeTimerState?.status==='running' && sec>0);
+      display.classList.toggle('low',sec<=300);
+      if($('globalRoundTimerStatus')){
+        const status=judgeTimerState?.status||'stopped';
+        $('globalRoundTimerStatus').textContent=status==='running'?'Round in progress':status==='paused'?'Timer paused':'Timer stopped';
+      }
       if(sec===0 && judgeTimerState?.status==='running'){
-        $('judgeTimerDisplay').classList.remove('running');
+        display.classList.remove('running');
         if(judgeLastTimerSeconds!==0) judgeStartAlarm();
       }
-      if(sec>0 && judgeAlarmActive) judgeStopAlarm();
       judgeLastTimerSeconds=sec;
     }
     async function loadJudgeTimer(){
@@ -3379,6 +3390,7 @@ $('addPlayer').onclick = async () => {
     });
 
     if($('judgeLookup')) $('judgeLookup').oninput=renderJudgeLookup;
+    if(!judgeTimerTicker) judgeTimerTicker=setInterval(renderJudgeTimer,500);
     if($('judgeTimerStart')) $('judgeTimerStart').onclick=()=>saveJudgeTimer('start');
     if($('judgeTimerPause')) $('judgeTimerPause').onclick=()=>saveJudgeTimer('pause');
     if($('judgeTimerResume')) $('judgeTimerResume').onclick=()=>saveJudgeTimer('resume');
