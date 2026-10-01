@@ -80,8 +80,11 @@
       <div id="pageMsg"></div>
 
       <div class="field">
-        <label>Store / Current Tournament</label>
-        <div id="storeTournamentCard" class="msg warn">Loading this store's current tournament...</div>
+        <label for="tournament">Tournament *</label>
+        <select id="tournament">
+          <option value="">Loading this store's tournaments...</option>
+        </select>
+        <div id="storeTournamentCard" class="msg warn">Loading store events...</div>
       </div>
 
       <div class="row">
@@ -97,26 +100,14 @@
 
       <div class="row">
         <div class="field">
-          <label for="birthdate">Birthdate *</label>
-          <input id="birthdate" type="date">
+          <label for="birthYear">Birth Year *</label>
+          <input id="birthYear" type="number" inputmode="numeric" min="1900" max="2030" placeholder="YYYY">
         </div>
         <div class="field">
-          <label for="division">Division *</label>
-          <select id="division">
-            <option value="">Choose division...</option>
-            <option value="Junior">Junior</option>
-            <option value="Senior">Senior</option>
-            <option value="Masters">Masters</option>
-          </select>
+          <label>Division</label>
+          <div id="divisionDisplay" class="msg warn">Enter birth year to determine division.</div>
+          <input id="division" type="hidden">
         </div>
-      </div>
-
-      <div class="field">
-        <label for="format">Format *</label>
-        <select id="format">
-          <option value="Standard" selected>Standard</option>
-          <option value="Expanded">Expanded</option>
-        </select>
       </div>
 
       <div class="field">
@@ -179,6 +170,7 @@ Example:
     let detectedSupport = null;
     const storeName = new URLSearchParams(location.search).get('store');
     let activeTournament = null;
+    let storeTournaments = [];
 
     function esc(s=''){
       return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -252,6 +244,32 @@ Example:
       }
     }
 
+    function divisionFromBirthYear(year){
+      const y=Number(year);
+      if(!Number.isInteger(y) || y<1900 || y>new Date().getFullYear()) return '';
+      // 2027 Championship Series divisions
+      if(y>=2015) return 'Junior';
+      if(y>=2011) return 'Senior';
+      return 'Masters';
+    }
+
+    function updateDivision(){
+      const division=divisionFromBirthYear($('birthYear').value);
+      $('division').value=division;
+      if(!division){
+        $('divisionDisplay').className='msg warn';
+        $('divisionDisplay').textContent='Enter birth year to determine division.';
+      }else{
+        $('divisionDisplay').className='msg good';
+        $('divisionDisplay').textContent=division+' Division';
+      }
+    }
+
+    function selectTournament(){
+      const id=$('tournament').value;
+      activeTournament=storeTournaments.find(x=>String(x.id)===String(id))||null;
+    }
+
     async function loadData(){
       if(!storeName){
         $('storeTournamentCard').className='msg bad';
@@ -264,34 +282,43 @@ Example:
         sb.rpc('list_open_tournaments'),
         sb.rpc('list_public_deck_options')
       ]);
-
       options=oErr?[]:(opts||[]);
 
       if(tErr){
         $('storeTournamentCard').className='msg bad';
-        $('storeTournamentCard').textContent='Unable to load this store’s tournament: '+tErr.message;
+        $('storeTournamentCard').textContent='Unable to load this store’s tournaments: '+tErr.message;
         $('submitBtn').disabled=true;
         analyze();
         return;
       }
 
-      const matching=(tours||[]).filter(x=>
+      storeTournaments=(tours||[]).filter(x=>
         String(x.store_name||'').trim().toLowerCase()===String(storeName).trim().toLowerCase()
       ).sort((a,b)=>{
         const ad=String(a.event_date||''), bd=String(b.event_date||'');
-        if(ad!==bd) return bd.localeCompare(ad);
-        return String(b.created_at||'').localeCompare(String(a.created_at||''));
+        if(ad!==bd) return ad.localeCompare(bd);
+        return String(a.event_name||'').localeCompare(String(b.event_name||''));
       });
 
-      activeTournament=matching[0]||null;
+      const sel=$('tournament');
+      sel.innerHTML='<option value="">Choose tournament...</option>';
+      storeTournaments.forEach(x=>{
+        const o=document.createElement('option');
+        o.value=x.id;
+        o.textContent=(x.event_date?x.event_date+' — ':'')+(x.event_name||'Tournament');
+        sel.appendChild(o);
+      });
 
-      if(!activeTournament){
+      activeTournament=null;
+      if(!storeTournaments.length){
         $('storeTournamentCard').className='msg warn';
-        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>No tournament at this store is currently accepting decklist submissions.';
+        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>No tournaments at this store are currently accepting decklist submissions.';
+        sel.disabled=true;
         $('submitBtn').disabled=true;
       }else{
         $('storeTournamentCard').className='msg good';
-        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>'+esc(activeTournament.event_name)+' • '+esc(activeTournament.event_date)+(activeTournament.location?' • '+esc(activeTournament.location):'');
+        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>Choose the tournament you are entering. Only events for this store are shown.';
+        sel.disabled=false;
         $('submitBtn').disabled=false;
       }
       analyze();
@@ -299,12 +326,14 @@ Example:
 
     async function submit(){
       showMsg('');
-      const tournament_id=activeTournament?.id||'';
+      const tournament_id=$('tournament').value||'';
       const trainer_name=$('trainerName').value.trim();
       const player_id=$('playerId').value.trim();
-      const birthdate=$('birthdate').value||null;
-      const division=$('division').value;
-      const format=$('format').value||'Standard';
+      const birthYear=$('birthYear').value.trim();
+      const division=divisionFromBirthYear(birthYear);
+      // Database/RPC currently expects a date, so only the year is collected from the player.
+      const birthdate=birthYear ? birthYear+'-01-01' : null;
+      const format='Standard';
       const decklist_text=$('decklist').value.trim();
       const card_total=countCards(decklist_text);
 
@@ -314,7 +343,7 @@ Example:
       }
 
       if(!trainer_name || !player_id || !birthdate || !division || !decklist_text){
-        showMsg('Please complete Player Name, Player ID, Birthdate, Division, and Decklist.','bad');
+        showMsg('Please complete Player Name, Player ID, Birth Year, and Decklist.','bad');
         return;
       }
 
@@ -352,9 +381,9 @@ Example:
     function resetForm(){
       $('trainerName').value='';
       $('playerId').value='';
-      $('birthdate').value='';
+      $('birthYear').value='';
       $('division').value='';
-      $('format').value='Standard';
+      updateDivision();
       $('decklist').value='';
       detectedMain=null;
       detectedSupport=null;
@@ -368,6 +397,9 @@ Example:
     $('submitBtn').onclick=submit;
     $('submitAnother').onclick=resetForm;
 
+    $('tournament').addEventListener('change',selectTournament);
+    $('birthYear').addEventListener('input',updateDivision);
+    updateDivision();
     loadData();
   </script>
 </body>
