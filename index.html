@@ -1043,7 +1043,7 @@
         const res=await sb.from('decklist_submissions')
           .select('*')
           .eq('linked_entry_id',entryId)
-          .order('submitted_at',{ascending:false})
+          .order('updated_at',{ascending:false})
           .limit(1);
         error=res.error;
         data=(res.data||[])[0]||null;
@@ -3441,6 +3441,26 @@ $('addPlayer').onclick = async () => {
   </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
+
+
+<div id="deckModal" class="deck-modal hidden">
+    <div class="deck-modal-card">
+      <div class="deck-modal-head">
+        <div>
+          <h3 id="deckModalTitle" style="margin:0">Decklist</h3>
+          <div id="deckModalMeta" class="muted"></div>
+        </div>
+        <button id="closeDeckModal" class="btn alt" style="width:auto">Close</button>
+      </div>
+      <div id="deckModalStatus"></div>
+      <pre id="deckModalText" class="decklist-pre"></pre>
+      <div class="row" style="margin-top:10px">
+        <button id="printDecklist" class="btn">Print Decklist</button>
+        <button id="markDeckVerified" class="btn alt">Mark Verified</button>
+      </div>
+    </div>
+  </div>
+
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -3830,24 +3850,5 @@ if (syncBtn){
 
 setTimeout(loadPickerOptions, 600);
 </script>
-
-
-  <div id="deckModal" class="deck-modal hidden">
-    <div class="deck-modal-card">
-      <div class="deck-modal-head">
-        <div>
-          <h3 id="deckModalTitle" style="margin:0">Decklist</h3>
-          <div id="deckModalMeta" class="muted"></div>
-        </div>
-        <button id="closeDeckModal" class="btn alt" style="width:auto">Close</button>
-      </div>
-      <div id="deckModalStatus"></div>
-      <pre id="deckModalText" class="decklist-pre"></pre>
-      <div class="row" style="margin-top:10px">
-        <button id="printDecklist" class="btn">Print Decklist</button>
-        <button id="markDeckVerified" class="btn alt">Mark Verified</button>
-      </div>
-    </div>
-  </div>
 </body>
 </html>
