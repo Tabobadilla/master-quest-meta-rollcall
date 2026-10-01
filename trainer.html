@@ -166,6 +166,8 @@ Example:
 
     const $ = id => document.getElementById(id);
     let options = [];
+    let archetypes = [];
+    let detectedArchetype = null;
     let detectedMain = null;
     let detectedSupport = null;
     const storeName = new URLSearchParams(location.search).get('store');
@@ -207,14 +209,18 @@ Example:
       if(n.startsWith('mega ')){
         variants.push(n.replace(/^mega\s+/,'').replace(/\s+ex$/,'').trim());
       }
+      // Helps Library labels such as "Crushing Hammers" match card lines such as "Crushing Hammer".
+      if(n.endsWith('s')) variants.push(n.slice(0,-1));
 
       let best=0;
-      for(const v of variants){
+      for(const v of [...new Set(variants)]){
         if(!v || v.length<4) continue;
         const safe=v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
         const re=new RegExp('^(\\d+)\\s+.*\\b'+safe+'\\b','gim');
         let m;
-        while((m=re.exec(hay))!==null) best += Number(m[1]||1);
+        let subtotal=0;
+        while((m=re.exec(hay))!==null) subtotal += Number(m[1]||1);
+        best=Math.max(best,subtotal);
       }
       return best;
     }
@@ -225,18 +231,45 @@ Example:
       $('cardTotal').textContent=total+' / 60';
 
       const pokemonText=pokemonSection(text);
-      const scores=options.map(o=>({o,score:mentionCount(pokemonText,o.name)}))
-        .filter(x=>x.score>0)
-        .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
 
-      detectedMain=scores[0]?.o||null;
-      detectedSupport=scores[1]?.o||null;
+      // Master Hub → Library is the source of truth.
+      // A valid archetype must contain its Library-defined Main.
+      // If a Library archetype has Support/Variant, that support must also appear somewhere in the full decklist.
+      const matches=archetypes.map(a=>{
+        const mainCount=mentionCount(pokemonText,a.main_name);
+        const supportCount=a.support_name ? mentionCount(text,a.support_name) : 0;
+        const valid=mainCount>0 && (!a.support_name || supportCount>0);
+        return {a,mainCount,supportCount,valid};
+      }).filter(x=>x.valid)
+        .sort((x,y)=>{
+          // Prefer the more specific Main + Support Library profile over a Main-only profile.
+          const xs=x.a.support_name?1:0, ys=y.a.support_name?1:0;
+          return ys-xs ||
+                 y.supportCount-x.supportCount ||
+                 y.mainCount-x.mainCount ||
+                 String(x.a.archetype||'').localeCompare(String(y.a.archetype||''));
+        });
+
+      const best=matches[0]||null;
+      detectedArchetype=best?.a||null;
+
+      detectedMain=detectedArchetype ? {
+        id:detectedArchetype.main_option_id,
+        name:detectedArchetype.main_name
+      } : null;
+
+      detectedSupport=(detectedArchetype?.support_option_id && detectedArchetype?.support_name) ? {
+        id:detectedArchetype.support_option_id,
+        name:detectedArchetype.support_name
+      } : null;
 
       $('detectedMain').textContent=detectedMain?.name||'—';
       $('detectedSupport').textContent=detectedSupport?.name||'—';
 
       if(!text.trim()){
         $('deckWarning').innerHTML='';
+      }else if(!archetypes.length){
+        $('deckWarning').innerHTML='<div class="msg warn">Decklist is loaded, but the Tournex Archetype Library could not be loaded. Main/Support detection is unavailable.</div>';
       }else if(total===60){
         $('deckWarning').innerHTML='<div class="msg good">✓ Decklist totals exactly 60 cards.</div>';
       }else{
@@ -278,11 +311,18 @@ Example:
         return;
       }
 
-      const [{data:tours,error:tErr},{data:opts,error:oErr}] = await Promise.all([
+      const [
+        {data:tours,error:tErr},
+        {data:opts,error:oErr},
+        {data:arch,error:aErr}
+      ] = await Promise.all([
         sb.rpc('list_open_tournaments'),
-        sb.rpc('list_public_deck_options')
+        sb.rpc('list_public_deck_options'),
+        sb.rpc('list_public_archetypes')
       ]);
       options=oErr?[]:(opts||[]);
+      archetypes=aErr?[]:(arch||[]);
+      if(aErr) console.error('Unable to load Tournex Archetype Library:',aErr);
 
       if(tErr){
         $('storeTournamentCard').className='msg bad';
@@ -385,6 +425,7 @@ Example:
       $('division').value='';
       updateDivision();
       $('decklist').value='';
+      detectedArchetype=null;
       detectedMain=null;
       detectedSupport=null;
       analyze();
