@@ -83,6 +83,11 @@
 
     body[data-role="professor"] .tabs{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
     body[data-role="owner"] .tabs{grid-template-columns:repeat(5,minmax(0,1fr)) !important}
+
+    /* Owner Tools alignment */
+    .owner-tools-centered{text-align:center}
+    .owner-tools-centered .muted{text-align:center}
+    .owner-tools-centered .owner-tools-actions{display:flex;justify-content:center;align-items:center;margin-top:12px}
 </style>
 
 <style>
@@ -455,7 +460,7 @@
         <div class="head"><div><h3 style="margin:0">Owner Tools</h3><div class="muted">Private Tournex owner controls.</div></div></div>
         <div class="tabs" style="grid-template-columns:1fr">
           
-          <button type="button" data-admin-tab="hub" class="owner-only">Master Hub</button>
+          <button type="button" data-admin-tab="hub" class="owner-only">Master Hub</button></div>
         </div>
       </section>
 
