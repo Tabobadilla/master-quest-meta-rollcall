@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#063b2b">
-  <title>Master Quest — Trainer Decklist Submission</title>
+  <title>Tournex — Trainer Decklist Submission</title>
   <style>
     *{box-sizing:border-box}
     :root{
@@ -65,7 +65,7 @@
 </head>
 <body>
   <header class="top">
-    <div class="brand">MASTER QUEST</div>
+    <div class="brand">TOURNEX</div>
     <div class="sub">Pokémon TCG Trainer Decklist Submission</div>
   </header>
 
@@ -84,7 +84,6 @@
         <select id="tournament">
           <option value="">Loading tournaments...</option>
         </select>
-        <div id="selectedTournamentInfo" class="muted" style="margin-top:6px">Choose a tournament to see the store.</div>
       </div>
 
       <div class="row">
@@ -100,8 +99,8 @@
 
       <div class="row">
         <div class="field">
-          <label for="birthYear">Birth Year *</label>
-          <input id="birthYear" type="number" min="1900" max="2100" inputmode="numeric" placeholder="YYYY">
+          <label for="birthdate">Birthdate *</label>
+          <input id="birthdate" type="date">
         </div>
         <div class="field">
           <label for="division">Division *</label>
@@ -178,7 +177,6 @@ Example:
 
     const $ = id => document.getElementById(id);
     let options = [];
-    let archetypeProfiles = [];
     let detectedMain = null;
     let detectedSupport = null;
 
@@ -208,38 +206,25 @@ Example:
       return raw;
     }
 
-    function normalizedName(s){
-      return String(s||'').toLowerCase()
-        .replace(/[’']/g,"'")
-        .replace(/[^a-z0-9']+/g,' ')
-        .replace(/\s+/g,' ')
-        .trim();
-    }
+    function mentionCount(text,name){
+      const hay=String(text||'').toLowerCase();
+      let n=String(name||'').toLowerCase().trim();
+      const variants=[n];
 
-    function optionLineScore(text,opt){
-      const lines=String(text||'').split(/\r?\n/);
-      let total=0;
-      let name=normalizedName(opt.name);
-      const variants=new Set([name]);
-
-      if(name.endsWith(' ex')) variants.add(name.slice(0,-3).trim());
-      if(name.endsWith('s')) variants.add(name.slice(0,-1));
-      if(name==='crushing hammers') variants.add('crushing hammer');
-      if(name==='n s zoroark ex') variants.add("n's zoroark");
-      if(name==='teal mask ogerpon ex') variants.add('teal mask ogerpon');
-
-      for(const line of lines){
-        const qtyMatch=line.trim().match(/^(\d+)\s+(.+)$/);
-        if(!qtyMatch) continue;
-        const qty=Number(qtyMatch[1]||0);
-        const body=normalizedName(qtyMatch[2]);
-        for(const v of variants){
-          if(v.length>=4 && (body===v || body.includes(v))){
-            total=Math.max(total,qty);
-          }
-        }
+      if(n.endsWith(' ex')) variants.push(n.slice(0,-3).trim());
+      if(n.startsWith('mega ')){
+        variants.push(n.replace(/^mega\s+/,'').replace(/\s+ex$/,'').trim());
       }
-      return total;
+
+      let best=0;
+      for(const v of variants){
+        if(!v || v.length<4) continue;
+        const safe=v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+        const re=new RegExp('^(\\\\d+)\\\\s+.*\\\\b'+safe+'\\\\b','gim');
+        let m;
+        while((m=re.exec(hay))!==null) best += Number(m[1]||1);
+      }
+      return best;
     }
 
     function analyze(){
@@ -247,67 +232,30 @@ Example:
       const total=countCards(text);
       $('cardTotal').textContent=total+' / 60';
 
-      // First score complete archetype profiles.
-      const profileScores=(archetypeProfiles||[]).map(profile=>{
-        let score=0;
-        let mainMatched=false;
-        let partnerMatched=false;
+      const pokemonText=pokemonSection(text);
+      const scores=options.map(o=>({o,score:mentionCount(pokemonText,o.name)}))
+        .filter(x=>x.score>0)
+        .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
 
-        for(const rel of (profile.relationships||[])){
-          const opt=options.find(o=>o.id===rel.option_id) || {id:rel.option_id,name:rel.option_name};
-          const copies=optionLineScore(text,opt);
-          if(copies >= Number(rel.min_copies||1)){
-            score += Number(rel.weight||0) + Math.min(copies,4)*2;
-            if(rel.relationship_type==='main_identifier') mainMatched=true;
-            if(rel.relationship_type==='support' || rel.relationship_type==='variant') partnerMatched=true;
-          }else if(rel.required){
-            score -= 1000;
-          }
-        }
-
-        // A real archetype must match its Main identifier.
-        if(!mainMatched) score -= 1000;
-
-        return {profile,score,partnerMatched};
-      }).filter(x=>x.score>0)
-        .sort((a,b)=>b.score-a.score || Number(b.partnerMatched)-Number(a.partnerMatched) || a.profile.name.localeCompare(b.profile.name));
-
-      const best=profileScores[0]?.profile||null;
-
-      if(best){
-        detectedMain=options.find(o=>o.id===best.main_option_id)||null;
-        detectedSupport=best.support_option_id
-          ? options.find(o=>o.id===best.support_option_id)||null
-          : null;
-      }else{
-        // Fallback to individual library roles when no curated profile matches.
-        const scored=options.map(o=>({o,score:optionLineScore(text,o)})).filter(x=>x.score>0);
-        const mains=scored.filter(x=>x.o.kind==='main')
-          .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
-        const supports=scored.filter(x=>x.o.kind==='support' || x.o.kind==='variant')
-          .sort((a,b)=>b.score-a.score || a.o.name.localeCompare(b.o.name));
-        detectedMain=mains[0]?.o||null;
-        detectedSupport=supports[0]?.o||null;
-      }
+      detectedMain=scores[0]?.o||null;
+      detectedSupport=scores[1]?.o||null;
 
       $('detectedMain').textContent=detectedMain?.name||'—';
-      $('detectedSupport').textContent=detectedSupport?.name||'None';
+      $('detectedSupport').textContent=detectedSupport?.name||'—';
 
       if(!text.trim()){
         $('deckWarning').innerHTML='';
       }else if(total===60){
-        const profileNote=best ? ' Detected archetype: '+best.name+'.' : '';
-        $('deckWarning').innerHTML='<div class="msg good">✓ Decklist totals exactly 60 cards.'+profileNote+'</div>';
+        $('deckWarning').innerHTML='<div class="msg good">✓ Decklist totals exactly 60 cards.</div>';
       }else{
         $('deckWarning').innerHTML='<div class="msg warn">Decklist currently totals '+total+' cards. You may still submit it, but the Professor will see that it needs review.</div>';
       }
     }
 
     async function loadData(){
-      const [{data:tours,error:tErr},{data:opts,error:oErr},{data:arch,error:aErr}] = await Promise.all([
+      const [{data:tours,error:tErr},{data:opts,error:oErr}] = await Promise.all([
         sb.rpc('list_open_tournaments'),
-        sb.rpc('list_public_deck_options'),
-        sb.rpc('list_public_archetype_library')
+        sb.rpc('list_public_deck_options')
       ]);
 
       if(tErr){
@@ -316,31 +264,11 @@ Example:
       }else{
         const t=tours||[];
         $('tournament').innerHTML='<option value="">Choose tournament...</option>'+
-          t.map(x=>{
-            const store=x.store_name||'Unassigned Store';
-            return '<option value="'+x.id+'" data-store="'+esc(store)+'" data-event="'+esc(x.event_name)+'" data-date="'+x.event_date+'">'+
-              esc(store)+' — '+esc(x.event_name)+' — '+x.event_date+
-              (x.location?' • '+esc(x.location):'')+
-            '</option>';
-          }).join('');
+          t.map(x=>'<option value="'+x.id+'">'+esc(x.event_name)+' — '+x.event_date+(x.location?' • '+esc(x.location):'')+'</option>').join('');
         if(!t.length) showMsg('There are currently no tournaments accepting decklist submissions.','warn');
       }
 
       options=oErr?[]:(opts||[]);
-      archetypeProfiles=aErr?[]:(arch||[]);
-
-      $('tournament').onchange=()=>{
-        const selected=$('tournament').selectedOptions[0];
-        if(!selected || !selected.value){
-          $('selectedTournamentInfo').textContent='Choose a tournament to see the store.';
-          return;
-        }
-        const store=selected.dataset.store||'Unassigned Store';
-        const event=selected.dataset.event||'';
-        const date=selected.dataset.date||'';
-        $('selectedTournamentInfo').innerHTML='<b>Store:</b> '+esc(store)+' &nbsp;•&nbsp; <b>Event:</b> '+esc(event)+' &nbsp;•&nbsp; '+esc(date);
-      };
-
       analyze();
     }
 
@@ -355,8 +283,8 @@ Example:
       const decklist_text=$('decklist').value.trim();
       const card_total=countCards(decklist_text);
 
-      if(!tournament_id || !trainer_name || !player_id || !birth_year || !division || !decklist_text){
-        showMsg('Please complete Tournament, Player Name, Player ID, Birth Year, Division, and Decklist.','bad');
+      if(!tournament_id || !trainer_name || !player_id || !birthdate || !division || !decklist_text){
+        showMsg('Please complete Tournament, Player Name, Player ID, Birthdate, Division, and Decklist.','bad');
         return;
       }
 
@@ -365,11 +293,11 @@ Example:
 
       try{
         const confidence=detectedMain ? (detectedSupport ? 85 : 70) : 0;
-        const {error}=await sb.rpc('submit_public_decklist_v2',{
+        const {error}=await sb.rpc('submit_public_decklist',{
           p_tournament_id:tournament_id,
           p_trainer_name:trainer_name,
           p_player_id:player_id,
-          p_birth_year:birth_year,
+          p_birthdate:birthdate,
           p_division:division,
           p_format:format,
           p_decklist_text:decklist_text,
@@ -394,7 +322,7 @@ Example:
     function resetForm(){
       $('trainerName').value='';
       $('playerId').value='';
-      $('birthYear').value='';
+      $('birthdate').value='';
       $('division').value='';
       $('format').value='Standard';
       $('decklist').value='';
@@ -412,6 +340,5 @@ Example:
 
     loadData();
   </script>
-<div style="text-align:center;font-size:10px;color:#8aa093;padding:8px">Store-aware tournament picker</div>
 </body>
 </html>
