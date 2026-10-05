@@ -498,6 +498,9 @@
           <div class="field"><label>Tournament Data File</label><input id="rosterTdfFile" type="file" accept=".tdf,application/octet-stream,text/xml,application/xml"></div>
           <button id="previewRosterTdf" type="button" class="btn alt full">Preview TDF Players</button>
           <div id="rosterTdfMsg"></div><div id="rosterTdfPreview" class="tdf-preview"></div>
+          <div id="rosterTdfActions" class="hidden" style="margin-top:12px">
+            <button id="addRosterTdfPlayers" type="button" class="btn full">Add Players from TDF</button>
+          </div>
         </div>
         <div class="store-pairings-share" id="storeDecklistShare" style="margin-top:16px">
           <b>Store Decklist Submission Page</b>
@@ -2275,6 +2278,7 @@
     }
 
     let finalTdfReviewData=null;
+    let rosterTdfReviewData=null;
 
     function tdfNormalizeName(value){
       return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -2384,9 +2388,8 @@
       if(!rows.length){ el.innerHTML='<div class="msg bad">TDF opened, but this TOM structure is not recognized yet.</div>'; return; }
       el.innerHTML=rows.slice(0,150).map(r=>{
         if(type==='players'){
-          const match=tdfMatchEntry(r.player_id,r.name);
-          const badge=match.entry?'<span class="pill">'+esc(match.method)+' Match</span>':'<span class="pill" style="background:#fff4d9;color:#795b0a">Needs Review</span>';
-          return '<div class="tdf-row"><b>'+esc(r.name)+'</b>'+(r.player_id?' • ID '+esc(r.player_id):'')+' '+badge+'</div>';
+          const birthYear=(String(r.birthdate||'').match(/\b(19|20)\d{2}\b/)||[])[0]||'';
+          return '<div class="tdf-row"><b>'+esc(r.name)+'</b>'+(r.player_id?' • ID '+esc(r.player_id):'')+(birthYear?' • Birth Year '+esc(birthYear):'')+'</div>';
         }
         if(type==='standings'){
           const match=tdfMatchEntry(r.player_id,r.name);
@@ -3024,9 +3027,74 @@ $('addPlayer').onclick = async () => {
     if($('previewRosterTdf')) $('previewRosterTdf').onclick=async()=>{
       try{
         const data=parseTdfExperimental(await readTdfPayload($('rosterTdfFile').files[0]));
+        rosterTdfReviewData=data;
         renderTdfPreview('rosterTdfPreview',data,'players');
-        showMsg('rosterTdfMsg',data.players.length?data.players.length+' player names recognized. Preview only for now; no players were changed.':'The file opened, but its roster structure is not recognized yet.',data.players.length?'good':'bad');
+        if(data.players.length){
+          $('rosterTdfActions')?.classList.remove('hidden');
+          showMsg('rosterTdfMsg',data.players.length+' players recognized from TOM. Review the roster below, then click Add Players from TDF.','good');
+        }else{
+          $('rosterTdfActions')?.classList.add('hidden');
+          showMsg('rosterTdfMsg','The file opened, but its roster structure is not recognized yet.','bad');
+        }
       }catch(e){showMsg('rosterTdfMsg',e.message,'bad');}
+    };
+
+    if($('addRosterTdfPlayers')) $('addRosterTdfPlayers').onclick=async()=>{
+      if(!currentTournament) return showMsg('rosterTdfMsg','Create or select a tournament first.','bad');
+      const players=rosterTdfReviewData?.players||[];
+      if(!players.length) return showMsg('rosterTdfMsg','Preview a TDF roster first.','bad');
+      if(!confirm('Add '+players.length+' TOM players to this tournament? Existing players with the same Player ID or exact name will be skipped.')) return;
+
+      const btn=$('addRosterTdfPlayers');
+      btn.disabled=true; btn.textContent='Adding Players...';
+      let added=0, skipped=0;
+      try{
+        for(const r of players){
+          const player_name=String(r.name||'').trim();
+          const player_id=String(r.player_id||'').trim()||null;
+          const yearMatch=String(r.birthdate||'').match(/\b(19|20)\d{2}\b/);
+          const birth_year=yearMatch?Number(yearMatch[0]):null;
+          if(!player_name){ skipped++; continue; }
+
+          const duplicate=entries.some(e=>
+            (player_id && String(e.player_id||'').trim()===player_id) ||
+            String(e.player_name||'').trim().toLowerCase()===player_name.toLowerCase()
+          );
+          if(duplicate){ skipped++; continue; }
+
+          const {data:savedId,error:saveErr}=await sb.rpc('save_player_directory',{
+            p_player_name:player_name,
+            p_player_id:player_id,
+            p_birth_year:birth_year,
+            p_division:null
+          });
+          if(saveErr) throw saveErr;
+
+          const {error}=await sb.from('entries').insert({
+            tournament_id:currentTournament.id,
+            player_name,
+            player_id,
+            birth_year,
+            division:null,
+            wins:0,losses:0,ties:0,
+            saved_player_id:savedId,
+            main_option_id:null,
+            support_option_id:null,
+            deck_status:'pending'
+          });
+          if(error) throw error;
+          added++;
+          entries.push({player_name,player_id}); // prevents duplicate rows inside the same TDF
+        }
+
+        await searchSavedPlayers('');
+        await loadEntries();
+        showMsg('rosterTdfMsg',added+' player'+(added===1?'':'s')+' added from TOM'+(skipped?' • '+skipped+' already existed/skipped':'')+'.','good');
+        btn.textContent='Players Added';
+      }catch(e){
+        showMsg('rosterTdfMsg','Could not add TOM players: '+e.message,'bad');
+        btn.disabled=false; btn.textContent='Add Players from TDF';
+      }
     };
 
     if($('previewFinalTdf')) $('previewFinalTdf').onclick=async()=>{
