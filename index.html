@@ -65,9 +65,18 @@
 .round-btn{border:1px solid #bdd4c8;background:#eef5f1;color:#214b3b;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}
 .round-btn.on{background:#0f7a49;color:white;border-color:#0f7a49}
 .round-workspace{border:1px solid #d2e1da;border-radius:14px;padding:16px;background:#fafcfb}
-.pairing-table{width:100%;border-collapse:collapse;margin-top:12px}
-.pairing-table th,.pairing-table td{padding:10px;border-bottom:1px solid #dce7e1;text-align:left}
-.pairing-table th{font-size:12px;color:#557064}
+.pairing-list{display:grid;gap:12px;margin-top:14px}
+.pairing-card{border:1px solid #cfe0d7;border-radius:18px;background:#f8fbf9;padding:14px 16px;box-shadow:0 1px 0 rgba(8,54,39,.03)}
+.pairing-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.pairing-table-pill{display:inline-flex;align-items:center;justify-content:center;min-width:86px;padding:7px 12px;border-radius:999px;background:#e2f1e8;color:#123f31;font-weight:900;font-size:14px}
+.pairing-round-label{font-size:12px;font-weight:800;color:#60786e}
+.pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
+.pairing-player{min-width:0;padding:11px 12px;border-radius:13px;background:#fff;border:1px solid #e0ebe5;font-weight:800;color:#153d31;overflow-wrap:anywhere}
+.pairing-player.right{text-align:right}
+.pairing-vs{font-size:12px;font-weight:900;color:#6b7f76;letter-spacing:.04em}
+.pairing-card.bye .pairing-players{grid-template-columns:1fr}
+.pairing-card.bye .pairing-player{text-align:center;background:#edf7f1}
+@media(max-width:650px){.pairing-players{grid-template-columns:1fr}.pairing-player.right{text-align:left}.pairing-vs{text-align:center}.pairing-card{padding:13px}}
 .tdf-row{padding:8px 0;border-bottom:1px solid #dce7e1}
 .public-link-box{margin-top:14px;padding:12px;border-radius:10px;background:#eef6f2}
 .store-pairings-share{margin-top:14px;padding:16px;border:1px solid #c9ddd2;border-radius:14px;background:#f4f9f6}
@@ -79,7 +88,6 @@
 .store-public-url{font-size:12px;word-break:break-all;color:#60766d;margin-top:8px}
 @media(max-width:560px){.store-pairings-share-grid{grid-template-columns:1fr}.store-pairings-qr{margin:auto}}
 
-@media(max-width:650px){.pairing-table th:nth-child(4),.pairing-table td:nth-child(4){display:none}}
 
     body[data-role="professor"] .tabs{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
     body[data-role="owner"] .tabs{grid-template-columns:repeat(5,minmax(0,1fr)) !important}
@@ -2433,7 +2441,15 @@
             '<div class="store-pairings-actions"><button id="openStorePairings" type="button" class="btn">Open Player Page</button><button id="copyStorePairings" type="button" class="btn alt">Copy Link</button><button id="downloadStoreQr" type="button" class="btn alt">Download QR</button></div>'+
           '</div></div>'+
         '</div>'+
-        (saved.length?'<table class="pairing-table"><thead><tr><th>Table</th><th>Player</th><th>Opponent</th><th>Round</th></tr></thead><tbody>'+saved.map(p=>'<tr><td><b>'+esc(p.table_number||'BYE')+'</b></td><td>'+esc(p.player1_name)+'</td><td>'+esc(p.player2_name||'BYE')+'</td><td>'+p.round_number+'</td></tr>').join('')+'</tbody></table>':'');
+        (saved.length?'<div class="pairing-list">'+saved.map(p=>{
+          const isBye=!p.player2_name || String(p.table_number||'').toUpperCase()==='BYE';
+          return '<div class="pairing-card '+(isBye?'bye':'')+'">'+
+            '<div class="pairing-card-head"><span class="pairing-table-pill">'+(isBye?'BYE':'Table '+esc(p.table_number))+'</span><span class="pairing-round-label">Round '+esc(p.round_number)+'</span></div>'+
+            (isBye
+              ? '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div></div>'
+              : '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right">'+esc(p.player2_name)+'</div></div>')+
+          '</div>';
+        }).join('')+'</div>':'');
 
       const storePublicUrl=new URL('pairings.html',window.location.href);
       storePublicUrl.searchParams.set('store',currentTournament?.store_name||'');
