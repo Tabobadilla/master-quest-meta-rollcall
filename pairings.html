@@ -22,6 +22,18 @@ table{width:100%;border-collapse:collapse;margin-top:12px}
 th,td{padding:13px 10px;border-bottom:1px solid #dce7e1;text-align:left}
 th{font-size:12px;color:#557064;text-transform:uppercase}
 .tableNo{font-size:20px;font-weight:900}
+.pairing-list{display:grid;gap:14px;margin-top:16px}
+.pairing-card{border:1px solid #cfe0d7;border-radius:18px;background:#f8fbf9;padding:15px 16px;box-shadow:0 1px 0 rgba(8,54,39,.04)}
+.pairing-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.table-bubble{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:999px;background:#dff0e7;color:#123f31;font-weight:900;font-size:15px;min-width:92px}
+.round-label{font-size:12px;font-weight:900;color:#60766d}
+.pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
+.player-bubble{background:white;border:1px solid #dce9e2;border-radius:14px;padding:13px 14px;font-weight:900;font-size:17px;overflow-wrap:anywhere}
+.player-bubble.right{text-align:right}
+.vs{font-size:12px;font-weight:900;color:#6c8177;letter-spacing:.06em}
+.pairing-card.bye .pairing-players{grid-template-columns:1fr}
+.pairing-card.bye .player-bubble{text-align:center;background:#edf7f1}
+.pairing-card.highlight{background:#e5f6eb;border-color:#75b793;box-shadow:0 0 0 2px rgba(15,122,73,.12)}
 .highlight{background:#e9f8ef}
 .final-player{display:flex;align-items:center;gap:9px}
 .final-pokemon{width:38px;height:38px;object-fit:contain;flex:0 0 38px}
@@ -33,6 +45,10 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
  .searchrow{display:block}.btn{width:100%;padding:13px;margin-top:8px}
  th,td{padding:11px 6px;font-size:14px}
  .brand{font-size:24px}
+ .pairing-players{grid-template-columns:1fr}
+ .player-bubble.right{text-align:left}
+ .vs{text-align:center}
+ .pairing-card{padding:13px}
 }
 </style>
 </head>
@@ -171,25 +187,29 @@ function render(){
     return;
   }
 
-  $('content').innerHTML=`<table>
-    <thead><tr><th>Table</th><th>Player 1</th><th>Player 2</th></tr></thead>
-    <tbody>${rows.map(p=>`<tr data-p1="${esc(p.player1_name).toLowerCase()}" data-p2="${esc(p.player2_name||'').toLowerCase()}">
-      <td class="tableNo">${p.table_number ? esc(p.table_number) : 'BYE'}</td>
-      <td><b>${esc(p.player1_name)}</b></td>
-      <td><b>${esc(p.player2_name||'BYE')}</b></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+  $('content').innerHTML=`<div class="pairing-list">${rows.map(p=>{
+    const isBye=!p.player2_name || String(p.table_number||'').toUpperCase()==='BYE';
+    return `<div class="pairing-card ${isBye?'bye':''}" data-p1="${esc(p.player1_name).toLowerCase()}" data-p2="${esc(p.player2_name||'').toLowerCase()}">
+      <div class="pairing-card-head">
+        <span class="table-bubble">${isBye?'BYE':'Table '+esc(p.table_number)}</span>
+        <span class="round-label">Round ${round}</span>
+      </div>
+      ${isBye
+        ? `<div class="pairing-players"><div class="player-bubble">${esc(p.player1_name)}</div></div>`
+        : `<div class="pairing-players"><div class="player-bubble">${esc(p.player1_name)}</div><div class="vs">VS</div><div class="player-bubble right">${esc(p.player2_name)}</div></div>`}
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function clearSearch(){
   $('search').value='';
   $('searchMsg').innerHTML='';
-  document.querySelectorAll('tr.highlight').forEach(r=>r.classList.remove('highlight'));
+  document.querySelectorAll('.highlight').forEach(r=>r.classList.remove('highlight'));
 }
 
 function doSearch(){
   const q=$('search').value.trim().toLowerCase();
-  document.querySelectorAll('tr.highlight').forEach(r=>r.classList.remove('highlight'));
+  document.querySelectorAll('.highlight').forEach(r=>r.classList.remove('highlight'));
   if(!q){$('searchMsg').innerHTML='';return;}
 
   if(activeView==='standings'){
@@ -200,11 +220,12 @@ function doSearch(){
     return;
   }
 
-  const row=[...document.querySelectorAll('tbody tr')].find(r=>(r.dataset.p1||'').includes(q)||(r.dataset.p2||'').includes(q));
-  if(!row){$('searchMsg').innerHTML='<div class="bad">Player not found in this round.</div>';return;}
-  row.classList.add('highlight'); row.scrollIntoView({behavior:'smooth',block:'center'});
-  const cells=row.querySelectorAll('td');
-  $('searchMsg').innerHTML=`<div class="good"><b>Table ${esc(cells[0].textContent)}</b> — ${esc(cells[1].textContent)} vs. ${esc(cells[2].textContent)}</div>`;
+  const card=[...document.querySelectorAll('.pairing-card')].find(r=>(r.dataset.p1||'').includes(q)||(r.dataset.p2||'').includes(q));
+  if(!card){$('searchMsg').innerHTML='<div class="bad">Player not found in this round.</div>';return;}
+  card.classList.add('highlight'); card.scrollIntoView({behavior:'smooth',block:'center'});
+  const table=card.querySelector('.table-bubble')?.textContent||'Table';
+  const players=[...card.querySelectorAll('.player-bubble')].map(x=>x.textContent.trim());
+  $('searchMsg').innerHTML=`<div class="good"><b>${esc(table)}</b> — ${esc(players[0]||'')}${players[1]?' vs. '+esc(players[1]):''}</div>`;
 }
 
 $('searchBtn').onclick=doSearch;
