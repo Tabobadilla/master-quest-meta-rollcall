@@ -73,6 +73,7 @@
 .pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
 .pairing-player{min-width:0;padding:11px 12px;border-radius:13px;background:#fff;border:1px solid #e0ebe5;font-weight:800;color:#153d31;overflow-wrap:anywhere}
 .pairing-player.right{text-align:right}
+.pairing-player-line{display:flex;align-items:center;justify-content:space-between;gap:8px}.pairing-player-record{font-size:14px;font-weight:700;color:#587267;white-space:nowrap}
 .pairing-vs{font-size:12px;font-weight:900;color:#6b7f76;letter-spacing:.04em}
 .pairing-card.bye .pairing-players{grid-template-columns:1fr}
 .pairing-card.bye .pairing-player{text-align:center;background:#edf7f1}
@@ -577,7 +578,7 @@
           <div class="judge-panel">
             <div class="head"><div><b>Synchronized Round Timer</b><div class="muted">Shared across Professor devices for this tournament.</div></div></div>
             <div class="field"><label>Round Length (minutes)</label><input id="judgeTimerMinutes" type="number" min="1" max="180" value="50"></div>
-            <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button><button id="judgeAlarmStop" class="btn danger hidden" type="button">Stop Alarm</button></div>
+            <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button><button id="judgeAlarmTest" class="btn alt" type="button">Test Alarm</button><button id="judgeAlarmStop" class="btn danger hidden" type="button">Stop Alarm</button></div>
             <div id="judgeTimeUp" class="judge-timeup hidden">ROUND TIME!</div>
             <div id="judgeTimerMsg"></div>
           </div>
@@ -2417,6 +2418,14 @@
       (data||[]).forEach(p=>(savedPairingsByRound[p.round_number]??=[]).push(p));
     }
 
+    function judgeRecordFor(name){
+      const normalized=String(name||'').trim().toLocaleLowerCase().replace(/\s+/g,' ');
+      const e=entries.find(x=>String(x.player_name||'').trim().toLocaleLowerCase().replace(/\s+/g,' ')===normalized);
+      return e?`${Number(e.wins)||0}-${Number(e.losses)||0}-${Number(e.ties)||0}`:'0-0-0';
+    }
+    function judgePlayerWithRecord(name){
+      return '<div class="pairing-player-line"><span>'+esc(name||'')+'</span><span class="pairing-player-record">'+esc(judgeRecordFor(name))+'</span></div>';
+    }
     async function renderPairings(){
       if(!$('roundButtons')) return;
       const n=entries.length, rounds=swissRoundCount(n);
@@ -2449,8 +2458,8 @@
           return '<div class="pairing-card '+(isBye?'bye':'')+'">'+
             '<div class="pairing-card-head"><span class="pairing-table-pill">'+(isBye?'BYE':'Table '+esc(p.table_number))+'</span><span class="pairing-round-label">Round '+esc(p.round_number)+'</span></div>'+
             (isBye
-              ? '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div></div>'
-              : '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right">'+esc(p.player2_name)+'</div></div>')+
+              ? '<div class="pairing-players"><div class="pairing-player">'+judgePlayerWithRecord(p.player1_name)+'</div></div>'
+              : '<div class="pairing-players"><div class="pairing-player">'+judgePlayerWithRecord(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right">'+judgePlayerWithRecord(p.player2_name)+'</div></div>')+
           '</div>';
         }).join('')+'</div>':'');
 
@@ -2514,34 +2523,50 @@
       }
       return Number(judgeTimerState.remaining_seconds||0);
     }
+    // Audio is unlocked by an explicit user gesture (Start/Resume/Test).
     function judgeUnlockAudio(){
       try{
         if(!judgeAudioCtx) judgeAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        if(judgeAudioCtx.state==='suspended') judgeAudioCtx.resume();
-      }catch(e){}
+        if(judgeAudioCtx.state==='suspended') judgeAudioCtx.resume().catch(()=>{});
+      }catch(e){ console.warn('Alarm audio unavailable',e); }
     }
     function judgeBeep(){
       try{
-        judgeUnlockAudio(); if(!judgeAudioCtx) return;
-        const osc=judgeAudioCtx.createOscillator(), gain=judgeAudioCtx.createGain();
-        osc.type='square'; osc.frequency.value=660; gain.gain.value=.12;
-        osc.connect(gain); gain.connect(judgeAudioCtx.destination);
+        if(!judgeAudioCtx || judgeAudioCtx.state!=='running') return;
         const t=judgeAudioCtx.currentTime;
-        gain.gain.setValueAtTime(.18,t); gain.gain.exponentialRampToValueAtTime(.001,t+.35);
-        osc.start(t); osc.stop(t+.36);
-      }catch(e){}
+        // Loud, alternating two-tone emergency-style alarm, repeating continuously.
+        for(let i=0;i<4;i++){
+          const osc=judgeAudioCtx.createOscillator(), gain=judgeAudioCtx.createGain();
+          osc.type='square';
+          osc.frequency.setValueAtTime(i%2===0?880:1175,t+i*.19);
+          gain.gain.setValueAtTime(0,t+i*.19);
+          gain.gain.linearRampToValueAtTime(.38,t+i*.19+.012);
+          gain.gain.setValueAtTime(.38,t+i*.19+.145);
+          gain.gain.linearRampToValueAtTime(0,t+i*.19+.18);
+          osc.connect(gain); gain.connect(judgeAudioCtx.destination);
+          osc.start(t+i*.19); osc.stop(t+i*.19+.185);
+        }
+      }catch(e){ console.warn('Alarm playback failed',e); }
     }
     function judgeStartAlarm(){
       if(judgeAlarmActive) return;
       judgeAlarmActive=true;
       if($('judgeTimeUp')) $('judgeTimeUp').classList.remove('hidden');
       if($('judgeAlarmStop')) $('judgeAlarmStop').classList.remove('hidden');
-      judgeBeep(); if(navigator.vibrate)navigator.vibrate([250,120,250,120,400]); if('Notification' in window && Notification.permission==='granted')new Notification('Tournex — Round time expired',{body:'Round timer reached zero. Overtime is counting.'});setTimeout(judgeBeep,500);setTimeout(judgeBeep,1000);
-      judgeAlarmInterval=setInterval(()=>{judgeBeep();setTimeout(judgeBeep,500);setTimeout(judgeBeep,1000);},4000);
+      judgeBeep();
+      if(navigator.vibrate) navigator.vibrate([400,100,400,100,400]);
+      if('Notification' in window && Notification.permission==='granted'){
+        try{ new Notification('Tournex — Round time expired',{body:'Round timer reached zero. Overtime is counting.'}); }catch(e){}
+      }
+      judgeAlarmInterval=setInterval(()=>{
+        judgeBeep();
+        if(navigator.vibrate) navigator.vibrate([300,100,300]);
+      },850);
     }
     function judgeStopAlarm(){
       judgeAlarmActive=false;
       if(judgeAlarmInterval){clearInterval(judgeAlarmInterval);judgeAlarmInterval=null;}
+      if(navigator.vibrate) navigator.vibrate(0);
       if($('judgeTimeUp')) $('judgeTimeUp').classList.add('hidden');
       if($('judgeAlarmStop')) $('judgeAlarmStop').classList.add('hidden');
     }
@@ -2586,7 +2611,7 @@
       if(!$('judgeLookupResults')) return; const q=String($('judgeLookup')?.value||'').trim().toLowerCase();
       if(!q){ $('judgeLookupResults').innerHTML='<div class="muted">Enter a table number or player name.</div>'; return; }
       const rows=judgeMatches().filter(p=>String(p.table_number||'').toLowerCase()===q || String(p.player1_name||'').toLowerCase().includes(q) || String(p.player2_name||'').toLowerCase().includes(q)).slice(0,12);
-      $('judgeLookupResults').innerHTML=rows.length?rows.map((p,i)=>'<button type="button" class="round-btn judge-match-pick" data-i="'+i+'" style="width:100%;text-align:left;margin-bottom:6px"><b>Table '+esc(p.table_number||'BYE')+'</b> — '+esc(p.player1_name)+' vs. '+esc(p.player2_name||'BYE')+'</button>').join(''):'<div class="msg bad">No match found in Round '+judgeCurrentRound()+'.</div>';
+      $('judgeLookupResults').innerHTML=rows.length?rows.map((p,i)=>'<button type="button" class="round-btn judge-match-pick" data-i="'+i+'" style="width:100%;text-align:left;margin-bottom:6px"><b>Table '+esc(p.table_number||'BYE')+'</b> — '+esc(p.player1_name)+' '+esc(judgeRecordFor(p.player1_name))+' vs. '+esc(p.player2_name||'BYE')+' '+(p.player2_name?esc(judgeRecordFor(p.player2_name)):'')+'</button>').join(''):'<div class="msg bad">No match found in Round '+judgeCurrentRound()+'.</div>';
       document.querySelectorAll('.judge-match-pick').forEach((b,i)=>b.onclick=()=>selectJudgeMatch(rows[i]));
     }
     function selectJudgeMatch(p){
@@ -3598,6 +3623,12 @@ $('addPlayer').onclick = async () => {
     if($('judgeTimerResume')) $('judgeTimerResume').onclick=()=>saveJudgeTimer('resume');
     if($('judgeTimerReset')) $('judgeTimerReset').onclick=()=>saveJudgeTimer('reset');
     if($('judgeAlarmStop')) $('judgeAlarmStop').onclick=judgeStopAlarm;
+    if($('judgeAlarmTest')) $('judgeAlarmTest').onclick=()=>{
+      judgeUnlockAudio();
+      judgeStopAlarm();
+      // Short delay allows browsers to finish resuming the audio context.
+      setTimeout(judgeStartAlarm,120);
+    };
     if($('refreshJudgeLog')) $('refreshJudgeLog').onclick=loadJudgeLog;
     if($('judgeModalClose')) $('judgeModalClose').onclick=()=>$('judgeCallModal').classList.add('hidden');
     if($('judgeModalCancel')) $('judgeModalCancel').onclick=()=>$('judgeCallModal').classList.add('hidden');
