@@ -580,7 +580,7 @@
             <div class="field"><label>Round Length (minutes)</label><input id="judgeTimerMinutes" type="number" min="1" max="180" value="50"></div>
             <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button><button id="judgeAlarmTest" class="btn alt" type="button">Test Alarm</button><button id="judgeAlarmStop" class="btn danger hidden" type="button">Stop Alarm</button></div>
             <div id="judgeTimeUp" class="judge-timeup hidden">ROUND TIME!</div>
-            <div id="judgeTimerMsg"></div>
+            <div id="judgeTimerMsg"></div><div id="judgeAlarmDiagnostic" style="margin-top:8px;font-size:13px" role="status" aria-live="polite">Alarm test status: not tested.</div>
           </div>
           <div class="judge-panel">
             <b>Judge Call</b><div class="muted">Search the current round by table number or player name.</div>
@@ -2542,9 +2542,11 @@
       const audio = judgeUnlockAudio();
       audio.currentTime = 0;
       const play = audio.play();
-      if(play && typeof play.catch === 'function') play.catch(e=>{
+      if(play && typeof play.then === 'function') play.then(()=>{
+        if($('judgeAlarmDiagnostic')) $('judgeAlarmDiagnostic').textContent='Audio playing. If silent, check device output and media volume.';
+      }).catch(e=>{
         console.warn('Alarm playback blocked:', e);
-        showMsg('judgeTimerMsg','Alarm audio blocked. Tap Test Alarm to enable sound.');
+        if($('judgeAlarmDiagnostic')) $('judgeAlarmDiagnostic').textContent='Audio error: '+e.name+' — '+e.message;
       });
       if(navigator.vibrate) navigator.vibrate([400,100,400,100,400]);
     }
@@ -3612,7 +3614,13 @@ $('addPlayer').onclick = async () => {
     if($('judgeAlarmStop')) $('judgeAlarmStop').onclick=judgeStopAlarm;
     if($('judgeAlarmTest')) $('judgeAlarmTest').onclick=()=>{
       judgeStopAlarm();
-      judgeStartAlarm();
+      const status=$('judgeAlarmDiagnostic');
+      if(status) status.textContent='Testing alarm.wav and audio playback…';
+      judgeStartAlarm(); // Call play() directly within the user gesture.
+      fetch('alarm.wav',{cache:'no-store'}).then(r=>{
+        if(!r.ok) throw new Error('alarm.wav HTTP '+r.status);
+        if(status && status.textContent.startsWith('Testing')) status.textContent='alarm.wav found. Checking playback…';
+      }).catch(e=>{if(status) status.textContent='Audio file unavailable: '+e.message+' — upload alarm.wav beside index.html.';});
     };
     if($('refreshJudgeLog')) $('refreshJudgeLog').onclick=loadJudgeLog;
     if($('judgeModalClose')) $('judgeModalClose').onclick=()=>$('judgeCallModal').classList.add('hidden');
