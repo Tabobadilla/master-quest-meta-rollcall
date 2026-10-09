@@ -2505,14 +2505,14 @@
       return nums.length?Math.max(...nums):Number(currentTournament?.published_round||activePairingRound||1);
     }
 
-    function judgeFormatTime(sec){ sec=Math.max(0,Math.floor(Number(sec)||0)); return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); }
+    function judgeFormatTime(sec){ sec=Math.floor(Number(sec)||0); const sign=sec<0?'−':'';sec=Math.abs(sec);return sign+String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); }
     function judgeSecondsRemaining(){
       if(!judgeTimerState) return Number($('judgeTimerMinutes')?.value||50)*60;
       if(judgeTimerState.status==='running' && judgeTimerState.started_at){
         const elapsed=Math.floor((Date.now()-new Date(judgeTimerState.started_at).getTime())/1000);
-        return Math.max(0,Number(judgeTimerState.remaining_seconds||0)-elapsed);
+        return Number(judgeTimerState.remaining_seconds||0)-elapsed;
       }
-      return Math.max(0,Number(judgeTimerState.remaining_seconds||0));
+      return Number(judgeTimerState.remaining_seconds||0);
     }
     function judgeUnlockAudio(){
       try{
@@ -2524,7 +2524,7 @@
       try{
         judgeUnlockAudio(); if(!judgeAudioCtx) return;
         const osc=judgeAudioCtx.createOscillator(), gain=judgeAudioCtx.createGain();
-        osc.type='sine'; osc.frequency.value=880; gain.gain.value=.18;
+        osc.type='square'; osc.frequency.value=660; gain.gain.value=.12;
         osc.connect(gain); gain.connect(judgeAudioCtx.destination);
         const t=judgeAudioCtx.currentTime;
         gain.gain.setValueAtTime(.18,t); gain.gain.exponentialRampToValueAtTime(.001,t+.35);
@@ -2536,7 +2536,7 @@
       judgeAlarmActive=true;
       if($('judgeTimeUp')) $('judgeTimeUp').classList.remove('hidden');
       if($('judgeAlarmStop')) $('judgeAlarmStop').classList.remove('hidden');
-      judgeBeep(); setTimeout(judgeBeep,500); setTimeout(judgeBeep,1000);
+      judgeBeep(); if(navigator.vibrate)navigator.vibrate([250,120,250,120,400]); if('Notification' in window && Notification.permission==='granted')new Notification('Tournex — Round time expired',{body:'Round timer reached zero. Overtime is counting.'});setTimeout(judgeBeep,500);setTimeout(judgeBeep,1000);
       judgeAlarmInterval=setInterval(()=>{judgeBeep();setTimeout(judgeBeep,500);setTimeout(judgeBeep,1000);},4000);
     }
     function judgeStopAlarm(){
@@ -2556,9 +2556,9 @@
         const status=judgeTimerState?.status||'stopped';
         $('globalRoundTimerStatus').textContent=status==='running'?'Round in progress':status==='paused'?'Timer paused':'Timer stopped';
       }
-      if(sec===0 && judgeTimerState?.status==='running'){
+      if(sec<=0 && judgeTimerState?.status==='running'){
         display.classList.remove('running');
-        if(judgeLastTimerSeconds!==0) judgeStartAlarm();
+        if(judgeLastTimerSeconds>0 && sec<=0) judgeStartAlarm();
       }
       judgeLastTimerSeconds=sec;
     }
