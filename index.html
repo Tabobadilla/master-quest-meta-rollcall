@@ -2527,7 +2527,7 @@
     function judgeUnlockAudio(){
       try{
         if(!judgeAudioCtx) judgeAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        if(judgeAudioCtx.state==='suspended') judgeAudioCtx.resume().catch(()=>{});
+        if(judgeAudioCtx.state!=='running') return judgeAudioCtx.resume();
       }catch(e){ console.warn('Alarm audio unavailable',e); }
     }
     function judgeBeep(){
@@ -2548,8 +2548,9 @@
         }
       }catch(e){ console.warn('Alarm playback failed',e); }
     }
-    function judgeStartAlarm(){
+    async function judgeStartAlarm(){
       if(judgeAlarmActive) return;
+      try { await judgeUnlockAudio(); } catch(e) { console.warn('Audio unlock failed',e); }
       judgeAlarmActive=true;
       if($('judgeTimeUp')) $('judgeTimeUp').classList.remove('hidden');
       if($('judgeAlarmStop')) $('judgeAlarmStop').classList.remove('hidden');
@@ -2583,8 +2584,9 @@
       }
       if(sec<=0 && judgeTimerState?.status==='running'){
         display.classList.remove('running');
-        if(judgeLastTimerSeconds>0 && sec<=0) judgeStartAlarm();
+        if(!judgeAlarmActive && (judgeLastTimerSeconds===null || judgeLastTimerSeconds>0)) judgeStartAlarm();
       }
+      if(judgeTimerState?.status!=='running' && judgeAlarmActive) judgeStopAlarm();
       judgeLastTimerSeconds=sec;
     }
     async function loadJudgeTimer(){
@@ -3627,7 +3629,7 @@ $('addPlayer').onclick = async () => {
       judgeUnlockAudio();
       judgeStopAlarm();
       // Short delay allows browsers to finish resuming the audio context.
-      setTimeout(judgeStartAlarm,120);
+      judgeStartAlarm();
     };
     if($('refreshJudgeLog')) $('refreshJudgeLog').onclick=loadJudgeLog;
     if($('judgeModalClose')) $('judgeModalClose').onclick=()=>$('judgeCallModal').classList.add('hidden');
