@@ -2524,48 +2524,33 @@
       return Number(judgeTimerState.remaining_seconds||0);
     }
     // Audio is unlocked by an explicit user gesture (Start/Resume/Test).
+    let judgeAlarmAudio = null;
     function judgeUnlockAudio(){
-      try{
-        if(!judgeAudioCtx) judgeAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        if(judgeAudioCtx.state!=='running') return judgeAudioCtx.resume();
-      }catch(e){ console.warn('Alarm audio unavailable',e); }
+      if(!judgeAlarmAudio){
+        judgeAlarmAudio = new Audio('alarm.wav');
+        judgeAlarmAudio.loop = true;
+        judgeAlarmAudio.volume = 1;
+        judgeAlarmAudio.preload = 'auto';
+      }
+      return judgeAlarmAudio;
     }
-    function judgeBeep(){
-      try{
-        if(!judgeAudioCtx || judgeAudioCtx.state!=='running') return;
-        const t=judgeAudioCtx.currentTime;
-        // Loud, alternating two-tone emergency-style alarm, repeating continuously.
-        for(let i=0;i<4;i++){
-          const osc=judgeAudioCtx.createOscillator(), gain=judgeAudioCtx.createGain();
-          osc.type='square';
-          osc.frequency.setValueAtTime(i%2===0?880:1175,t+i*.19);
-          gain.gain.setValueAtTime(0,t+i*.19);
-          gain.gain.linearRampToValueAtTime(.38,t+i*.19+.012);
-          gain.gain.setValueAtTime(.38,t+i*.19+.145);
-          gain.gain.linearRampToValueAtTime(0,t+i*.19+.18);
-          osc.connect(gain); gain.connect(judgeAudioCtx.destination);
-          osc.start(t+i*.19); osc.stop(t+i*.19+.185);
-        }
-      }catch(e){ console.warn('Alarm playback failed',e); }
-    }
-    async function judgeStartAlarm(){
+    function judgeStartAlarm(){
       if(judgeAlarmActive) return;
-      try { await judgeUnlockAudio(); } catch(e) { console.warn('Audio unlock failed',e); }
-      judgeAlarmActive=true;
+      judgeAlarmActive = true;
       if($('judgeTimeUp')) $('judgeTimeUp').classList.remove('hidden');
       if($('judgeAlarmStop')) $('judgeAlarmStop').classList.remove('hidden');
-      judgeBeep();
+      const audio = judgeUnlockAudio();
+      audio.currentTime = 0;
+      const play = audio.play();
+      if(play && typeof play.catch === 'function') play.catch(e=>{
+        console.warn('Alarm playback blocked:', e);
+        showMsg('judgeTimerMsg','Alarm audio blocked. Tap Test Alarm to enable sound.');
+      });
       if(navigator.vibrate) navigator.vibrate([400,100,400,100,400]);
-      if('Notification' in window && Notification.permission==='granted'){
-        try{ new Notification('Tournex — Round time expired',{body:'Round timer reached zero. Overtime is counting.'}); }catch(e){}
-      }
-      judgeAlarmInterval=setInterval(()=>{
-        judgeBeep();
-        if(navigator.vibrate) navigator.vibrate([300,100,300]);
-      },850);
     }
     function judgeStopAlarm(){
-      judgeAlarmActive=false;
+      judgeAlarmActive = false;
+      if(judgeAlarmAudio){judgeAlarmAudio.pause();judgeAlarmAudio.currentTime=0;}
       if(judgeAlarmInterval){clearInterval(judgeAlarmInterval);judgeAlarmInterval=null;}
       if(navigator.vibrate) navigator.vibrate(0);
       if($('judgeTimeUp')) $('judgeTimeUp').classList.add('hidden');
@@ -3626,9 +3611,7 @@ $('addPlayer').onclick = async () => {
     if($('judgeTimerReset')) $('judgeTimerReset').onclick=()=>saveJudgeTimer('reset');
     if($('judgeAlarmStop')) $('judgeAlarmStop').onclick=judgeStopAlarm;
     if($('judgeAlarmTest')) $('judgeAlarmTest').onclick=()=>{
-      judgeUnlockAudio();
       judgeStopAlarm();
-      // Short delay allows browsers to finish resuming the audio context.
       judgeStartAlarm();
     };
     if($('refreshJudgeLog')) $('refreshJudgeLog').onclick=loadJudgeLog;
