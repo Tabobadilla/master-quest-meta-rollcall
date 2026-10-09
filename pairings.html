@@ -30,6 +30,7 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
 .pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
 .player-bubble{background:white;border:1px solid #dce9e2;border-radius:14px;padding:13px 14px;font-weight:900;font-size:17px;overflow-wrap:anywhere}
 .player-bubble.right{text-align:right}
+.player-line{display:flex;justify-content:space-between;align-items:center;gap:8px}.player-bubble.right .player-line{flex-direction:row}.record{color:#587267;font-size:14px;white-space:nowrap}.result-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.result-choice{padding:13px 6px;border:1px solid #bcd5c8;border-radius:12px;background:#eef5f1;color:#173d30;font-weight:900;cursor:pointer}.result-choice.selected{background:#0f7a49;color:white}.result-choice:disabled{opacity:.5}.result-submit{margin-top:9px;padding:13px;width:100%}.player-table-result .player-table-match{font-size:18px}
 .vs{font-size:12px;font-weight:900;color:#6c8177;letter-spacing:.06em}
 .pairing-card.bye .pairing-players{grid-template-columns:1fr}
 .pairing-card.bye .player-bubble{text-align:center;background:#edf7f1}
@@ -69,6 +70,8 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
       <input id="search" class="search" placeholder="Type your name to find your table faster…" autocomplete="off">
       <button id="searchBtn" class="btn">Search</button>
     </div>
+    <div class="result-actions"><button class="result-choice" data-result="won">WON</button><button class="result-choice" data-result="lost">LOST</button><button class="result-choice" data-result="tie">TIE</button></div>
+    <div id="resultMsg"></div>
     <div id="searchMsg"></div>
 
     <div id="tabs" class="tabs"></div>
@@ -92,6 +95,18 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const ordinal=n=>{n=Number(n);let s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
 const SEARCH_KEY='tournex_saved_pairing_search';
+const PLAYER_ID_KEY='tournex_v23_player_id';
+const DEVICE_KEY='tournex_v23_device';
+let selectedResult=null;let playerIdentity=null;let entryRecords=[];let reports=[];
+const normalized=s=>String(s||'').trim().toLowerCase();
+function deviceToken(){let v=localStorage.getItem(DEVICE_KEY);if(!v){v=crypto.randomUUID();localStorage.setItem(DEVICE_KEY,v)}return v;}
+function reportMessage(m,ok=false){$('resultMsg').innerHTML='<div class="'+(ok?'good':'bad')+'">'+esc(m)+'</div>';}
+function currentRound(){return activeView?.startsWith('round-')?Number(activeView.split('-')[1]):null;}
+function myPairing(){return pairings.find(p=>Number(p.round_number)===currentRound()&&(normalized(p.player1_name)===normalized(playerIdentity?.player_name)||normalized(p.player2_name)===normalized(playerIdentity?.player_name)));}
+function reportLockKey(){return 'tournex_v23_lock_'+tournament?.id+'_'+currentRound();}
+function refreshReportLock(){const locked=localStorage.getItem(reportLockKey());document.querySelectorAll('[data-result]').forEach(b=>b.disabled=!!locked);if(locked)reportMessage('Result submitted on this browser for this round. Awaiting the other player.',true);}
+function recordFor(name){const e=entryRecords.find(x=>normalized(x.player_name)===normalized(name));return e?`${e.wins||0}-${e.losses||0}-${e.ties||0}`:'0-0-0';}
+
 function saveSearch(){const v=$('search').value.trim();if(v)localStorage.setItem(SEARCH_KEY,v);}
 function restoreSearch(){const v=localStorage.getItem(SEARCH_KEY)||'';$('search').value=v;return v;}
 
@@ -133,12 +148,13 @@ async function load(){
   if(!pe) pairings=p||[];
 
   const {data:e,error:ee}=await sb.from('entries')
-    .select('player_name,standing,wins,losses,ties,main_option_id,support_option_id')
+    .select('player_name,player_id,standing,wins,losses,ties,main_option_id,support_option_id')
     .eq('tournament_id',t.id)
     .not('standing','is',null)
     .order('standing');
 
   if(!ee) standings=e||[];
+  const {data:allEntries}=await sb.from('entries').select('id,player_name,player_id,wins,losses,ties').eq('tournament_id',t.id);entryRecords=allEntries||[];
 
   // Deck/Pokémon information is used only for Final Standings.
   const pokemonIds=[...new Set(standings.flatMap(x=>[x.main_option_id,x.support_option_id]).filter(Boolean))];
@@ -205,10 +221,11 @@ function render(){
         <span class="round-label">Round ${round}</span>
       </div>
       ${isBye
-        ? `<div class="pairing-players"><div class="player-bubble">${esc(p.player1_name)}</div></div>`
-        : `<div class="pairing-players"><div class="player-bubble">${esc(p.player1_name)}</div><div class="vs">VS</div><div class="player-bubble right">${esc(p.player2_name)}</div></div>`}
+        ? `<div class="pairing-players"><div class="player-bubble"><div class="player-line"><span>${esc(p.player1_name)}</span><span class="record">${recordFor(p.player1_name)}</span></div></div></div>`
+        : `<div class="pairing-players"><div class="player-bubble"><div class="player-line"><span>${esc(p.player1_name)}</span><span class="record">${recordFor(p.player1_name)}</span></div></div><div class="vs">VS</div><div class="player-bubble right"><div class="player-line"><span>${esc(p.player2_name)}</span><span class="record">${recordFor(p.player2_name)}</span></div></div></div>`}
     </div>`;
   }).join('')}</div>`;
+  refreshReportLock();
 }
 
 function clearSearch(){
@@ -223,6 +240,8 @@ function doSearch(){
   document.querySelectorAll('.highlight').forEach(r=>r.classList.remove('highlight'));
   if(!q){$('searchMsg').innerHTML='';return;}
   saveSearch();
+  const match=entryRecords.find(e=>e.player_id && String(e.player_id).trim()===raw);
+  if(match){playerIdentity=match;localStorage.setItem(PLAYER_ID_KEY,raw);}
 
   if(activeView==='standings'){
     const row=[...document.querySelectorAll('tbody tr')].find(r=>(r.dataset.player||'').includes(q));
@@ -232,7 +251,7 @@ function doSearch(){
     return;
   }
 
-  const card=[...document.querySelectorAll('.pairing-card')].find(r=>(r.dataset.p1||'').includes(q)||(r.dataset.p2||'').includes(q));
+  const card=[...document.querySelectorAll('.pairing-card')].find(r=>(r.dataset.p1||'').includes(q)||(r.dataset.p2||'').includes(q)||(playerIdentity && ((r.dataset.p1||'')===normalized(playerIdentity.player_name)||(r.dataset.p2||'')===normalized(playerIdentity.player_name))));
   if(!card){$('searchMsg').innerHTML='<div class="bad">Player not found in this round.</div>';return;}
   card.classList.add('highlight');
 
@@ -254,9 +273,28 @@ function doSearch(){
 $('searchBtn').onclick=doSearch;
 $('search').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
 
-const remembered=restoreSearch();
+document.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click',async()=>{
+  const id=String($('search').value||'').trim();
+  if(!/^\d+$/.test(id)){reportMessage('Enter your Pokémon Player ID in the search bar and press Search first.');return;}
+  const e=entryRecords.find(x=>String(x.player_id||'').trim()===id);
+  if(!e||!playerIdentity||e.id!==playerIdentity.id){reportMessage('Press Search to verify your Player ID first.');return;}
+  if(!myPairing()){reportMessage('No pairing found for your Player ID in this round.');return;}
+  if(localStorage.getItem(reportLockKey())){refreshReportLock();return;}
+  selectedResult=b.dataset.result;
+  document.querySelectorAll('[data-result]').forEach(x=>x.classList.toggle('selected',x===b));
+  $('resultMsg').innerHTML='<button id="confirmResult" class="btn result-submit">Submit '+selectedResult.toUpperCase()+'</button>';
+  $('confirmResult').onclick=async()=>{
+    const pair=myPairing();if(!pair)return;
+    const {data,error}=await sb.rpc('submit_pairing_result_v23',{p_pairing_id:pair.id,p_player_id:id,p_result:selectedResult,p_device_token:deviceToken()});
+    if(error){reportMessage(error.message);return;}
+    localStorage.setItem(reportLockKey(),id);
+    refreshReportLock();
+    if(data?.status==='confirmed')reportMessage('Both reports agree. Match confirmed.',true);
+  };
+}));
+const remembered=localStorage.getItem(PLAYER_ID_KEY)||restoreSearch();
 await load();
-if(remembered && activeView!=='standings') setTimeout(doSearch,50);
+if(remembered && activeView!=='standings'){$('search').value=remembered;setTimeout(doSearch,50);}
 </script>
 </body>
 </html>
