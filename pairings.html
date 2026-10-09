@@ -30,7 +30,7 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
 .pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
 .player-bubble{background:white;border:1px solid #dce9e2;border-radius:14px;padding:13px 14px;font-weight:900;font-size:17px;overflow-wrap:anywhere}
 .player-bubble.right{text-align:right}
-.player-line{display:flex;justify-content:space-between;align-items:center;gap:8px}.player-bubble.right .player-line{flex-direction:row}.record{color:#587267;font-size:14px;white-space:nowrap}.result-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.result-choice{padding:13px 6px;border:1px solid #bcd5c8;border-radius:12px;background:#eef5f1;color:#173d30;font-weight:900;cursor:pointer}.result-choice.selected{background:#0f7a49;color:white}.result-choice:disabled{opacity:.5}.result-submit{margin-top:9px;padding:13px;width:100%}.player-table-result .player-table-match{font-size:18px}
+.player-line{display:flex;justify-content:space-between;align-items:center;gap:8px}.player-bubble.right .player-line{flex-direction:row}.record{margin-left:10px;color:#587267;font-size:14px;white-space:nowrap}.result-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.result-choice{padding:13px 6px;border:1px solid #bcd5c8;border-radius:12px;background:#eef5f1;color:#173d30;font-weight:900;cursor:pointer}.result-choice.selected{background:#0f7a49;color:white}.result-choice:disabled{opacity:.5}.result-submit{margin-top:9px;padding:13px;width:100%}.player-table-result .player-table-match{font-size:18px}
 .vs{font-size:12px;font-weight:900;color:#6c8177;letter-spacing:.06em}
 .pairing-card.bye .pairing-players{grid-template-columns:1fr}
 .pairing-card.bye .player-bubble{text-align:center;background:#edf7f1}
@@ -265,7 +265,7 @@ function doSearch(){
   $('searchMsg').innerHTML=`<div class="player-table-result">
     <div class="player-table-label">${isBye?'YOUR PAIRING':'YOUR TABLE'}</div>
     <div class="player-table-number">${esc(tableNumber)}</div>
-    <div class="player-table-match">${esc(me)}${opponent==='BYE'?' — BYE':' vs. '+esc(opponent)}</div>
+    <div class="player-table-match">${esc(me)} <span class="record">${recordFor(me)}</span>${opponent==='BYE'?' — BYE':' vs. '+esc(opponent)+' <span class="record">'+recordFor(opponent)+'</span>'}</div>
     <div class="player-table-round">Round ${esc(activeView.split('-')[1])}</div>
   </div>`;
 }
