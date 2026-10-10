@@ -2301,7 +2301,7 @@
     }
 
     function parseTdfExperimental(text){
-      const result={players:[],pairings:[],standings:[],round:null,recognized:false};
+      const result={players:[],pairings:[],standings:[],completedMatches:[],round:null,recognized:false};
       const raw=String(text||'').replace(/\u0000/g,' ');
       let doc=null;
       if(raw.includes('<')&&raw.includes('>')){
@@ -2343,7 +2343,7 @@
               const id=clean(byeNode.getAttribute('userid')||byeNode.getAttribute('id')), p=playerMap.get(id);
               if(p){
                 result.pairings.push({round:rn,table:table||null,player1:p.name,player1_id:id,player2:'BYE',player2_id:''});
-                if(outcome===5) ensureRecord(id).wins++;
+                if(outcome===5){ ensureRecord(id).wins++; result.completedMatches.push({round:rn,player1_id:id,player1:p.name,player2_id:'',player2:'BYE',outcome}); }
               }
               return;
             }
@@ -2353,6 +2353,7 @@
             if(a||b) result.pairings.push({round:rn,table:table||null,player1:a?.name||id1||'Unknown',player1_id:id1,player2:b?.name||id2||'Unknown',player2_id:id2});
             if(id1&&id2){
               const r1=ensureRecord(id1),r2=ensureRecord(id2);
+              if([1,2,3].includes(outcome)) result.completedMatches.push({round:rn,player1_id:id1,player1:a?.name||'',player2_id:id2,player2:b?.name||'',outcome});
               if(outcome===1){r1.wins++;r2.losses++;}
               else if(outcome===2){r2.wins++;r1.losses++;}
               else if(outcome===3){r1.ties++;r2.ties++;}
@@ -2503,9 +2504,34 @@
         const rows=preview.pairings.map(p=>({tournament_id:currentTournament.id,round_number:activePairingRound,table_number:p.table,player1_name:p.player1,player2_name:p.player2==='BYE'?null:p.player2}));
         const ins=await sb.from('pairings').insert(rows);
         if(ins.error) return showMsg('roundTdfMsg',ins.error.message,'bad');
+        // Reconstruct records only from finished matches BEFORE the round being published.
+        // Never count the current round, and never reset existing records if the TDF has no results.
+        const completed=(preview.completedMatches||[]).filter(m=>m.round<activePairingRound);
+        let updatedRecords=0, skippedRecords=0;
+        if(completed.length){
+          const records=new Map();
+          const add=(entry,kind)=>{
+            if(!entry) {skippedRecords++;return;}
+            if(!records.has(entry.id)) records.set(entry.id,{wins:0,losses:0,ties:0});
+            records.get(entry.id)[kind]++;
+          };
+          for(const m of completed){
+            const a=tdfMatchEntry(m.player1_id,m.player1).entry;
+            const b=m.player2==='BYE'?null:tdfMatchEntry(m.player2_id,m.player2).entry;
+            if(m.outcome===5) add(a,'wins');
+            else if(m.outcome===1){add(a,'wins');add(b,'losses');}
+            else if(m.outcome===2){add(a,'losses');add(b,'wins');}
+            else if(m.outcome===3){add(a,'ties');add(b,'ties');}
+          }
+          for(const [id,rec] of records){
+            const {error}=await sb.from('entries').update(rec).eq('id',id).eq('tournament_id',currentTournament.id);
+            if(error){showMsg('roundTdfMsg','Pairings saved, but record sync failed: '+error.message,'bad');return;}
+            updatedRecords++;
+          }
+        }
         await sb.from('tournaments').update({published_round:activePairingRound}).eq('id',currentTournament.id);
-        showMsg('roundTdfMsg','Round '+activePairingRound+' saved and published.','good');
-        await loadSavedPairings(); await renderPairings();
+        showMsg('roundTdfMsg','Round '+activePairingRound+' saved and published. '+(completed.length?updatedRecords+' player records synchronized from earlier completed rounds'+(skippedRecords?' ('+skippedRecords+' unmatched results)':'')+'.':'No completed earlier-round results detected in this TDF; existing records were preserved.'),'good');
+        await loadEntries(); await loadSavedPairings(); await renderPairings();
       };
     }
 
