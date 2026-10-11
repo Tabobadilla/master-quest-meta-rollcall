@@ -97,6 +97,9 @@
     .owner-tools-centered{text-align:center}
     .owner-tools-centered .muted{text-align:center}
     .owner-tools-centered .owner-tools-actions{display:flex;justify-content:center;align-items:center;margin-top:12px}
+.pairing-player.result-win{background:#d7f5e3!important;border:2px solid #19935b!important;color:#075b32}
+.pairing-player.result-loss{background:#ffe1e1!important;border:2px solid #d64d4d!important;color:#842424}
+.pairing-player.result-tie{background:#fff2b8!important;border:2px solid #cda42b!important;color:#755700}
 </style>
 
 <style>
@@ -2419,15 +2422,28 @@
       (data||[]).forEach(p=>(savedPairingsByRound[p.round_number]??=[]).push(p));
     }
 
+    function judgeCleanPairName(name){return String(name||'').replace(/\s*\d+-\d+-\d+\s*$/,'').trim();}
+    let judgeConfirmedResults={};
+    async function judgeLoadConfirmedResults(){
+      if(!currentTournament)return;
+      const {data,error}=await sb.rpc('public_pairing_outcomes_v23',{p_tournament_id:currentTournament.id});
+      if(error){console.warn(error);return;}
+      judgeConfirmedResults=Object.fromEntries((data||[]).map(x=>[x.pairing_id,x.result]));
+    }
+    function judgeResultClass(p,side){
+      const r=judgeConfirmedResults[p.id];
+      return !r||r==='disputed'?'':r==='tie'?' result-tie':r===side?' result-win':' result-loss';
+    }
     function judgeRecordFor(name){
-      const normalized=String(name||'').trim().toLocaleLowerCase().replace(/\s+/g,' ');
+      const normalized=judgeCleanPairName(name).toLocaleLowerCase().replace(/\s+/g,' ');
       const e=entries.find(x=>String(x.player_name||'').trim().toLocaleLowerCase().replace(/\s+/g,' ')===normalized);
       return e?`${Number(e.wins)||0}-${Number(e.losses)||0}-${Number(e.ties)||0}`:'0-0-0';
     }
     function judgePlayerWithRecord(name){
-      return '<div class="pairing-player-line"><span>'+esc(name||'')+'</span><span class="pairing-player-record">'+esc(judgeRecordFor(name))+'</span></div>';
+      return '<div class="pairing-player-line"><span>'+esc(judgeCleanPairName(name))+'</span><span class="pairing-player-record">'+esc(judgeRecordFor(name))+'</span></div>';
     }
     async function renderPairings(){
+      await judgeLoadConfirmedResults();
       if(!$('roundButtons')) return;
       const n=entries.length, rounds=swissRoundCount(n);
       $('pairingRoundSummary').textContent=n+' Players • '+rounds+' Swiss Round'+(rounds===1?'':'s');
