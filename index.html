@@ -3626,7 +3626,24 @@ $('addPlayer').onclick = async () => {
     if($('judgeSaveCall')) $('judgeSaveCall').onclick=saveJudgeCall;
 
     boot();
-  </script>
+  
+
+// Tournex: safe background data refresh (15 seconds).
+let tournexRefreshBusy = false;
+async function tournexRefreshTick(){
+  if(tournexRefreshBusy || document.hidden || !navigator.onLine) return;
+  const focused = document.activeElement;
+  if(focused && (focused.matches('input,textarea,select,[contenteditable="true"]') || focused.closest('[role="dialog"]'))) return;
+  tournexRefreshBusy = true;
+  try {
+    if(currentTournament && currentRole){ await loadEntries(); await renderPairings(); if(typeof loadJudgeTimer==='function') await loadJudgeTimer(); }
+  } catch(err) { console.warn('Tournex background refresh:', err); }
+  finally { tournexRefreshBusy = false; }
+}
+setInterval(tournexRefreshTick, 15000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) tournexRefreshTick(); });
+
+</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 
