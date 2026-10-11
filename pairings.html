@@ -65,6 +65,21 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
 .searched-pairing .player-bubble{flex:1;min-width:0}
 .searched-pairing .vs{flex:none}
 @media(max-width:550px){.searched-pairing .pairing-players{flex-wrap:wrap}.searched-pairing .player-bubble{min-width:42%}}
+
+/* Player-facing layout based on the two-box tournament sketch. */
+.public-timer{margin:14px 0 18px;background:#e7f6ed;border:2px solid #7bb899;border-radius:20px;padding:16px 20px;text-align:center;color:#164633}
+.public-timer-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;font-weight:900;letter-spacing:.07em;color:#567467}
+.public-timer-status{font-weight:800;letter-spacing:0}
+.public-timer-time{font-size:clamp(34px,7vw,62px);font-weight:1000;line-height:1.15;font-variant-numeric:tabular-nums;margin:5px 0;color:#0d6943}
+.public-timer-time.timer-overtime{color:#ae3030}
+.public-timer-note{font-size:12px;color:#5c7669;font-weight:700}
+.searched-pairing{margin-top:14px;display:flex;flex-direction:column;gap:12px;text-align:left!important;background:transparent;border:0;padding:0}
+.searched-table{border:2px solid #b7d9c7;background:#e9f7ef;border-radius:16px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.searched-pairing .pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:stretch}
+.searched-pairing .player-bubble{display:flex;align-items:center;min-width:0;min-height:92px;border-width:2px;padding:16px;border-radius:17px}
+.searched-pairing .player-line{width:100%;flex-wrap:wrap;gap:8px}
+.searched-pairing .vs{align-self:center;text-align:center;font-size:15px}
+@media(max-width:620px){.searched-pairing .pairing-players{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:6px}.searched-pairing .player-bubble{min-width:0;padding:9px;font-size:13px}.searched-pairing .record{margin-left:0;font-size:12px}.searched-pairing .vs{font-size:12px}}
 </style>
 </head>
 <body>
@@ -81,6 +96,11 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
     </div>
     <div class="result-actions"><button class="result-choice" data-result="won">WON</button><button class="result-choice" data-result="lost">LOST</button><button class="result-choice" data-result="tie">TIE</button></div>
     <div id="resultMsg"></div>
+    <div id="publicTimer" class="public-timer" role="timer" aria-label="Synchronized tournament round timer">
+      <div class="public-timer-top"><span>ROUND TIMER</span><span class="public-timer-status" id="publicTimerStatus">Loading…</span></div>
+      <div class="public-timer-time" id="publicTimerTime">--:--</div>
+      
+    </div>
     <div id="searchMsg"></div>
 
     <div id="tabs" class="tabs"></div>
@@ -126,6 +146,38 @@ async function loadConfirmedResults(){
  if(error){console.warn(error);return;}
  confirmedResults=Object.fromEntries((data||[]).map(x=>[x.pairing_id,x.result]));
 }
+let publicTimerState=null;
+let publicTimerPollBusy=false;
+function formatPublicTime(seconds){
+  seconds=Math.floor(Number(seconds)||0);
+  const sign=seconds<0?'−':'';
+  seconds=Math.abs(seconds);
+  return sign+String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');
+}
+function renderPublicTimer(){
+  const time=$('publicTimerTime'),status=$('publicTimerStatus');
+  if(!time||!status)return;
+  if(!publicTimerState){time.textContent='--:--';status.textContent='Not started';return;}
+  let remaining=Number(publicTimerState.remaining_seconds)||0;
+  if(publicTimerState.status==='running'&&publicTimerState.started_at){
+    remaining-=Math.floor((Date.now()-new Date(publicTimerState.started_at).getTime())/1000);
+  }
+  time.textContent=formatPublicTime(remaining);
+  time.classList.toggle('timer-overtime',remaining<0);
+  status.textContent=publicTimerState.status==='running'?(remaining<0?'Overtime':'Round in progress'):publicTimerState.status==='paused'?'Paused':'Stopped';
+}
+async function refreshPublicTimer(){
+  if(!tournament||publicTimerPollBusy)return;
+  publicTimerPollBusy=true;
+  try{
+    const {data,error}=await sb.rpc('public_round_timer_v23',{p_tournament_id:tournament.id});
+    if(error){console.warn('Public timer unavailable',error);$('publicTimerStatus').textContent='Timer unavailable';return;}
+    publicTimerState=data;
+    renderPublicTimer();
+  }finally{publicTimerPollBusy=false;}
+}
+setInterval(renderPublicTimer,1000);
+setInterval(refreshPublicTimer,8000);
 function saveSearch(){const v=$('search').value.trim();if(v)localStorage.setItem(SEARCH_KEY,v);}
 function restoreSearch(){const v=localStorage.getItem(SEARCH_KEY)||'';$('search').value=v;return v;}
 
@@ -157,6 +209,7 @@ async function load(){
   }
 
   tournament=t;
+  await refreshPublicTimer();
   $('eventName').textContent=t.event_name||'Tournament';
   $('eventInfo').textContent=[t.store_name,t.event_date].filter(Boolean).join(' • ');
 
@@ -290,8 +343,8 @@ function doSearch(){
   const pairMarkup=sourceBubbles.length===1
     ? `<div class="pairing-players">${sourceBubbles[0].outerHTML}</div>`
     : `<div class="pairing-players">${sourceBubbles[0].outerHTML}<div class="vs">VS</div>${sourceBubbles[1].outerHTML}</div>`;
-  $('searchMsg').innerHTML=`<div class="player-table-result searched-pairing">
-    <div class="pairing-card-head"><span class="table-bubble">${isBye?'BYE':'Table '+esc(tableNumber)}</span><span class="round-label">Round ${esc(activeView.split('-')[1])}</span></div>
+  $('searchMsg').innerHTML=`<div class="searched-pairing">
+    <div class="searched-table"><span class="table-bubble">${isBye?'BYE':'Table '+esc(tableNumber)}</span><span class="round-label">Round ${esc(activeView.split('-')[1])}</span></div>
     ${pairMarkup}
   </div>`;
 }
