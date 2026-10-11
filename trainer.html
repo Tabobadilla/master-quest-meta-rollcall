@@ -488,5 +488,21 @@ Example:
     updateDivision();
     loadData();
   </script>
+
+<script id="tournex-15s-sync">
+(()=>{
+ let updating=false;
+ async function sync(){
+  if(updating||document.hidden||!navigator.onLine)return;
+  const el=document.activeElement;
+  if(el&&el.matches('input,textarea,select,[contenteditable="true"]'))return;
+  if(document.querySelector('input[type="file"]')?.files?.length)return;
+  updating=true;
+  try{if(typeof loadData==='function')await loadData()}catch(e){console.warn('Tournex sync:',e)}finally{updating=false}
+ }
+ setInterval(sync,15000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
+})();
+</script>
 </body>
 </html>
