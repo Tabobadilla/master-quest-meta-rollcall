@@ -59,6 +59,12 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
 .player-bubble.result-win{background:#d7f5e3!important;border:2px solid #19935b!important;color:#075b32}
 .player-bubble.result-loss{background:#ffe1e1!important;border:2px solid #d64d4d!important;color:#842424}
 .player-bubble.result-tie{background:#fff2b8!important;border:2px solid #cda42b!important;color:#755700}
+.searched-pairing{display:flex;flex-direction:column;gap:16px;text-align:left!important}
+.searched-pairing .pairing-card-head{display:flex;align-items:center;justify-content:space-between}
+.searched-pairing .pairing-players{display:flex;align-items:center;gap:12px;width:100%}
+.searched-pairing .player-bubble{flex:1;min-width:0}
+.searched-pairing .vs{flex:none}
+@media(max-width:550px){.searched-pairing .pairing-players{flex-wrap:wrap}.searched-pairing .player-bubble{min-width:42%}}
 </style>
 </head>
 <body>
@@ -278,11 +284,15 @@ function doSearch(){
   const me=cleanPairName(matchedName||players.find(x=>x.toLowerCase().includes(q))||players[0]||raw);
   const opponent=cleanPairName(players.find(x=>cleanPairName(x)!==me)||'BYE');
 
-  $('searchMsg').innerHTML=`<div class="player-table-result">
-    <div class="player-table-label">${isBye?'YOUR PAIRING':'YOUR TABLE'}</div>
-    <div class="player-table-number">${esc(tableNumber)}</div>
-    <div class="player-table-match">${esc(me)} <span class="record">${recordFor(me)}</span>${opponent==='BYE'?' — BYE':' vs. '+esc(opponent)+' <span class="record">'+recordFor(opponent)+'</span>'}</div>
-    <div class="player-table-round">Round ${esc(activeView.split('-')[1])}</div>
+  // Use the same player bubbles and outcome colors as the pairing card below.
+  // Keep the table number in its own bubble, separate from the match.
+  const sourceBubbles=[...card.querySelectorAll('.player-bubble')];
+  const pairMarkup=sourceBubbles.length===1
+    ? `<div class="pairing-players">${sourceBubbles[0].outerHTML}</div>`
+    : `<div class="pairing-players">${sourceBubbles[0].outerHTML}<div class="vs">VS</div>${sourceBubbles[1].outerHTML}</div>`;
+  $('searchMsg').innerHTML=`<div class="player-table-result searched-pairing">
+    <div class="pairing-card-head"><span class="table-bubble">${isBye?'BYE':'Table '+esc(tableNumber)}</span><span class="round-label">Round ${esc(activeView.split('-')[1])}</span></div>
+    ${pairMarkup}
   </div>`;
 }
 
