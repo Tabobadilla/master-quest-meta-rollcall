@@ -2475,8 +2475,8 @@
           return '<div class="pairing-card '+(isBye?'bye':'')+'">'+
             '<div class="pairing-card-head"><span class="pairing-table-pill">'+(isBye?'BYE':'Table '+esc(p.table_number))+'</span><span class="pairing-round-label">Round '+esc(p.round_number)+'</span></div>'+
             (isBye
-              ? '<div class="pairing-players"><div class="pairing-player">'+judgePlayerWithRecord(p.player1_name)+'</div></div>'
-              : '<div class="pairing-players"><div class="pairing-player">'+judgePlayerWithRecord(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right">'+judgePlayerWithRecord(p.player2_name)+'</div></div>')+
+              ? '<div class="pairing-players"><div class="pairing-player'+judgeResultClass(p,'player1')+'">'+judgePlayerWithRecord(p.player1_name)+'</div></div>'
+              : '<div class="pairing-players"><div class="pairing-player'+judgeResultClass(p,'player1')+'">'+judgePlayerWithRecord(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right'+judgeResultClass(p,'player2')+'">'+judgePlayerWithRecord(p.player2_name)+'</div></div>')+
           '</div>';
         }).join('')+'</div>':'');
 
