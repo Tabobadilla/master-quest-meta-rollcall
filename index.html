@@ -73,7 +73,6 @@
 .pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
 .pairing-player{min-width:0;padding:11px 12px;border-radius:13px;background:#fff;border:1px solid #e0ebe5;font-weight:800;color:#153d31;overflow-wrap:anywhere}
 .pairing-player.right{text-align:right}
-.pairing-player-line{display:flex;align-items:center;justify-content:space-between;gap:8px}.pairing-player-record{font-size:14px;font-weight:700;color:#587267;white-space:nowrap}
 .pairing-vs{font-size:12px;font-weight:900;color:#6b7f76;letter-spacing:.04em}
 .pairing-card.bye .pairing-players{grid-template-columns:1fr}
 .pairing-card.bye .pairing-player{text-align:center;background:#edf7f1}
@@ -97,9 +96,6 @@
     .owner-tools-centered{text-align:center}
     .owner-tools-centered .muted{text-align:center}
     .owner-tools-centered .owner-tools-actions{display:flex;justify-content:center;align-items:center;margin-top:12px}
-.pairing-player.result-win{background:#d7f5e3!important;border:2px solid #19935b!important;color:#075b32}
-.pairing-player.result-loss{background:#ffe1e1!important;border:2px solid #d64d4d!important;color:#842424}
-.pairing-player.result-tie{background:#fff2b8!important;border:2px solid #cda42b!important;color:#755700}
 </style>
 
 <style>
@@ -297,6 +293,88 @@
 .judge-timeup{margin-top:10px;padding:12px;border-radius:12px;background:#f8e5e5;color:#8b2b2b;text-align:center;font-size:20px;font-weight:950;letter-spacing:.04em}
 .judge-timeup.hidden{display:none!important}
 </style>
+
+<style id="tournex-theme-styles">
+html[data-tournex-theme="dark"]{
+ color-scheme:dark;
+ --bg:#080f0d;--card:#111d18;--ink:#eefbf1;--muted:#a3b8ab;
+ --green:#7bed4b;--green2:#09160f;--lime:#a9fa52;--line:#31503a;--danger:#ff7777;
+}
+html[data-tournex-theme="dark"] body{background:#080f0d!important;color:#eefbf1!important}
+html[data-tournex-theme="dark"] .top,
+html[data-tournex-theme="dark"] header{background:#07140d!important;color:#f1fff4!important}
+html[data-tournex-theme="dark"] .card,
+html[data-tournex-theme="dark"] .round-workspace,
+html[data-tournex-theme="dark"] .pairing-card,
+html[data-tournex-theme="dark"] .pairing-player,
+html[data-tournex-theme="dark"] .player-search-box,
+html[data-tournex-theme="dark"] .added-player-search,
+html[data-tournex-theme="dark"] .player-search-prominent,
+html[data-tournex-theme="dark"] .tdf-import-card,
+html[data-tournex-theme="dark"] .store-pairings-share,
+html[data-tournex-theme="dark"] .public-link-box,
+html[data-tournex-theme="dark"] #editPlayerBox,
+html[data-tournex-theme="dark"] .store-public-url,
+html[data-tournex-theme="dark"] .mq-picker-btn,
+html[data-tournex-theme="dark"] .modal-content,
+html[data-tournex-theme="dark"] [class*="modal-box"]{
+ background:#111d18!important;color:#eefbf1!important;border-color:#31503a!important;
+}
+html[data-tournex-theme="dark"] input,
+html[data-tournex-theme="dark"] select,
+html[data-tournex-theme="dark"] textarea{
+ background:#14251c!important;color:#f1fff4!important;border-color:#416249!important;
+}
+html[data-tournex-theme="dark"] input::placeholder,
+html[data-tournex-theme="dark"] textarea::placeholder{color:#9eb1a3!important}
+html[data-tournex-theme="dark"] label,
+html[data-tournex-theme="dark"] .muted,
+html[data-tournex-theme="dark"] .deck,
+html[data-tournex-theme="dark"] .pairing-round-label,
+html[data-tournex-theme="dark"] .pairing-vs,
+html[data-tournex-theme="dark"] .player-search-title,
+html[data-tournex-theme="dark"] .added-players-head h3,
+html[data-tournex-theme="dark"] .store-public-url{color:#bbd3c2!important}
+html[data-tournex-theme="dark"] .tabs button:not(.on),
+html[data-tournex-theme="dark"] .btn.alt,
+html[data-tournex-theme="dark"] .round-btn:not(.on),
+html[data-tournex-theme="dark"] .player-search-clear{
+ background:#23372a!important;color:#e4f8e7!important;border-color:#476448!important
+}
+html[data-tournex-theme="dark"] .btn:not(.danger),
+html[data-tournex-theme="dark"] .tabs button.on,
+html[data-tournex-theme="dark"] .round-btn.on{background:#92ef51;color:#0b190d}
+html[data-tournex-theme="dark"] .msg.good{background:#173d26!important;color:#aaff9a!important}
+html[data-tournex-theme="dark"] .msg.bad{background:#4a1b20!important;color:#ffb5b5!important}
+html[data-tournex-theme="dark"] .msg:not(.good):not(.bad){background:#453716!important;color:#ffe5a1!important}
+html[data-tournex-theme="dark"] .pill,
+html[data-tournex-theme="dark"] .pairing-table-pill{background:#26482d!important;color:#adff81!important}
+#tournex-theme-switch{position:fixed;right:14px;bottom:14px;z-index:99990;
+ border:1px solid #64a875;border-radius:999px;padding:11px 15px;cursor:pointer;
+ background:#0c2216;color:#c5ff9b;font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+ box-shadow:0 5px 24px #0005}
+html[data-tournex-theme="light"] #tournex-theme-switch{background:#fff;color:#175b34;border-color:#b4d7c0}
+</style>
+
+<script id="tournex-theme-control">
+(function(){
+ const KEY='tournex-theme';
+ function apply(mode){
+   document.documentElement.dataset.tournexTheme=mode;
+   try{localStorage.setItem(KEY,mode)}catch(e){}
+   const btn=document.getElementById('tournex-theme-switch');
+   if(btn){btn.textContent=mode==='dark'?'☀ Light Mode':'☾ Dark Mode';btn.setAttribute('aria-label','Switch to '+(mode==='dark'?'light':'dark')+' mode')}
+ }
+ let saved='light';try{saved=localStorage.getItem(KEY)||'light'}catch(e){}
+ apply(saved==='dark'?'dark':'light');
+ document.addEventListener('DOMContentLoaded',()=>{
+   const btn=document.createElement('button');btn.id='tournex-theme-switch';btn.type='button';
+   btn.onclick=()=>apply(document.documentElement.dataset.tournexTheme==='dark'?'light':'dark');
+   document.body.appendChild(btn);apply(document.documentElement.dataset.tournexTheme);
+ });
+ window.addEventListener('storage',e=>{if(e.key===KEY)apply(e.newValue==='dark'?'dark':'light')});
+})();
+</script>
 </head>
 <body>
   <header class="top"><div class="qd-brand">
@@ -581,9 +659,9 @@
           <div class="judge-panel">
             <div class="head"><div><b>Synchronized Round Timer</b><div class="muted">Shared across Professor devices for this tournament.</div></div></div>
             <div class="field"><label>Round Length (minutes)</label><input id="judgeTimerMinutes" type="number" min="1" max="180" value="50"></div>
-            <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button><button id="judgeAlarmTest" class="btn alt" type="button">Test Alarm</button><button id="judgeAlarmStop" class="btn danger hidden" type="button">Stop Alarm</button></div>
+            <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button><button id="judgeAlarmStop" class="btn danger hidden" type="button">Stop Alarm</button></div>
             <div id="judgeTimeUp" class="judge-timeup hidden">ROUND TIME!</div>
-            <div id="judgeTimerMsg"></div><div id="judgeAlarmDiagnostic" style="margin-top:8px;font-size:13px" role="status" aria-live="polite">Alarm test status: not tested.</div>
+            <div id="judgeTimerMsg"></div>
           </div>
           <div class="judge-panel">
             <b>Judge Call</b><div class="muted">Search the current round by table number or player name.</div>
@@ -1133,7 +1211,29 @@
         ' | Birthdate: '+esc(s.birthdate||'')+
         ' | Format: '+esc(s.format||'Standard')+
         ' | Total: '+esc(s.card_total??'');
-      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">'+meta+'</div><pre>'+safeText+'</pre></body></html>');
+      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">'+meta+'</div><pre>'+safeText+'</pre>
+<script id="tournex-background-refresh">
+(function(){
+ let busy=false;
+ async function tick(){
+   if(busy||document.hidden||!navigator.onLine)return;
+   const active=document.activeElement;
+   if(active&&/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName))return;
+   busy=true;
+   try{
+     if(typeof refreshMatchStatus==='function')await refreshMatchStatus();
+     if(typeof refreshPublicTimer==='function')await refreshPublicTimer();
+     if(typeof load==='function'&&location.pathname.endsWith('/pairings.html'))await load();
+     if(typeof loadEntries==='function'&&typeof currentTournament!=='undefined'&&currentTournament)await loadEntries();
+     if(typeof loadJudgeTimer==='function'&&document.querySelector('#judgeTimer'))await loadJudgeTimer();
+   }catch(e){console.warn('Tournex background update:',e)}
+   finally{busy=false}
+ }
+ setInterval(tick,15000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
+})();
+</script>
+</body></html>');
       w.document.close();
       w.focus();
       setTimeout(()=>w.print(),250);
@@ -2304,7 +2404,7 @@
     }
 
     function parseTdfExperimental(text){
-      const result={players:[],pairings:[],standings:[],completedMatches:[],round:null,recognized:false};
+      const result={players:[],pairings:[],standings:[],round:null,recognized:false};
       const raw=String(text||'').replace(/\u0000/g,' ');
       let doc=null;
       if(raw.includes('<')&&raw.includes('>')){
@@ -2346,7 +2446,7 @@
               const id=clean(byeNode.getAttribute('userid')||byeNode.getAttribute('id')), p=playerMap.get(id);
               if(p){
                 result.pairings.push({round:rn,table:table||null,player1:p.name,player1_id:id,player2:'BYE',player2_id:''});
-                if(outcome===5){ ensureRecord(id).wins++; result.completedMatches.push({round:rn,player1_id:id,player1:p.name,player2_id:'',player2:'BYE',outcome}); }
+                if(outcome===5) ensureRecord(id).wins++;
               }
               return;
             }
@@ -2356,7 +2456,6 @@
             if(a||b) result.pairings.push({round:rn,table:table||null,player1:a?.name||id1||'Unknown',player1_id:id1,player2:b?.name||id2||'Unknown',player2_id:id2});
             if(id1&&id2){
               const r1=ensureRecord(id1),r2=ensureRecord(id2);
-              if([1,2,3].includes(outcome)) result.completedMatches.push({round:rn,player1_id:id1,player1:a?.name||'',player2_id:id2,player2:b?.name||'',outcome});
               if(outcome===1){r1.wins++;r2.losses++;}
               else if(outcome===2){r2.wins++;r1.losses++;}
               else if(outcome===3){r1.ties++;r2.ties++;}
@@ -2422,28 +2521,7 @@
       (data||[]).forEach(p=>(savedPairingsByRound[p.round_number]??=[]).push(p));
     }
 
-    function judgeCleanPairName(name){return String(name||'').replace(/\s*\d+-\d+-\d+\s*$/,'').trim();}
-    let judgeConfirmedResults={};
-    async function judgeLoadConfirmedResults(){
-      if(!currentTournament)return;
-      const {data,error}=await sb.rpc('public_pairing_outcomes_v23',{p_tournament_id:currentTournament.id});
-      if(error){console.warn(error);return;}
-      judgeConfirmedResults=Object.fromEntries((data||[]).map(x=>[x.pairing_id,x.result]));
-    }
-    function judgeResultClass(p,side){
-      const r=judgeConfirmedResults[p.id];
-      return !r||r==='disputed'?'':r==='tie'?' result-tie':r===side?' result-win':' result-loss';
-    }
-    function judgeRecordFor(name){
-      const normalized=judgeCleanPairName(name).toLocaleLowerCase().replace(/\s+/g,' ');
-      const e=entries.find(x=>String(x.player_name||'').trim().toLocaleLowerCase().replace(/\s+/g,' ')===normalized);
-      return e?`${Number(e.wins)||0}-${Number(e.losses)||0}-${Number(e.ties)||0}`:'0-0-0';
-    }
-    function judgePlayerWithRecord(name){
-      return '<div class="pairing-player-line"><span>'+esc(judgeCleanPairName(name))+'</span><span class="pairing-player-record">'+esc(judgeRecordFor(name))+'</span></div>';
-    }
     async function renderPairings(){
-      await judgeLoadConfirmedResults();
       if(!$('roundButtons')) return;
       const n=entries.length, rounds=swissRoundCount(n);
       $('pairingRoundSummary').textContent=n+' Players • '+rounds+' Swiss Round'+(rounds===1?'':'s');
@@ -2475,8 +2553,8 @@
           return '<div class="pairing-card '+(isBye?'bye':'')+'">'+
             '<div class="pairing-card-head"><span class="pairing-table-pill">'+(isBye?'BYE':'Table '+esc(p.table_number))+'</span><span class="pairing-round-label">Round '+esc(p.round_number)+'</span></div>'+
             (isBye
-              ? '<div class="pairing-players"><div class="pairing-player'+judgeResultClass(p,'player1')+'">'+judgePlayerWithRecord(p.player1_name)+'</div></div>'
-              : '<div class="pairing-players"><div class="pairing-player'+judgeResultClass(p,'player1')+'">'+judgePlayerWithRecord(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right'+judgeResultClass(p,'player2')+'">'+judgePlayerWithRecord(p.player2_name)+'</div></div>')+
+              ? '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div></div>'
+              : '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right">'+esc(p.player2_name)+'</div></div>')+
           '</div>';
         }).join('')+'</div>':'');
 
@@ -2520,52 +2598,9 @@
         const rows=preview.pairings.map(p=>({tournament_id:currentTournament.id,round_number:activePairingRound,table_number:p.table,player1_name:p.player1,player2_name:p.player2==='BYE'?null:p.player2}));
         const ins=await sb.from('pairings').insert(rows);
         if(ins.error) return showMsg('roundTdfMsg',ins.error.message,'bad');
-        // TDF is authoritative. Resolve records by unique normalized player NAME,
-        // never by the submission-only Pokemon Player ID.
-        const completed=(preview.completedMatches||[]).filter(m=>m.round<activePairingRound);
-        if(activePairingRound>1 && !completed.length){
-          return showMsg('roundTdfMsg','Pairings saved, but records not synchronized: no completed prior-round results in TDF.','bad');
-        }
-        const entryByName=new Map();
-        for(const e of entries){
-          const key=tdfNormalizeName(e.player_name);
-          if(entryByName.has(key)) entryByName.set(key,null); // ambiguous: fail closed
-          else entryByName.set(key,e);
-        }
-        const recordByEntry=new Map();
-        const missing=[];
-        for(const p of preview.players){
-          const entry=entryByName.get(tdfNormalizeName(p.name));
-          if(!entry){missing.push(p.name);continue;}
-          recordByEntry.set(entry.id,{wins:0,losses:0,ties:0});
-        }
-        const increment=(name,field)=>{
-          const entry=entryByName.get(tdfNormalizeName(name));
-          if(!entry || !recordByEntry.has(entry.id)){missing.push(name||'Unknown');return;}
-          recordByEntry.get(entry.id)[field]++;
-        };
-        for(const m of completed){
-          if(m.outcome===5) increment(m.player1,'wins');
-          else if(m.outcome===1){increment(m.player1,'wins');increment(m.player2,'losses');}
-          else if(m.outcome===2){increment(m.player1,'losses');increment(m.player2,'wins');}
-          else if(m.outcome===3){increment(m.player1,'ties');increment(m.player2,'ties');}
-        }
-        if(missing.length){
-          return showMsg('roundTdfMsg','Pairings saved but record sync stopped: missing or duplicate player names: '+[...new Set(missing)].join(', ')+'. Match the TDF names to Player Entry names.','bad');
-        }
-        let updatedRecords=0;
-        for(const [entryId,rec] of recordByEntry){
-          const {data,error}=await sb.from('entries').update(rec)
-            .eq('id',entryId).eq('tournament_id',currentTournament.id)
-            .select('id,wins,losses,ties');
-          if(error||data?.length!==1){
-            return showMsg('roundTdfMsg','Pairings saved but RECORD SYNC FAILED: '+(error?.message||'entry update was rejected')+'.','bad');
-          }
-          updatedRecords++;
-        }
         await sb.from('tournaments').update({published_round:activePairingRound}).eq('id',currentTournament.id);
-        showMsg('roundTdfMsg','Round '+activePairingRound+' saved and published. '+updatedRecords+' player records synchronized from TDF results.','good');
-        await loadEntries(); await loadSavedPairings(); await renderPairings();
+        showMsg('roundTdfMsg','Round '+activePairingRound+' saved and published.','good');
+        await loadSavedPairings(); await renderPairings();
       };
     }
 
@@ -2583,38 +2618,34 @@
       }
       return Number(judgeTimerState.remaining_seconds||0);
     }
-    // Audio is unlocked by an explicit user gesture (Start/Resume/Test).
-    let judgeAlarmAudio = null;
     function judgeUnlockAudio(){
-      if(!judgeAlarmAudio){
-        judgeAlarmAudio = new Audio('alarm.wav');
-        judgeAlarmAudio.loop = true;
-        judgeAlarmAudio.volume = 1;
-        judgeAlarmAudio.preload = 'auto';
-      }
-      return judgeAlarmAudio;
+      try{
+        if(!judgeAudioCtx) judgeAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        if(judgeAudioCtx.state==='suspended') judgeAudioCtx.resume();
+      }catch(e){}
+    }
+    function judgeBeep(){
+      try{
+        judgeUnlockAudio(); if(!judgeAudioCtx) return;
+        const osc=judgeAudioCtx.createOscillator(), gain=judgeAudioCtx.createGain();
+        osc.type='square'; osc.frequency.value=660; gain.gain.value=.12;
+        osc.connect(gain); gain.connect(judgeAudioCtx.destination);
+        const t=judgeAudioCtx.currentTime;
+        gain.gain.setValueAtTime(.18,t); gain.gain.exponentialRampToValueAtTime(.001,t+.35);
+        osc.start(t); osc.stop(t+.36);
+      }catch(e){}
     }
     function judgeStartAlarm(){
       if(judgeAlarmActive) return;
-      judgeAlarmActive = true;
+      judgeAlarmActive=true;
       if($('judgeTimeUp')) $('judgeTimeUp').classList.remove('hidden');
       if($('judgeAlarmStop')) $('judgeAlarmStop').classList.remove('hidden');
-      const audio = judgeUnlockAudio();
-      audio.currentTime = 0;
-      const play = audio.play();
-      if(play && typeof play.then === 'function') play.then(()=>{
-        if($('judgeAlarmDiagnostic')) $('judgeAlarmDiagnostic').textContent='Audio playing. If silent, check device output and media volume.';
-      }).catch(e=>{
-        console.warn('Alarm playback blocked:', e);
-        if($('judgeAlarmDiagnostic')) $('judgeAlarmDiagnostic').textContent='Audio error: '+e.name+' — '+e.message;
-      });
-      if(navigator.vibrate) navigator.vibrate([400,100,400,100,400]);
+      judgeBeep(); if(navigator.vibrate)navigator.vibrate([250,120,250,120,400]); if('Notification' in window && Notification.permission==='granted')new Notification('Tournex — Round time expired',{body:'Round timer reached zero. Overtime is counting.'});setTimeout(judgeBeep,500);setTimeout(judgeBeep,1000);
+      judgeAlarmInterval=setInterval(()=>{judgeBeep();setTimeout(judgeBeep,500);setTimeout(judgeBeep,1000);},4000);
     }
     function judgeStopAlarm(){
-      judgeAlarmActive = false;
-      if(judgeAlarmAudio){judgeAlarmAudio.pause();judgeAlarmAudio.currentTime=0;}
+      judgeAlarmActive=false;
       if(judgeAlarmInterval){clearInterval(judgeAlarmInterval);judgeAlarmInterval=null;}
-      if(navigator.vibrate) navigator.vibrate(0);
       if($('judgeTimeUp')) $('judgeTimeUp').classList.add('hidden');
       if($('judgeAlarmStop')) $('judgeAlarmStop').classList.add('hidden');
     }
@@ -2631,9 +2662,8 @@
       }
       if(sec<=0 && judgeTimerState?.status==='running'){
         display.classList.remove('running');
-        if(!judgeAlarmActive && (judgeLastTimerSeconds===null || judgeLastTimerSeconds>0)) judgeStartAlarm();
+        if(judgeLastTimerSeconds>0 && sec<=0) judgeStartAlarm();
       }
-      if(judgeTimerState?.status!=='running' && judgeAlarmActive) judgeStopAlarm();
       judgeLastTimerSeconds=sec;
     }
     async function loadJudgeTimer(){
@@ -2660,7 +2690,7 @@
       if(!$('judgeLookupResults')) return; const q=String($('judgeLookup')?.value||'').trim().toLowerCase();
       if(!q){ $('judgeLookupResults').innerHTML='<div class="muted">Enter a table number or player name.</div>'; return; }
       const rows=judgeMatches().filter(p=>String(p.table_number||'').toLowerCase()===q || String(p.player1_name||'').toLowerCase().includes(q) || String(p.player2_name||'').toLowerCase().includes(q)).slice(0,12);
-      $('judgeLookupResults').innerHTML=rows.length?rows.map((p,i)=>'<button type="button" class="round-btn judge-match-pick" data-i="'+i+'" style="width:100%;text-align:left;margin-bottom:6px"><b>Table '+esc(p.table_number||'BYE')+'</b> — '+esc(p.player1_name)+' '+esc(judgeRecordFor(p.player1_name))+' vs. '+esc(p.player2_name||'BYE')+' '+(p.player2_name?esc(judgeRecordFor(p.player2_name)):'')+'</button>').join(''):'<div class="msg bad">No match found in Round '+judgeCurrentRound()+'.</div>';
+      $('judgeLookupResults').innerHTML=rows.length?rows.map((p,i)=>'<button type="button" class="round-btn judge-match-pick" data-i="'+i+'" style="width:100%;text-align:left;margin-bottom:6px"><b>Table '+esc(p.table_number||'BYE')+'</b> — '+esc(p.player1_name)+' vs. '+esc(p.player2_name||'BYE')+'</button>').join(''):'<div class="msg bad">No match found in Round '+judgeCurrentRound()+'.</div>';
       document.querySelectorAll('.judge-match-pick').forEach((b,i)=>b.onclick=()=>selectJudgeMatch(rows[i]));
     }
     function selectJudgeMatch(p){
@@ -3672,16 +3702,6 @@ $('addPlayer').onclick = async () => {
     if($('judgeTimerResume')) $('judgeTimerResume').onclick=()=>saveJudgeTimer('resume');
     if($('judgeTimerReset')) $('judgeTimerReset').onclick=()=>saveJudgeTimer('reset');
     if($('judgeAlarmStop')) $('judgeAlarmStop').onclick=judgeStopAlarm;
-    if($('judgeAlarmTest')) $('judgeAlarmTest').onclick=()=>{
-      judgeStopAlarm();
-      const status=$('judgeAlarmDiagnostic');
-      if(status) status.textContent='Testing alarm.wav and audio playback…';
-      judgeStartAlarm(); // Call play() directly within the user gesture.
-      fetch('alarm.wav',{cache:'no-store'}).then(r=>{
-        if(!r.ok) throw new Error('alarm.wav HTTP '+r.status);
-        if(status && status.textContent.startsWith('Testing')) status.textContent='alarm.wav found. Checking playback…';
-      }).catch(e=>{if(status) status.textContent='Audio file unavailable: '+e.message+' — upload alarm.wav beside index.html.';});
-    };
     if($('refreshJudgeLog')) $('refreshJudgeLog').onclick=loadJudgeLog;
     if($('judgeModalClose')) $('judgeModalClose').onclick=()=>$('judgeCallModal').classList.add('hidden');
     if($('judgeModalCancel')) $('judgeModalCancel').onclick=()=>$('judgeCallModal').classList.add('hidden');
