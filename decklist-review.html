@@ -13,90 +13,6 @@ pre{white-space:pre-wrap;background:#f7faf8;border:1px solid var(--line);border-
 .btn{border:0;border-radius:10px;padding:11px 14px;background:var(--green);color:#fff;font-weight:800;cursor:pointer}.btn.alt{background:#e7efe9;color:#174632}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.good{padding:10px;border-radius:10px;background:#e8f7ee;color:#17633b;font-weight:800}.warn{padding:10px;border-radius:10px;background:#fff4d9;color:#795b0a;font-weight:800}.bad{padding:10px;border-radius:10px;background:#fde8e8;color:#8a2525;font-weight:800}
 </style>
-
-
-
-
-<style id="tournex-theme-styles">
-html[data-tournex-theme="dark"]{
- color-scheme:dark;
- --bg:#080f0d;--card:#111d18;--ink:#eefbf1;--muted:#a3b8ab;
- --green:#7bed4b;--green2:#09160f;--lime:#a9fa52;--line:#31503a;--danger:#ff7777;
-}
-html[data-tournex-theme="dark"] body{background:#080f0d!important;color:#eefbf1!important}
-html[data-tournex-theme="dark"] .top,
-html[data-tournex-theme="dark"] header{background:#07140d!important;color:#f1fff4!important}
-html[data-tournex-theme="dark"] .card,
-html[data-tournex-theme="dark"] .round-workspace,
-html[data-tournex-theme="dark"] .pairing-card,
-html[data-tournex-theme="dark"] .pairing-player,
-html[data-tournex-theme="dark"] .player-search-box,
-html[data-tournex-theme="dark"] .added-player-search,
-html[data-tournex-theme="dark"] .player-search-prominent,
-html[data-tournex-theme="dark"] .tdf-import-card,
-html[data-tournex-theme="dark"] .store-pairings-share,
-html[data-tournex-theme="dark"] .public-link-box,
-html[data-tournex-theme="dark"] #editPlayerBox,
-html[data-tournex-theme="dark"] .store-public-url,
-html[data-tournex-theme="dark"] .mq-picker-btn,
-html[data-tournex-theme="dark"] .modal-content,
-html[data-tournex-theme="dark"] [class*="modal-box"]{
- background:#111d18!important;color:#eefbf1!important;border-color:#31503a!important;
-}
-html[data-tournex-theme="dark"] input,
-html[data-tournex-theme="dark"] select,
-html[data-tournex-theme="dark"] textarea{
- background:#14251c!important;color:#f1fff4!important;border-color:#416249!important;
-}
-html[data-tournex-theme="dark"] input::placeholder,
-html[data-tournex-theme="dark"] textarea::placeholder{color:#9eb1a3!important}
-html[data-tournex-theme="dark"] label,
-html[data-tournex-theme="dark"] .muted,
-html[data-tournex-theme="dark"] .deck,
-html[data-tournex-theme="dark"] .pairing-round-label,
-html[data-tournex-theme="dark"] .pairing-vs,
-html[data-tournex-theme="dark"] .player-search-title,
-html[data-tournex-theme="dark"] .added-players-head h3,
-html[data-tournex-theme="dark"] .store-public-url{color:#bbd3c2!important}
-html[data-tournex-theme="dark"] .tabs button:not(.on),
-html[data-tournex-theme="dark"] .btn.alt,
-html[data-tournex-theme="dark"] .round-btn:not(.on),
-html[data-tournex-theme="dark"] .player-search-clear{
- background:#23372a!important;color:#e4f8e7!important;border-color:#476448!important
-}
-html[data-tournex-theme="dark"] .btn:not(.danger),
-html[data-tournex-theme="dark"] .tabs button.on,
-html[data-tournex-theme="dark"] .round-btn.on{background:#92ef51;color:#0b190d}
-html[data-tournex-theme="dark"] .msg.good{background:#173d26!important;color:#aaff9a!important}
-html[data-tournex-theme="dark"] .msg.bad{background:#4a1b20!important;color:#ffb5b5!important}
-html[data-tournex-theme="dark"] .msg:not(.good):not(.bad){background:#453716!important;color:#ffe5a1!important}
-html[data-tournex-theme="dark"] .pill,
-html[data-tournex-theme="dark"] .pairing-table-pill{background:#26482d!important;color:#adff81!important}
-#tournex-theme-switch{position:fixed;right:14px;bottom:14px;z-index:99990;
- border:1px solid #64a875;border-radius:999px;padding:11px 15px;cursor:pointer;
- background:#0c2216;color:#c5ff9b;font:700 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
- box-shadow:0 5px 24px #0005}
-html[data-tournex-theme="light"] #tournex-theme-switch{background:#fff;color:#175b34;border-color:#b4d7c0}
-</style>
-<script id="tournex-theme-control">
-(function(){
- const KEY='tournex-theme';
- function apply(mode){
-   document.documentElement.dataset.tournexTheme=mode;
-   try{localStorage.setItem(KEY,mode)}catch(e){}
-   const btn=document.getElementById('tournex-theme-switch');
-   if(btn){btn.textContent=mode==='dark'?'☀ Light Mode':'☾ Dark Mode';btn.setAttribute('aria-label','Switch to '+(mode==='dark'?'light':'dark')+' mode')}
- }
- let saved='light';try{saved=localStorage.getItem(KEY)||'light'}catch(e){}
- apply(saved==='dark'?'dark':'light');
- document.addEventListener('DOMContentLoaded',()=>{
-   const btn=document.createElement('button');btn.id='tournex-theme-switch';btn.type='button';
-   btn.onclick=()=>apply(document.documentElement.dataset.tournexTheme==='dark'?'light':'dark');
-   document.body.appendChild(btn);apply(document.documentElement.dataset.tournexTheme);
- });
- window.addEventListener('storage',e=>{if(e.key===KEY)apply(e.newValue==='dark'?'dark':'light')});
-})();
-</script>
 </head>
 <body>
 <div class="wrap"><div class="card">
@@ -167,29 +83,6 @@ $('verifyBtn').onclick=async()=>{
   $('verifyBtn').disabled=true; $('verifyBtn').textContent='Verified';
 };
 load();
-</script>
-
-
-<script id="tournex-background-refresh">
-(function(){
- let busy=false;
- async function tick(){
-   if(busy||document.hidden||!navigator.onLine)return;
-   const active=document.activeElement;
-   if(active&&/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName))return;
-   busy=true;
-   try{
-     if(typeof refreshMatchStatus==='function')await refreshMatchStatus();
-     if(typeof refreshPublicTimer==='function')await refreshPublicTimer();
-     if(typeof load==='function'&&location.pathname.endsWith('/pairings.html'))await load();
-     if(typeof loadEntries==='function'&&typeof currentTournament!=='undefined'&&currentTournament)await loadEntries();
-     if(typeof loadJudgeTimer==='function'&&document.querySelector('#judgeTimer'))await loadJudgeTimer();
-   }catch(e){console.warn('Tournex background update:',e)}
-   finally{busy=false}
- }
- setInterval(tick,15000);
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
-})();
 </script>
 </body>
 </html>
