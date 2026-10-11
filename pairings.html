@@ -87,6 +87,9 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
 @media(max-width:480px){.searched-pairing{gap:7px;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}.searched-table{min-height:190px;padding:10px 4px;border-radius:15px}.searched-table .table-number{font-size:clamp(76px,22vw,115px)}.searched-pairing .player-bubble{padding:7px 4px}.searched-pairing .player-line{gap:4px}.searched-pairing .player-line>span:first-child{font-size:12px}.searched-pairing .record{font-size:11px}}
 </style>
 
+
+
+
 <style id="tournex-theme-styles">
 html[data-tournex-theme="dark"]{
  color-scheme:dark;
@@ -148,7 +151,6 @@ html[data-tournex-theme="dark"] .pairing-table-pill{background:#26482d!important
  box-shadow:0 5px 24px #0005}
 html[data-tournex-theme="light"] #tournex-theme-switch{background:#fff;color:#175b34;border-color:#b4d7c0}
 </style>
-
 <script id="tournex-theme-control">
 (function(){
  const KEY='tournex-theme';
@@ -486,6 +488,7 @@ const remembered=localStorage.getItem(PLAYER_ID_KEY)||restoreSearch();
 await load();
 if(remembered && activeView!=='standings'){$('search').value=remembered;setTimeout(doSearch,50);}
 </script>
+
 
 <script id="tournex-background-refresh">
 (function(){
