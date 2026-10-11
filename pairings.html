@@ -139,7 +139,30 @@ function reportMessage(m,ok=false){$('resultMsg').innerHTML='<div class="'+(ok?'
 function currentRound(){return activeView?.startsWith('round-')?Number(activeView.split('-')[1]):null;}
 function myPairing(){return pairings.find(p=>Number(p.round_number)===currentRound()&&(normalized(p.player1_name)===normalized(playerIdentity?.player_name)||normalized(p.player2_name)===normalized(playerIdentity?.player_name)));}
 function reportLockKey(){return 'tournex_v23_lock_'+tournament?.id+'_'+currentRound();}
-function refreshReportLock(){const locked=localStorage.getItem(reportLockKey());document.querySelectorAll('[data-result]').forEach(b=>b.disabled=!!locked);if(locked)reportMessage('Result submitted on this browser for this round. Awaiting the other player.',true);}
+function refreshReportLock(){
+ const locked=localStorage.getItem(reportLockKey());
+ document.querySelectorAll('[data-result]').forEach(b=>b.disabled=!!locked);
+ const pair=playerIdentity && myPairing();
+ const outcome=pair?confirmedResults[pair.id]:null;
+ if(outcome==='player1'||outcome==='player2'||outcome==='tie'){
+   reportMessage(outcome==='tie'?'Match confirmed: Tie.':'Match confirmed: Winner and loser recorded.',true);
+ }else if(outcome==='disputed'){
+   reportMessage('Results conflict. Please contact a judge.');
+ }else if(locked){
+   reportMessage('Result submitted on this browser for this round. Awaiting the other player.',true);
+ }else{
+   $('resultMsg').innerHTML='';
+ }
+}
+async function refreshMatchStatus(){
+ if(!tournament||!activeView||activeView==='standings')return;
+ const previous=JSON.stringify(confirmedResults);
+ await loadConfirmedResults();
+ if(JSON.stringify(confirmedResults)!==previous){render();if($('search').value.trim())doSearch();}
+ else refreshReportLock();
+}
+setInterval(refreshMatchStatus,5000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMatchStatus();});
 function recordFor(name){const e=entryRecords.find(x=>normalized(x.player_name)===normalized(name));return e?`${e.wins||0}-${e.losses||0}-${e.ties||0}`:'0-0-0';}
 
 function resultClass(p,side){
@@ -372,9 +395,9 @@ document.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click'
     const {data,error}=await sb.rpc('submit_pairing_result_v23',{p_pairing_id:pair.id,p_player_id:id,p_result:selectedResult,p_device_token:deviceToken()});
     if(error){reportMessage(error.message);return;}
     localStorage.setItem(reportLockKey(),id);
-    refreshReportLock();
     if(data?.status==='confirmed'){await loadConfirmedResults();render();doSearch();reportMessage('Both reports agree. Match confirmed.',true);}
-    else if(data?.status==='disputed')reportMessage('Reports conflict. Ask a judge to review.');
+    else if(data?.status==='disputed')reportMessage('Results conflict. Please contact a judge.');
+    else refreshReportLock();
   };
 }));
 const remembered=localStorage.getItem(PLAYER_ID_KEY)||restoreSearch();
