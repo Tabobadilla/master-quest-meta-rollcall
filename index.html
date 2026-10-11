@@ -96,11 +96,6 @@
     .owner-tools-centered{text-align:center}
     .owner-tools-centered .muted{text-align:center}
     .owner-tools-centered .owner-tools-actions{display:flex;justify-content:center;align-items:center;margin-top:12px}
-
-/* Confirmed match outcomes: colors do not change official TDF records. */
-.pairing-player.result-win{background:#d7f5e3!important;border:2px solid #19935b!important;color:#075b32!important}
-.pairing-player.result-loss{background:#ffe1e1!important;border:2px solid #d64d4d!important;color:#842424!important}
-.pairing-player.result-tie{background:#fff2b8!important;border:2px solid #cda42b!important;color:#755700!important}
 </style>
 
 <style>
@@ -1134,33 +1129,7 @@
         ' | Birthdate: '+esc(s.birthdate||'')+
         ' | Format: '+esc(s.format||'Standard')+
         ' | Total: '+esc(s.card_total??'');
-      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">'+meta+'</div><pre>'+safeText+'</pre>
-<script id="tournex-15s-sync">
-(()=>{
- let updating=false;
- async function sync(){
-  if(updating||document.hidden||!navigator.onLine||!currentTournament)return;
-  const focused=document.activeElement;
-  if(focused&&(focused.matches('input,textarea,select,[contenteditable="true"]')))return;
-  if(document.querySelector('input[type="file"]:not([value=""])')?.files?.length)return;
-  updating=true;
-  try{
-    await loadSavedPairings();
-    await renderPairings();
-    if(typeof loadJudgeTimer==='function')await loadJudgeTimer();
-    // Entry records and TDF standings refresh only when no form is being edited.
-    const {data,error}=await sb.from('entries').select('id,player_name,main_option_id,support_option_id,standing,wins,losses,ties,saved_player_id,deck_status,player_id,birth_year,birthdate,division,format,decklist_method,decklist_card_total,decklist_verified,decklist_received_at,check_in_status,checked_in_at,source_submission_id,owner_played_against,created_at').eq('tournament_id',currentTournament.id).order('created_at');
-    if(!error&&JSON.stringify(data||[])!==JSON.stringify(entries)){
-      entries=data||[];
-      if(typeof renderEntries==='function')renderEntries();
-    }
-  }catch(err){console.warn('Tournex background sync:',err)}finally{updating=false}
- }
- setInterval(sync,15000);
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
-})();
-</script>
-</body></html>');
+      w.document.write('<!doctype html><html><head><title>'+esc(s.trainer_name)+' Decklist</title><style>body{font-family:Arial,sans-serif;margin:28px}h1{margin-bottom:5px}.meta{margin-bottom:20px;color:#444}pre{white-space:pre-wrap;font:14px/1.45 monospace}</style></head><body><h1>'+esc(s.trainer_name)+'</h1><div class="meta">'+meta+'</div><pre>'+safeText+'</pre></body></html>');
       w.document.close();
       w.focus();
       setTimeout(()=>w.print(),250);
@@ -2448,21 +2417,8 @@
       (data||[]).forEach(p=>(savedPairingsByRound[p.round_number]??=[]).push(p));
     }
 
-    let judgeConfirmedOutcomes={};
-    async function loadJudgeConfirmedOutcomes(){
-      if(!currentTournament){judgeConfirmedOutcomes={};return;}
-      const {data,error}=await sb.rpc('public_pairing_outcomes_v23',{p_tournament_id:currentTournament.id});
-      if(error){console.warn('Unable to load confirmed pairing outcomes:',error);return;}
-      judgeConfirmedOutcomes=Object.fromEntries((data||[]).map(row=>[String(row.pairing_id),row.result]));
-    }
-    function judgePairResultClass(pair,side){
-      const outcome=judgeConfirmedOutcomes[String(pair.id)];
-      return outcome==='tie'?' result-tie':outcome===side?' result-win':
-        (outcome==='player1'||outcome==='player2')?' result-loss':'';
-    }
     async function renderPairings(){
       if(!$('roundButtons')) return;
-      await loadJudgeConfirmedOutcomes();
       const n=entries.length, rounds=swissRoundCount(n);
       $('pairingRoundSummary').textContent=n+' Players • '+rounds+' Swiss Round'+(rounds===1?'':'s');
       if(!rounds){
@@ -2494,7 +2450,7 @@
             '<div class="pairing-card-head"><span class="pairing-table-pill">'+(isBye?'BYE':'Table '+esc(p.table_number))+'</span><span class="pairing-round-label">Round '+esc(p.round_number)+'</span></div>'+
             (isBye
               ? '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div></div>'
-              : '<div class="pairing-players"><div class="pairing-player'+judgePairResultClass(p,'player1')+'">'+esc(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right'+judgePairResultClass(p,'player2')+'">'+esc(p.player2_name)+'</div></div>')+
+              : '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right">'+esc(p.player2_name)+'</div></div>')+
           '</div>';
         }).join('')+'</div>':'');
 
