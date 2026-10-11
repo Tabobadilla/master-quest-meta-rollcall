@@ -73,6 +73,11 @@
 .pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
 .pairing-player{min-width:0;padding:11px 12px;border-radius:13px;background:#fff;border:1px solid #e0ebe5;font-weight:800;color:#153d31;overflow-wrap:anywhere}
 .pairing-player.right{text-align:right}
+/* Judge pairing outcome colors; aligned with the public Pairings page. */
+.pairing-player.judge-outcome-win{background:#d7f5e3!important;border:2px solid #19935b!important;color:#075b32!important}
+.pairing-player.judge-outcome-loss{background:#ffe0e0!important;border:2px solid #ee4c52!important;color:#8a2929!important}
+.pairing-player.judge-outcome-tie{background:#fff2b8!important;border:2px solid #cda42b!important;color:#755700!important}
+
 .pairing-vs{font-size:12px;font-weight:900;color:#6b7f76;letter-spacing:.04em}
 .pairing-card.bye .pairing-players{grid-template-columns:1fr}
 .pairing-card.bye .pairing-player{text-align:center;background:#edf7f1}
@@ -2417,7 +2422,24 @@
       (data||[]).forEach(p=>(savedPairingsByRound[p.round_number]??=[]).push(p));
     }
 
+    // Confirmed player submissions are display-only; TDF standings stay authoritative.
+    let judgePairingOutcomes = {};
+    async function fetchJudgePairingOutcomes(){
+      if(!currentTournament){judgePairingOutcomes={};return;}
+      try{
+        const {data,error}=await sb.rpc('public_pairing_outcomes_v23',{p_tournament_id:currentTournament.id});
+        if(error){console.warn('Judge result colors unavailable:',error);judgePairingOutcomes={};return;}
+        judgePairingOutcomes=Object.fromEntries((data||[]).map(x=>[String(x.pairing_id),x.result]));
+      }catch(error){console.warn('Judge result colors unavailable:',error);judgePairingOutcomes={};}
+    }
+    function judgeOutcomeClass(pair,side){
+      const result=judgePairingOutcomes[String(pair.id)];
+      if(result==='tie')return ' judge-outcome-tie';
+      if(result==='player1'||result==='player2')return result===side?' judge-outcome-win':' judge-outcome-loss';
+      return '';
+    }
     async function renderPairings(){
+      await fetchJudgePairingOutcomes();
       if(!$('roundButtons')) return;
       const n=entries.length, rounds=swissRoundCount(n);
       $('pairingRoundSummary').textContent=n+' Players • '+rounds+' Swiss Round'+(rounds===1?'':'s');
@@ -2450,7 +2472,7 @@
             '<div class="pairing-card-head"><span class="pairing-table-pill">'+(isBye?'BYE':'Table '+esc(p.table_number))+'</span><span class="pairing-round-label">Round '+esc(p.round_number)+'</span></div>'+
             (isBye
               ? '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div></div>'
-              : '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right">'+esc(p.player2_name)+'</div></div>')+
+              : '<div class="pairing-players"><div class="pairing-player'+judgeOutcomeClass(p,'player1')+'">'+esc(p.player1_name)+'</div><div class="pairing-vs">VS</div><div class="pairing-player right'+judgeOutcomeClass(p,'player2')+'">'+esc(p.player2_name)+'</div></div>')+
           '</div>';
         }).join('')+'</div>':'');
 
