@@ -56,6 +56,9 @@ th{font-size:12px;color:#557064;text-transform:uppercase}
  .vs{text-align:center}
  .pairing-card{padding:13px}
 }
+.player-bubble.result-win{background:#d7f5e3!important;border:2px solid #19935b!important;color:#075b32}
+.player-bubble.result-loss{background:#ffe1e1!important;border:2px solid #d64d4d!important;color:#842424}
+.player-bubble.result-tie{background:#fff2b8!important;border:2px solid #cda42b!important;color:#755700}
 </style>
 </head>
 <body>
@@ -97,8 +100,9 @@ const ordinal=n=>{n=Number(n);let s=['th','st','nd','rd'],v=n%100;return n+(s[(v
 const SEARCH_KEY='tournex_saved_pairing_search';
 const PLAYER_ID_KEY='tournex_v23_player_id';
 const DEVICE_KEY='tournex_v23_device';
-let selectedResult=null;let playerIdentity=null;let entryRecords=[];let reports=[];
-const normalized=s=>String(s||'').trim().toLowerCase();
+let selectedResult=null;let playerIdentity=null;let entryRecords=[];let reports=[];let confirmedResults={};
+const cleanPairName=s=>String(s||'').replace(/\s*\d+-\d+-\d+\s*$/,'').trim();
+const normalized=s=>cleanPairName(s).toLowerCase();
 function deviceToken(){let v=localStorage.getItem(DEVICE_KEY);if(!v){v=crypto.randomUUID();localStorage.setItem(DEVICE_KEY,v)}return v;}
 function reportMessage(m,ok=false){$('resultMsg').innerHTML='<div class="'+(ok?'good':'bad')+'">'+esc(m)+'</div>';}
 function currentRound(){return activeView?.startsWith('round-')?Number(activeView.split('-')[1]):null;}
@@ -107,6 +111,15 @@ function reportLockKey(){return 'tournex_v23_lock_'+tournament?.id+'_'+currentRo
 function refreshReportLock(){const locked=localStorage.getItem(reportLockKey());document.querySelectorAll('[data-result]').forEach(b=>b.disabled=!!locked);if(locked)reportMessage('Result submitted on this browser for this round. Awaiting the other player.',true);}
 function recordFor(name){const e=entryRecords.find(x=>normalized(x.player_name)===normalized(name));return e?`${e.wins||0}-${e.losses||0}-${e.ties||0}`:'0-0-0';}
 
+function resultClass(p,side){
+ const r=confirmedResults[p.id];
+ return !r||r==='disputed'?'':r==='tie'?' result-tie':r===side?' result-win':' result-loss';
+}
+async function loadConfirmedResults(){
+ const {data,error}=await sb.rpc('public_pairing_outcomes_v23',{p_tournament_id:tournament.id});
+ if(error){console.warn(error);return;}
+ confirmedResults=Object.fromEntries((data||[]).map(x=>[x.pairing_id,x.result]));
+}
 function saveSearch(){const v=$('search').value.trim();if(v)localStorage.setItem(SEARCH_KEY,v);}
 function restoreSearch(){const v=localStorage.getItem(SEARCH_KEY)||'';$('search').value=v;return v;}
 
@@ -146,6 +159,7 @@ async function load(){
     .order('round_number').order('table_number');
 
   if(!pe) pairings=p||[];
+  await loadConfirmedResults();
 
   const {data:e,error:ee}=await sb.from('entries')
     .select('player_name,player_id,standing,wins,losses,ties,main_option_id,support_option_id')
@@ -221,8 +235,8 @@ function render(){
         <span class="round-label">Round ${round}</span>
       </div>
       ${isBye
-        ? `<div class="pairing-players"><div class="player-bubble"><div class="player-line"><span>${esc(p.player1_name)}</span><span class="record">${recordFor(p.player1_name)}</span></div></div></div>`
-        : `<div class="pairing-players"><div class="player-bubble"><div class="player-line"><span>${esc(p.player1_name)}</span><span class="record">${recordFor(p.player1_name)}</span></div></div><div class="vs">VS</div><div class="player-bubble right"><div class="player-line"><span>${esc(p.player2_name)}</span><span class="record">${recordFor(p.player2_name)}</span></div></div></div>`}
+        ? `<div class="pairing-players"><div class="player-bubble${resultClass(p,'player1')}"><div class="player-line"><span>${esc(cleanPairName(p.player1_name))}</span><span class="record">${recordFor(p.player1_name)}</span></div></div></div>`
+        : `<div class="pairing-players"><div class="player-bubble${resultClass(p,'player1')}"><div class="player-line"><span>${esc(cleanPairName(p.player1_name))}</span><span class="record">${recordFor(p.player1_name)}</span></div></div><div class="vs">VS</div><div class="player-bubble right${resultClass(p,'player2')}"><div class="player-line"><span>${esc(cleanPairName(p.player2_name))}</span><span class="record">${recordFor(p.player2_name)}</span></div></div></div>`}
     </div>`;
   }).join('')}</div>`;
   refreshReportLock();
@@ -258,9 +272,11 @@ function doSearch(){
   const tableText=card.querySelector('.table-bubble')?.textContent?.trim()||'Table';
   const isBye=tableText.toUpperCase()==='BYE';
   const tableNumber=isBye?'BYE':tableText.replace(/^Table\s*/i,'').trim();
-  const players=[...card.querySelectorAll('.player-bubble')].map(x=>x.textContent.trim());
-  const me=players.find(x=>x.toLowerCase().includes(q))||players[0]||raw;
-  const opponent=players.find(x=>x!==me)||'BYE';
+  // Read only the name span, not the bubble's combined name + record text.
+  const players=[...card.querySelectorAll('.player-bubble')].map(x=>x.querySelector('.player-line > span:first-child')?.textContent.trim()||'').filter(Boolean);
+  const matchedName=playerIdentity?.player_name && players.find(x=>normalized(x)===normalized(playerIdentity.player_name));
+  const me=cleanPairName(matchedName||players.find(x=>x.toLowerCase().includes(q))||players[0]||raw);
+  const opponent=cleanPairName(players.find(x=>cleanPairName(x)!==me)||'BYE');
 
   $('searchMsg').innerHTML=`<div class="player-table-result">
     <div class="player-table-label">${isBye?'YOUR PAIRING':'YOUR TABLE'}</div>
@@ -289,7 +305,8 @@ document.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click'
     if(error){reportMessage(error.message);return;}
     localStorage.setItem(reportLockKey(),id);
     refreshReportLock();
-    if(data?.status==='confirmed')reportMessage('Both reports agree. Match confirmed.',true);
+    if(data?.status==='confirmed'){await loadConfirmedResults();render();doSearch();reportMessage('Both reports agree. Match confirmed.',true);}
+    else if(data?.status==='disputed')reportMessage('Reports conflict. Ask a judge to review.');
   };
 }));
 const remembered=localStorage.getItem(PLAYER_ID_KEY)||restoreSearch();
