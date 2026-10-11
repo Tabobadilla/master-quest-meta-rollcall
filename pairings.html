@@ -267,7 +267,7 @@ async function load(){
   rounds=[...new Set(pairings.map(p=>Number(p.round_number)).filter(Boolean))].sort((a,b)=>a-b);
   buildTabs();
 
-  activeView=rounds.length ? 'round-'+(t.published_round && rounds.includes(Number(t.published_round)) ? Number(t.published_round) : rounds[rounds.length-1]) : 'standings';
+  activeView=(activeView && (activeView==='standings'||rounds.includes(Number(activeView.split('-')[1])))) ? activeView : (rounds.length ? 'round-'+(t.published_round && rounds.includes(Number(t.published_round)) ? Number(t.published_round) : rounds[rounds.length-1]) : 'standings');
   render();
 }
 
@@ -403,6 +403,22 @@ document.querySelectorAll('[data-result]').forEach(b=>b.addEventListener('click'
 const remembered=localStorage.getItem(PLAYER_ID_KEY)||restoreSearch();
 await load();
 if(remembered && activeView!=='standings'){$('search').value=remembered;setTimeout(doSearch,50);}
+</script>
+
+<script id="tournex-15s-sync">
+(()=>{
+ let updating=false;
+ async function sync(){
+  if(updating||document.hidden||!navigator.onLine)return;
+  const focused=document.activeElement;
+  if(focused&&focused.matches('input,textarea,select,[contenteditable="true"]'))return;
+  updating=true;
+  try{await load();if(document.getElementById('search')?.value.trim())doSearch()}
+  catch(e){console.warn('Tournex background sync:',e)}finally{updating=false}
+ }
+ setInterval(sync,15000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
+})();
 </script>
 </body>
 </html>
