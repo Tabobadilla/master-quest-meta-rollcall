@@ -2305,7 +2305,7 @@
     }
 
     function parseTdfExperimental(text){
-      const result={players:[],pairings:[],standings:[],round:null,recognized:false};
+      const result={players:[],pairings:[],standings:[],matchOutcomes:[],round:null,recognized:false};
       const raw=String(text||'').replace(/\u0000/g,' ');
       let doc=null;
       if(raw.includes('<')&&raw.includes('>')){
@@ -2348,6 +2348,7 @@
               if(p){
                 result.pairings.push({round:rn,table:table||null,player1:p.name,player1_id:id,player2:'BYE',player2_id:''});
                 if(outcome===5) ensureRecord(id).wins++;
+                result.matchOutcomes.push({round:rn,outcome,player1_id:id,player2_id:''});
               }
               return;
             }
@@ -2356,6 +2357,7 @@
             const a=playerMap.get(id1), b=playerMap.get(id2);
             if(a||b) result.pairings.push({round:rn,table:table||null,player1:a?.name||id1||'Unknown',player1_id:id1,player2:b?.name||id2||'Unknown',player2_id:id2});
             if(id1&&id2){
+              result.matchOutcomes.push({round:rn,outcome,player1_id:id1,player2_id:id2});
               const r1=ensureRecord(id1),r2=ensureRecord(id2);
               if(outcome===1){r1.wins++;r2.losses++;}
               else if(outcome===2){r2.wins++;r1.losses++;}
@@ -2510,15 +2512,39 @@
       };
       $('saveRoundTdf').onclick=async()=>{
         if(!preview?.pairings?.length||!currentTournament) return;
-        if(!confirm('Replace saved Round '+activePairingRound+' pairings with this TDF preview?')) return;
+        if(preview.round!==activePairingRound) return showMsg('roundTdfMsg','This TDF is for Round '+preview.round+', not Round '+activePairingRound+'.','bad');
+        if(!confirm('Replace saved Round '+activePairingRound+' pairings and synchronize records from earlier completed rounds?')) return;
         const del=await sb.from('pairings').delete().eq('tournament_id',currentTournament.id).eq('round_number',activePairingRound);
         if(del.error) return showMsg('roundTdfMsg',del.error.message,'bad');
         const rows=preview.pairings.map(p=>({tournament_id:currentTournament.id,round_number:activePairingRound,table_number:p.table,player1_name:p.player1,player2_name:p.player2==='BYE'?null:p.player2}));
         const ins=await sb.from('pairings').insert(rows);
         if(ins.error) return showMsg('roundTdfMsg',ins.error.message,'bad');
-        await sb.from('tournaments').update({published_round:activePairingRound}).eq('id',currentTournament.id);
-        showMsg('roundTdfMsg','Round '+activePairingRound+' saved and published.','good');
-        await loadSavedPairings(); await renderPairings();
+        // Rebuild cumulative records from completed matches before the round being published.
+        const totals=new Map();
+        const getTotal=id=>{if(!totals.has(id))totals.set(id,{wins:0,losses:0,ties:0});return totals.get(id);};
+        for(const m of preview.matchOutcomes||[]){
+          if(m.round>=activePairingRound)continue;
+          const a=getTotal(m.player1_id);
+          if(m.outcome===5&&!m.player2_id){a.wins++;continue;}
+          if(!m.player2_id)continue;
+          const b=getTotal(m.player2_id);
+          if(m.outcome===1){a.wins++;b.losses++;}
+          else if(m.outcome===2){b.wins++;a.losses++;}
+          else if(m.outcome===3){a.ties++;b.ties++;}
+        }
+        const unmatched=[];let updated=0;
+        for(const p of preview.players){
+          const match=tdfMatchEntry(p.player_id,p.name);
+          if(!match.entry){unmatched.push(p.name);continue;}
+          const rec=totals.get(p.player_id)||{wins:0,losses:0,ties:0};
+          const {error}=await sb.from('entries').update(rec).eq('id',match.entry.id).eq('tournament_id',currentTournament.id);
+          if(error)return showMsg('roundTdfMsg','Pairings saved, but record synchronization stopped: '+error.message,'bad');
+          updated++;
+        }
+        const pub=await sb.from('tournaments').update({published_round:activePairingRound}).eq('id',currentTournament.id);
+        if(pub.error)return showMsg('roundTdfMsg','Pairings and records saved, but publishing failed: '+pub.error.message,'bad');
+        showMsg('roundTdfMsg','Round '+activePairingRound+' published. Records synchronized for '+updated+' players.'+(unmatched.length?' Unmatched (not changed): '+unmatched.join(', '):''),unmatched.length?'bad':'good');
+        await loadEntries();
       };
     }
 
