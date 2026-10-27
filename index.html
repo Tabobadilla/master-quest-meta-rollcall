@@ -2676,7 +2676,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       $('tableDetailsModal').classList.remove('hidden');
       $('tableDetailsPlayers').querySelectorAll('.table-edit-player').forEach(b=>b.onclick=()=>{
         if(!['professor','owner'].includes(currentRole))return;
-        if(typeof window.__mqEditPlayer==='function')window.__mqEditPlayer(b.dataset.entry);
+        if(typeof window.__mqEditPlayer==='function'){ const entryId=b.dataset.entry; closeTableDetails(); window.__mqEditPlayer(entryId); }
       });
     }
     async function tableDetailsReviewCalls(){
@@ -2689,6 +2689,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       target.innerHTML='<h3>Judge Calls</h3>'+((data||[]).length?(data||[]).map(c=>'<div class="table-detail-person"><b>'+esc(c.call_type||'Judge Call')+'</b><div>'+esc(c.notes||'No notes')+'</div><div class="muted">'+esc(c.target_player_name||'Both players')+'</div></div>').join(''):'<div class="muted">No judge calls recorded for this table and round.</div>');
     }
     if($('tableDetailsClose'))$('tableDetailsClose').onclick=closeTableDetails;
+    document.addEventListener('keydown',e=>{if(e.key==='Escape' && !$('tableDetailsModal')?.classList.contains('hidden'))closeTableDetails();});
     if($('tableDetailsModal'))$('tableDetailsModal').addEventListener('click',e=>{if(e.target.id==='tableDetailsModal')closeTableDetails();});
     if($('tableDetailsJudgeLog'))$('tableDetailsJudgeLog').onclick=tableDetailsReviewCalls;
     if($('tableDetailsJudge'))$('tableDetailsJudge').onclick=()=>{
