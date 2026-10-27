@@ -145,6 +145,9 @@ body:has(#app:not(.hidden)) .wrap{max-width:1540px;padding:18px 22px}
  #professorSidebar.collapsed.mobile-open .prof-side-brand{font-size:20px;padding:12px}
 }
 
+
+/* Never reveal owner navigation or hub outside the verified owner role. */
+body:not([data-role="owner"]) [data-prof-master],body:not([data-role="owner"]) #adminNavCard,body:not([data-role="owner"]) #hubTab{display:none!important}
 </style>
 
 <style>
@@ -3701,6 +3704,7 @@ $('addPlayer').onclick = async () => {
     document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='judge') await loadJudgeTools(); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
     document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ 
+      if(currentRole!=='owner') return;
       document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); 
       b.classList.add('on'); 
       ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.add('hidden'); }); if($('addedPlayersCard')) $('addedPlayersCard').classList.add('hidden'); 
@@ -4150,7 +4154,7 @@ setTimeout(loadPickerOptions, 600);
    if(original){original.click();markActive(b.dataset.profTab,false);}
  }));
  sidebar.querySelectorAll('[data-prof-master]').forEach(b=>b.addEventListener('click',()=>{
-   if(b.classList.contains('hidden'))return;
+   if(b.classList.contains('hidden') || document.body.dataset.role!=='owner')return;
    const original=document.querySelector('#adminNavCard [data-admin-tab="'+b.dataset.profMaster+'"]');
    if(original){original.click();markActive(b.dataset.profMaster,true);}
  }));
