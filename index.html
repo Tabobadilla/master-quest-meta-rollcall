@@ -10,6 +10,8 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 :root{font-family:'IBM Plex Mono',monospace!important}
 html,body,button,input,select,textarea,option,table,th,td,pre,code,[contenteditable],*{font-family:'IBM Plex Mono',monospace!important}
+/* Restore the original system sans-serif font for the timer digits only. */
+#globalRoundTimerDisplay.judge-timer{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important}
 
     :root{--bg:#f3f6f4;--card:#fff;--ink:#143326;--muted:#667a70;--green:#0f7a49;--green2:#0a2f20;--lime:#b8d91e;--line:#d8e4dc;--danger:#8b2b2b}
     *{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
