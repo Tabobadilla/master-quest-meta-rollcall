@@ -108,6 +108,43 @@ html,body,button,input,select,textarea,option,table,th,td,pre,code,[contentedita
     .owner-tools-centered{text-align:center}
     .owner-tools-centered .muted{text-align:center}
     .owner-tools-centered .owner-tools-actions{display:flex;justify-content:center;align-items:center;margin-top:12px}
+
+/* Professor workspace — Concept 4. Layout only; existing app handlers remain authoritative. */
+body:has(#app:not(.hidden)) .wrap{max-width:1540px;padding:18px 22px}
+#app:not(.hidden){display:grid;grid-template-columns:224px minmax(0,1fr);align-items:start;gap:0 18px}
+#app:not(.hidden)>:not(#professorSidebar){grid-column:2;min-width:0}
+#professorSidebar{grid-column:1;grid-row:1 / span 40;position:sticky;top:112px;align-self:start;background:#09251e;color:#f3fbf6;border-radius:16px;padding:14px 10px;min-height:540px;box-shadow:0 10px 26px #09251e19}
+.prof-side-brand{padding:12px 12px 18px;font-size:20px;font-weight:800;letter-spacing:-.5px}
+.prof-side-brand small{display:block;font-size:11px;font-weight:500;color:#b2cfc1;margin-top:5px}
+.prof-nav-btn{width:100%;border:0;border-radius:9px;background:transparent;color:#e2f0e9;padding:13px 12px;margin:2px 0;text-align:left;font-size:13px;font-weight:600;display:flex;align-items:center;gap:12px;cursor:pointer}
+.prof-nav-btn .prof-icon{width:24px;display:inline-flex;justify-content:center;font-size:18px}
+.prof-nav-btn:hover,.prof-nav-btn.active{background:#0f7a49;color:white}
+.prof-nav-btn.master{color:#f8d77e;border:1px solid #a98537;margin-top:20px}
+.prof-nav-btn.master.active{background:#76591e;color:#fff}
+#professorSidebar.collapsed{width:66px}
+#app:not(.hidden):has(#professorSidebar.collapsed){grid-template-columns:66px minmax(0,1fr)}
+#professorSidebar.collapsed .prof-nav-label,#professorSidebar.collapsed .prof-side-brand small{display:none}
+#professorSidebar.collapsed .prof-side-brand{font-size:11px;padding:12px 2px}
+#professorSidebar.collapsed .prof-nav-btn{justify-content:center;padding:12px 4px}
+#professorSidebar.collapsed .prof-nav-btn .prof-icon{width:auto}
+.prof-sidebar-footer{margin-top:20px;border-top:1px solid #285043;padding-top:10px}
+#professorMobileToggle{display:none}
+#app:not(.hidden)>.card{box-shadow:0 3px 14px #173e2910}
+#app:not(.hidden)>section:has(>.tabs){display:none!important}
+#app:not(.hidden)>#adminNavCard{display:none!important}
+#app:not(.hidden)>#globalRoundTimerCard{border-left:4px solid #0f7a49}
+@media(max-width:850px){
+ body:has(#app:not(.hidden)) .wrap{padding:10px}
+ #app:not(.hidden){display:block}
+ #app:not(.hidden)>:not(#professorSidebar){width:100%}
+ #professorMobileToggle{display:flex;position:sticky;top:85px;z-index:19;align-items:center;gap:8px;background:#0a2f20;color:#fff;border:0;border-radius:9px;padding:11px 15px;margin-bottom:12px;cursor:pointer}
+ #professorSidebar,#professorSidebar.collapsed{display:none;position:fixed;top:0;left:0;bottom:0;z-index:101;width:min(300px,86vw);min-height:0;border-radius:0;overflow-y:auto;box-shadow:0 0 0 100vmax #0008}
+ #professorSidebar.mobile-open,#professorSidebar.collapsed.mobile-open{display:block}
+ #professorSidebar.collapsed.mobile-open .prof-nav-label,#professorSidebar.collapsed.mobile-open .prof-side-brand small{display:inline}
+ #professorSidebar.collapsed.mobile-open .prof-nav-btn{justify-content:flex-start;padding:13px 12px}
+ #professorSidebar.collapsed.mobile-open .prof-side-brand{font-size:20px;padding:12px}
+}
+
 </style>
 
 <style>
@@ -377,6 +414,19 @@ html,body,button,input,select,textarea,option,table,th,td,pre,code,[contentedita
     </section>
 
     <main id="app" class="hidden">
+      <button id="professorMobileToggle" type="button" aria-label="Open professor navigation">☰ &nbsp; Professor Menu</button>
+      <aside id="professorSidebar" aria-label="Professor navigation">
+        <div class="prof-side-brand">◉ TOURNEX<small>PROFESSOR WORKSPACE</small></div>
+        <nav>
+          <button class="prof-nav-btn active" type="button" data-prof-tab="entry"><span class="prof-icon">⌂</span><span class="prof-nav-label">Dashboard / Players</span></button>
+          <button class="prof-nav-btn" type="button" data-prof-tab="pairings"><span class="prof-icon">⚔</span><span class="prof-nav-label">Pairings</span></button>
+          <button class="prof-nav-btn" type="button" data-prof-tab="standings"><span class="prof-icon">▥</span><span class="prof-nav-label">Standings</span></button>
+          <button class="prof-nav-btn" type="button" data-prof-tab="judge"><span class="prof-icon">⚑</span><span class="prof-nav-label">Judge Tools &amp; Timer</span></button>
+          <button class="prof-nav-btn owner-only hidden" type="button" data-prof-tab="discord"><span class="prof-icon">☷</span><span class="prof-nav-label">Discord Output</span></button>
+          <button class="prof-nav-btn master owner-only hidden" type="button" data-prof-master="hub"><span class="prof-icon">♛</span><span class="prof-nav-label">Master Access</span></button>
+        </nav>
+        <div class="prof-sidebar-footer"><button class="prof-nav-btn" id="profSidebarCollapse" type="button"><span class="prof-icon">⇤</span><span class="prof-nav-label">Collapse sidebar</span></button></div>
+      </aside>
       <section class="card">
         <div class="head">
           <div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div>
@@ -4081,6 +4131,38 @@ if (syncBtn){
 }
 
 setTimeout(loadPickerOptions, 600);
+</script>
+
+<script>
+/* Professor sidebar: delegates to the original, tested tab handlers. */
+(function(){
+ const sidebar=document.getElementById('professorSidebar');
+ const mobile=document.getElementById('professorMobileToggle');
+ const collapse=document.getElementById('profSidebarCollapse');
+ if(!sidebar)return;
+ function markActive(key,master){
+   sidebar.querySelectorAll('.prof-nav-btn').forEach(b=>b.classList.toggle('active',master?b.dataset.profMaster===key:b.dataset.profTab===key));
+   sidebar.classList.remove('mobile-open');
+   if(mobile)mobile.setAttribute('aria-expanded','false');
+ }
+ sidebar.querySelectorAll('[data-prof-tab]').forEach(b=>b.addEventListener('click',()=>{
+   const original=document.querySelector('.tabs [data-tab="'+b.dataset.profTab+'"]');
+   if(original){original.click();markActive(b.dataset.profTab,false);}
+ }));
+ sidebar.querySelectorAll('[data-prof-master]').forEach(b=>b.addEventListener('click',()=>{
+   if(b.classList.contains('hidden'))return;
+   const original=document.querySelector('#adminNavCard [data-admin-tab="'+b.dataset.profMaster+'"]');
+   if(original){original.click();markActive(b.dataset.profMaster,true);}
+ }));
+ if(mobile)mobile.addEventListener('click',()=>{
+   const opened=sidebar.classList.toggle('mobile-open');
+   mobile.setAttribute('aria-expanded',String(opened));
+ });
+ if(collapse)collapse.addEventListener('click',()=>sidebar.classList.toggle('collapsed'));
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')sidebar.classList.remove('mobile-open');});
+ document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.addEventListener('click',()=>markActive(b.dataset.tab,false)));
+ document.querySelectorAll('#adminNavCard [data-admin-tab]').forEach(b=>b.addEventListener('click',()=>markActive(b.dataset.adminTab,true)));
+})();
 </script>
 </body>
 </html>
