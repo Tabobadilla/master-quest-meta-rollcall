@@ -937,7 +937,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       <div id="libraryList" style="margin-top:14px"></div>
     </div>
 
-    <div id="deckOptionsMaster" class="hub-section">
+    <div id="deckOptionsMaster" class="hub-section"><h3>Pokémon Sprite & Emoji Gallery</h3><p class="muted">Manage the Pokémon shown in player dropdowns. Removing an option hides it from future selections but preserves existing player assignments.</p><input id="mqSpriteSearch" placeholder="Search Pokémon..." style="width:100%;margin:8px 0"><button id="mqSpriteRefresh" class="btn alt" type="button">Refresh Gallery</button><div id="mqSpriteGallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:14px 0"></div><div id="mqSpriteStatus"></div><hr>
       <h3 style="margin-top:0">Deck / Card Options</h3>
       <div class="muted">Add new options or edit an existing Pokémon/card's Discord emoji code and Sprite URL.</div>
 
@@ -2347,7 +2347,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       renderOptions();
       populateOptionEditor();
 
-      if(currentRole==='owner') fillLibraryOptionMenus();
+      if(currentRole==='owner'){fillLibraryOptionMenus();mqLoadSpriteGallery();}
     }
 
     function renderOptions(){ $('mainOption').innerHTML='<option value="">Choose Main...</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); $('supportOption').innerHTML='<option value="">None</option>'+options.map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join(''); }
@@ -3802,6 +3802,46 @@ $('addPlayer').onclick = async () => {
 
     $('copyDiscord').onclick = async () => { await navigator.clipboard.writeText($('discordText').textContent); $('copyDiscord').textContent='Copied!'; setTimeout(()=>$('copyDiscord').textContent='Copy Discord Code',1000); };
 
+    let mqSpriteRows=[];
+    async function mqLoadSpriteGallery(){
+      if(currentRole!=='owner')return;
+      const {data,error}=await sb.from('deck_options').select('id,name,discord_emoji_code,sprite_url,active').order('name');
+      if(error)return showMsg('mqSpriteStatus',error.message,'bad');
+      mqSpriteRows=data||[];
+      mqRenderSpriteGallery();
+    }
+    function mqRenderSpriteGallery(){
+      const q=String($('mqSpriteSearch')?.value||'').toLowerCase();
+      const rows=mqSpriteRows.filter(o=>o.name.toLowerCase().includes(q));
+      $('mqSpriteGallery').innerHTML=rows.map(o=>{
+        const url=coreSpriteUrl(o);
+        return '<div style="border:1px solid #dce7e0;border-radius:12px;padding:12px;text-align:center;opacity:'+(o.active?'1':'.5')+'">'+
+        '<img src="'+esc(url)+'" alt="'+esc(o.name)+'" loading="lazy" style="width:72px;height:72px;object-fit:contain" onerror="this.style.visibility=\'hidden\'">'+
+        '<div style="font-weight:800;margin:7px 0">'+esc(o.name)+'</div><div class="muted">'+(o.active?'Active':'Hidden')+'</div>'+
+        '<div style="display:flex;gap:6px;justify-content:center;margin-top:8px"><button class="btn alt" style="width:auto" data-mq-edit="'+o.id+'">Edit</button><button class="btn '+(o.active?'danger':'alt')+'" style="width:auto" data-mq-toggle="'+o.id+'">'+(o.active?'Remove':'Restore')+'</button></div></div>';
+      }).join('')||'<p class="muted">No matches.</p>';
+      $('mqSpriteGallery').querySelectorAll('[data-mq-edit]').forEach(b=>b.onclick=()=>{
+        const o=mqSpriteRows.find(x=>x.id===b.dataset.mqEdit);
+        if(!o)return;
+        $('optionName').value=o.name;
+        $('emojiCode').value=o.discord_emoji_code||'';
+        $('spriteUrl').value=o.sprite_url||'';
+        $('addOption').dataset.editId=o.id;
+        $('addOption').textContent='Save Changes';
+        refreshSpritePreview();
+        $('optionName').scrollIntoView({behavior:'smooth',block:'center'});
+      });
+      $('mqSpriteGallery').querySelectorAll('[data-mq-toggle]').forEach(b=>b.onclick=async()=>{
+        const o=mqSpriteRows.find(x=>x.id===b.dataset.mqToggle);
+        if(!o||!confirm((o.active?'Remove ':'Restore ')+o.name+'?'))return;
+        b.disabled=true;
+        const {error}=await sb.from('deck_options').update({active:!o.active}).eq('id',o.id);
+        if(error)showMsg('mqSpriteStatus',error.message,'bad');
+        else{await loadOptions();await mqLoadSpriteGallery();window.dispatchEvent(new Event('mq-pokemon-library-updated'));showMsg('mqSpriteStatus',o.name+(o.active?' hidden from new selections.':' restored.'),'good');}
+      });
+    }
+    if($('mqSpriteSearch'))$('mqSpriteSearch').oninput=mqRenderSpriteGallery;
+    if($('mqSpriteRefresh'))$('mqSpriteRefresh').onclick=mqLoadSpriteGallery;
     function populateOptionEditor(){
       if(!$('editOptionSelect')) return;
       $('editOptionSelect').innerHTML='<option value="">Choose existing option...</option>'+
