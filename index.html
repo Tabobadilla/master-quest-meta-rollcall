@@ -3148,7 +3148,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       $('epMain').value=e.main_option_id||''; $('epSupport').value=e.support_option_id||'';
       $('epMsg').textContent=''; $('editPlayerModal').classList.add('open'); document.body.style.overflow='hidden';
       // Use the exact same searchable sprite picker as Add Player.
-      window.pickerOptions = options.map(o=>({id:String(o.id),name:o.name,sprite_url:o.sprite_url||null,discord_emoji:o.discord_emoji||null,active:o.active}));
+      window.pickerOptions = options.map(o=>({id:String(o.id),name:o.name,sprite_url:o.sprite_url||null,discord_emoji_code:o.discord_emoji_code||null,active:o.active}));
       if(window.buildEditPickers) window.buildEditPickers();
     };
     $('editPlayerModal').addEventListener('click',e=>{if(e.target===$('editPlayerModal'))window.__mqCloseEditPlayer();});
@@ -3775,6 +3775,7 @@ $('addPlayer').onclick = async () => {
       try{
         const result=await discordCall({action:'sync_emojis'});
         await loadOptions();
+        window.dispatchEvent(new Event('mq-pokemon-library-updated'));
         showMsg('discordPublishMsg','Pokémon sync finished: '+result.created+' added, '+result.updated+' updated, '+result.unchanged+' unchanged.'+(result.failures?.length?' Errors: '+result.failures.slice(0,5).join('; '):''),result.failures?.length?'bad':'good');
       }catch(err){showMsg('discordPublishMsg',err.message,'bad');}
       finally{btn.disabled=false;btn.textContent='Sync Discord Pokémon to Tournex';}
@@ -3998,6 +3999,7 @@ function fallbackSprite(name){
 }
 
 function spriteFor(opt){
+  const code=String(opt.discord_emoji_code||'');const match=code.match(/<a?:[^:>]+:(\d+)>/);if(match)return 'https://cdn.discordapp.com/emojis/'+match[1]+'.png?size=64';
   return opt.sprite_url || fallbackSprite(opt.name);
 }
 
@@ -4013,7 +4015,9 @@ async function loadPickerOptions(){
     .order('name');
   if (error) return;
   pickerOptions = data || [];
+  window.pickerOptions = pickerOptions;
   buildPickers();
+  if(document.getElementById('editPlayerModal')?.classList.contains('open'))buildEditPickers();
   setTimeout(decorateRosterSprites, 0);
 }
 
@@ -4287,6 +4291,7 @@ if (syncBtn){
   });
 }
 
+window.addEventListener('mq-pokemon-library-updated',loadPickerOptions);
 setTimeout(loadPickerOptions, 600);
 </script>
 
