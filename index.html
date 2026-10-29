@@ -457,7 +457,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           <button class="prof-nav-btn" type="button" data-prof-tab="pairings"><span class="prof-icon">⚔</span><span class="prof-nav-label">Pairings</span></button>
           <button class="prof-nav-btn" type="button" data-prof-tab="standings"><span class="prof-icon">▥</span><span class="prof-nav-label">Standings</span></button>
           <button class="prof-nav-btn" type="button" data-prof-tab="judge"><span class="prof-icon">⚑</span><span class="prof-nav-label">Judge Tools &amp; Timer</span></button>
-          <button class="prof-nav-btn owner-only hidden" type="button" data-prof-tab="discord"><span class="prof-icon">☷</span><span class="prof-nav-label">Discord Output</span></button>
+          <button class="prof-nav-btn hidden" type="button" data-prof-tab="discord"><span class="prof-icon">☷</span><span class="prof-nav-label">Discord Output</span></button>
           <button class="prof-nav-btn master owner-only hidden" type="button" data-prof-master="hub"><span class="prof-icon">♛</span><span class="prof-nav-label">Master Access</span></button>
         </nav>
         <div class="prof-sidebar-footer"><button class="prof-nav-btn" id="profSidebarCollapse" type="button"><span class="prof-icon">⇤</span><span class="prof-nav-label">Collapse sidebar</span></button></div>
@@ -696,10 +696,14 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       </section>
 
       <div id="judgeCallModal" class="judge-modal hidden"><div class="judge-modal-box"><div class="head"><div><h3 id="judgeModalTitle" style="margin:0">Judge Call</h3><div id="judgeModalMatch" class="muted"></div></div><button id="judgeModalClose" class="btn alt" type="button" style="width:auto">×</button></div><div class="field"><label>Applies To</label><select id="judgeTarget"></select></div><div class="field"><label>Penalty / Ruling Type</label><input id="judgePenaltyType" placeholder="Optional"></div><div class="field"><label>Rule Reference</label><input id="judgeRuleReference" placeholder="Optional rule or policy reference"></div><div class="field"><label>Notes</label><input id="judgeNotes" placeholder="What happened / ruling given"></div><div class="field"><label>Time Extension (minutes)</label><input id="judgeExtension" type="number" min="0" max="120" value="0"></div><div id="judgeCallMsg"></div><div class="judge-modal-actions"><button id="judgeModalCancel" class="btn alt" type="button">Cancel</button><button id="judgeSaveCall" class="btn" type="button">Save Judge Call</button></div></div></div>
-      <section id="discordTab" class="card hidden owner-only">
-        <h3 style="margin-top:0">Discord Output</h3><div class="muted" style="margin-bottom:10px">Placement + player name + Main/Support Discord emoji codes.</div>
-        <div id="discordText" class="discord">Complete standings to generate output.</div>
-        <button id="copyDiscord" class="btn full" style="margin-top:10px">Copy Discord Code</button>
+      <section id="discordTab" class="card hidden">
+        <h3 style="margin-top:0">Discord Output</h3>
+        <div class="muted" style="margin-bottom:12px">Manage your store's default banner and a separate banner for each tournament. Publish final standings directly to Discord.</div>
+        <div class="field"><label>Store Default Banner (PNG, JPG or WebP, max 5 MB)</label><input id="discordStoreFile" type="file" accept="image/png,image/jpeg,image/webp"><img id="discordStoreImage" alt="Store default banner" style="display:none;max-width:100%;max-height:180px;object-fit:contain;border-radius:8px"><button id="discordStoreClear" class="btn alt" type="button">Remove Store Default Banner</button></div>
+        <div class="field"><label>Tournament Banner Override</label><input id="discordEventFile" type="file" accept="image/png,image/jpeg,image/webp"><img id="discordEventImage" alt="Tournament banner" style="display:none;max-width:100%;max-height:180px;object-fit:contain;border-radius:8px"><button id="discordEventClear" class="btn alt" type="button">Use Store Default Banner</button></div>
+        <div class="field"><label>Discord Post Preview</label><img id="discordBannerPreview" alt="Effective Discord banner" style="display:none;max-width:100%;max-height:260px;object-fit:contain;border-radius:8px"><div id="discordText" class="discord" style="white-space:pre-wrap">Complete standings to generate output.</div></div>
+        <div id="discordPublishMsg" aria-live="polite"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button id="discordRefresh" class="btn alt" type="button">Refresh Preview</button><button id="copyDiscord" class="btn alt" type="button">Copy Discord Code</button><button id="discordPublish" class="btn" type="button">Publish to Discord</button></div>
       </section>
 
 
@@ -3738,6 +3742,41 @@ $('addPlayer').onclick = async () => {
     if($('scanPlayerNames')) $('scanPlayerNames').onclick=()=>scanStandingsPhoto('players');
     if($('scanFinalStandings')) $('scanFinalStandings').onclick=()=>scanStandingsPhoto('standings');
 
+    async function discordCall(body){
+      const {data:{session}}=await sb.auth.getSession();
+      if(!session)throw Error('Sign in again.');
+      const res=await fetch(SUPABASE_URL+'/functions/v1/discord-standings',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_KEY},body:JSON.stringify({tournament_id:currentTournament?.id,...body})});
+      const json=await res.json();if(!res.ok)throw Error(json.error||'Discord request failed');return json;
+    }
+    function discordImage(id,url){const el=$(id);if(!el)return;el.style.display=url?'block':'none';if(url)el.src=url;else el.removeAttribute('src');}
+    async function discordRefresh(){
+      if(!currentTournament)return;
+      try{
+        const settings=await discordCall({action:'settings'});
+        discordImage('discordStoreImage',settings.store_banner_url);
+        discordImage('discordEventImage',settings.tournament_banner_url);
+        discordImage('discordBannerPreview',settings.effective_banner_url);
+        const result=await discordCall({action:'preview'});
+        $('discordText').textContent=result.preview||'No standings';
+        if(result.unmatched_emojis?.length)showMsg('discordPublishMsg','Missing application emojis: '+result.unmatched_emojis.join(', '),'bad');
+        else showMsg('discordPublishMsg','','');
+      }catch(err){showMsg('discordPublishMsg',err.message,'bad');}
+    }
+    async function discordUpload(scope,file){
+      if(!currentTournament)return showMsg('discordPublishMsg','Select a tournament first.','bad');
+      if(!file)return;
+      if(file.size>5242880)return showMsg('discordPublishMsg','Image must be under 5 MB.','bad');
+      if(!['image/png','image/jpeg','image/webp'].includes(file.type))return showMsg('discordPublishMsg','Use PNG, JPG or WebP.','bad');
+      const image=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
+      try{showMsg('discordPublishMsg','Uploading image...');await discordCall({action:'upload_banner',scope,mime:file.type,image});await discordRefresh();showMsg('discordPublishMsg','Banner saved.','good');}catch(err){showMsg('discordPublishMsg',err.message,'bad');}
+    }
+    if($('discordStoreFile'))$('discordStoreFile').onchange=e=>discordUpload('store',e.target.files?.[0]);
+    if($('discordEventFile'))$('discordEventFile').onchange=e=>discordUpload('tournament',e.target.files?.[0]);
+    if($('discordStoreClear'))$('discordStoreClear').onclick=async()=>{if(!confirm('Remove this store default banner?'))return;try{await discordCall({action:'clear_banner',scope:'store'});await discordRefresh();}catch(e){showMsg('discordPublishMsg',e.message,'bad');}};
+    if($('discordEventClear'))$('discordEventClear').onclick=async()=>{try{await discordCall({action:'clear_banner',scope:'tournament'});await discordRefresh();}catch(e){showMsg('discordPublishMsg',e.message,'bad');}};
+    if($('discordRefresh'))$('discordRefresh').onclick=discordRefresh;
+    if($('discordPublish'))$('discordPublish').onclick=async()=>{if(!confirm('Publish final standings to the configured Discord channel?'))return;try{const result=await discordCall({action:'publish'});showMsg('discordPublishMsg','Published to Discord. Message ID: '+result.message_id,'good');}catch(e){showMsg('discordPublishMsg',e.message,'bad');}};
+    if($('discordTab')){const observer=new MutationObserver(()=>{if(!$('discordTab').classList.contains('hidden'))discordRefresh();});observer.observe($('discordTab'),{attributes:true,attributeFilter:['class']});}
     function renderDiscord(){ const sorted=[...entries].filter(e=>e.standing).sort((a,b)=>a.standing-b.standing); $('discordText').textContent = sorted.length ? sorted.map(e=>{ const m=opt(e.main_option_id),s=opt(e.support_option_id); const place=e.standing===1?'🥇':e.standing===2?'🥈':e.standing===3?'🥉':e.standing+'.'; return place+' **'+e.player_name+'**'+(m?.discord_emoji_code?' '+m.discord_emoji_code:'')+(s?.discord_emoji_code?' '+s.discord_emoji_code:''); }).join('\n') : 'Complete standings to generate output.'; }
     if($('playerName')){
       let playerSearchTimer=null;
