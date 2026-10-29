@@ -3746,7 +3746,7 @@ $('addPlayer').onclick = async () => {
       const {data:{session}}=await sb.auth.getSession();
       if(!session)throw Error('Sign in again.');
       const res=await fetch(SUPABASE_URL+'/functions/v1/discord-standings',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_KEY},body:JSON.stringify({tournament_id:currentTournament?.id,...body})});
-      const json=await res.json();if(!res.ok)throw Error(json.error||'Discord request failed');return json;
+      const json=await res.json();if(!res.ok)throw Error((json.error||'Discord request failed')+(json.status?' [HTTP '+json.status+']':'')+(json.details?' — '+(typeof json.details==='string'?json.details:JSON.stringify(json.details)):''));return json;
     }
     function discordImage(id,url){const el=$(id);if(!el)return;el.style.display=url?'block':'none';if(url)el.src=url;else el.removeAttribute('src');}
     async function discordRefresh(){
