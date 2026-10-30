@@ -1492,6 +1492,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
 
     let hubTournaments = [];
     let hubEntries = [];
+    let historicalDeckNames=new Map();
     let hubSelectedTournament = null;
 
     function hubDateIncluded(dateStr){
@@ -1731,6 +1732,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       renderHubMeta(tours,rows);
     }
 
+    function historicalDeckName(id){return opt(id)?.name||historicalDeckNames.get(String(id))||'Unknown';}
     function renderHubMeta(tours,rows){
       if(!$('hubMetaList')) return;
 
@@ -1761,10 +1763,10 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
         const supports=[...g.supports.entries()]
           .sort((a,b)=>b[1]-a[1])
           .slice(0,4)
-          .map(([sid,c])=>(opt(sid)?.name||'Unknown')+' '+c)
+          .map(([sid,c])=>historicalDeckName(sid)+' '+c)
           .join(' • ');
         return '<div class="hub-meta-row">'+
-          '<div><div class="hub-meta-name">'+(i+1)+'. '+esc(main?.name||'Unknown')+'</div>'+
+          '<div><div class="hub-meta-name">'+(i+1)+'. '+esc(historicalDeckName(g.id))+'</div>'+
           '<div class="hub-meta-supports">'+(supports?esc(supports):'No tracked support/variant')+'</div></div>'+
           '<div><b>'+g.count+'</b> entries</div>'+
           '<div><b>'+pct+'%</b></div>'+
@@ -1849,6 +1851,15 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
 
       hubTournaments=tours||[];
       hubEntries=allEntries||[];
+      // Resolve historical deck IDs independently of the active registration catalog.
+      // Never reactivate inactive options just to display old tournament results.
+      const usedIds=[...new Set(hubEntries.flatMap(e=>[e.main_option_id,e.support_option_id]).filter(Boolean).map(String))];
+      const missingIds=usedIds.filter(id=>!opt(id));
+      if(missingIds.length){
+        const {data:archived,error:archiveError}=await sb.from('deck_options').select('id,name').in('id',missingIds);
+        if(!archiveError)(archived||[]).forEach(d=>historicalDeckNames.set(String(d.id),d.name));
+        else console.warn('Historical deck name lookup:',archiveError.message);
+      }
       renderMasterHub();
     }
 
