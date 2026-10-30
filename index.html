@@ -653,7 +653,6 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           <div><h3 style="margin:0">Pairings</h3><div class="muted">Each Swiss round has its own TOM TDF upload and saved pairings.</div></div>
           <span id="pairingRoundSummary" class="pill">0 Players</span>
         </div>
-        <div id="pairingsFormatControl" class="field staff-only hidden"><label for="pairingsFormatSelect">Tournament Format</label><select id="pairingsFormatSelect"><option value="swiss">Swiss Only (No Top Cut)</option><option value="topcut">Swiss + Top Cut</option></select><div class="muted">Format can be corrected after Round 1. The original player count stays locked.</div></div>
         <div id="roundButtons" class="round-buttons"></div>
         <div id="roundWorkspace" class="round-workspace">
           <div class="muted">Select a round above.</div>
@@ -2590,14 +2589,6 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       await fetchJudgePairingOutcomes();
       if(!$('roundButtons')) return;
       updateRoundFormatControl();
-      if($('pairingsFormatControl')){
-        $('pairingsFormatControl').classList.toggle('hidden',!currentTournament||!['owner','professor'].includes(currentRole));
-        $('pairingsFormatSelect').value=getRoundFormat();
-        $('pairingsFormatSelect').onchange=()=>{
-          $('roundFormatSelect').value=$('pairingsFormatSelect').value;
-          $('roundFormatSelect').onchange();
-        };
-      }
       const n=entries.length, lockedCount=firstRoundPlayerCount();
       const rounds=swissRoundCount(lockedCount||n,getRoundFormat()==='topcut');
       $('pairingRoundSummary').textContent=n+' Registered • '+(lockedCount?lockedCount+' at Round 1 • ':'')+rounds+' Swiss Round'+(rounds===1?'':'s')+(lockedCount?' • Locked':'');
@@ -3130,13 +3121,18 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       const store=availableStores[Number(picked)-1];
       if(!store) return alert('Invalid store selection.');
 
+      const existingFormat=(()=>{try{return localStorage.getItem('tournex-round-format-'+id)||(/league cup/i.test(tour.event_name||'')?'topcut':'swiss');}catch(e){return 'swiss';}})();
+      const formatChoice=prompt('Tournament Format:\\n1. Swiss Only (No Top Cut)\\n2. Swiss + Top Cut',existingFormat==='topcut'?'2':'1');
+      if(formatChoice===null)return;
+      if(!['1','2'].includes(formatChoice.trim()))return alert('Choose 1 or 2 for tournament format.');
       const {error}=await sb.rpc('owner_update_tournament',{
         p_tournament_id:id,
         p_event_name:eventName.trim(),
         p_store_id:store.id
       });
       if(error) return alert(error.message);
-
+      try{localStorage.setItem('tournex-round-format-'+id,formatChoice.trim()==='2'?'topcut':'swiss');}catch(e){}
+      if(currentTournament?.id===id){currentTournament.event_name=eventName.trim();await renderPairings();}
       await loadTournaments();
       await loadMasterHub();
     }
