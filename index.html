@@ -83,6 +83,7 @@ html,body,button,input,select,textarea,option,table,th,td,pre,code,[contentedita
 .pairing-round-label{font-size:12px;font-weight:800;color:#60786e}
 .pairing-players{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
 .pairing-player{min-width:0;padding:11px 12px;border-radius:13px;background:#fff;border:1px solid #e0ebe5;font-weight:800;color:#153d31;overflow-wrap:anywhere}
+.pairing-player-line{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.pairing-player-record{white-space:nowrap;font-size:.82em;color:#526c60}
 .pairing-player.right{text-align:right}
 /* Judge pairing outcome colors; aligned with the public Pairings page. */
 .pairing-player.judge-outcome-win{background:#d7f5e3!important;border:2px solid #19935b!important;color:#075b32!important}
@@ -2613,8 +2614,8 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           return '<div class="pairing-card '+(isBye?'bye':'')+'" role="button" tabindex="0" aria-label="Open Table '+esc(p.table_number||'BYE')+' details" data-table-detail="'+saved.indexOf(p)+'">'+
             '<div class="pairing-card-head"><span class="pairing-table-pill">'+(isBye?'BYE':'Table '+esc(p.table_number))+'</span><span class="pairing-round-label">Round '+esc(p.round_number)+'</span></div>'+
             (isBye
-              ? '<div class="pairing-players"><div class="pairing-player">'+esc(p.player1_name)+'<div class="muted">'+esc(pairingPlayerRecord(p.player1_name))+'</div></div></div>'
-              : '<div class="pairing-players"><div class="pairing-player'+judgeOutcomeClass(p,'player1')+'">'+esc(p.player1_name)+'<div class="muted">'+esc(pairingPlayerRecord(p.player1_name))+'</div></div><div class="pairing-vs">VS</div><div class="pairing-player right'+judgeOutcomeClass(p,'player2')+'">'+esc(p.player2_name)+'<div class="muted">'+esc(pairingPlayerRecord(p.player2_name))+'</div></div></div>')+
+              ? '<div class="pairing-players"><div class="pairing-player">'+'<div class="pairing-player-line"><span>'+esc(p.player1_name)+'</span><span class="pairing-player-record">'+esc(pairingPlayerRecord(p.player1_name))+'</span></div></div></div>'
+              : '<div class="pairing-players"><div class="pairing-player'+judgeOutcomeClass(p,'player1')+'">'+'<div class="pairing-player-line"><span>'+esc(p.player1_name)+'</span><span class="pairing-player-record">'+esc(pairingPlayerRecord(p.player1_name))+'</span></div></div><div class="pairing-vs">VS</div><div class="pairing-player right'+judgeOutcomeClass(p,'player2')+'">'+'<div class="pairing-player-line"><span>'+esc(p.player2_name)+'</span><span class="pairing-player-record">'+esc(pairingPlayerRecord(p.player2_name))+'</span></div></div></div>')+
           '</div>';
         }).join('')+'</div>':'');
 
