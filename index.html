@@ -2705,7 +2705,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       const normalized=String(name||'').trim().toLowerCase();
       const e=entries.find(x=>String(x.player_name||'').trim().toLowerCase()===normalized);
       if(!e)return 'Record unavailable';
-      return (Number(e.wins)||0)+'W–'+(Number(e.losses)||0)+'L–'+(Number(e.ties)||0)+'T';
+      return (Number(e.wins)||0)+'–'+(Number(e.losses)||0)+'–'+(Number(e.ties)||0);
     }
     function tableDetailEntry(name){
       const n=String(name||'').trim().toLowerCase();
