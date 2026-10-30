@@ -471,7 +471,6 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           </div>
         </div>
         <div class="field"><label>Current Tournament</label><select id="tournamentSelect"></select></div>
-        <div id="roundFormatControl" class="field staff-only hidden"><label for="roundFormatSelect">Tournament Format</label><select id="roundFormatSelect"><option value="swiss">Swiss Only (No Top Cut)</option><option value="topcut">Swiss + Top Cut</option></select><div id="roundFormatHint" class="muted">Round count locks when Round 1 pairings are saved.</div></div>
         <div id="currentDeadlineArea" class="field staff-only hidden">
           <label>Decklist Submission Deadline</label>
           <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px">
@@ -2403,22 +2402,6 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       rows.forEach(p=>{for(const name of [p.player1_name,p.player2_name]){const key=String(name||'').trim().toLowerCase();if(key&&key!=='bye')names.add(key);}});
       return names.size;
     }
-    function updateRoundFormatControl(){
-      const select=$('roundFormatSelect'),wrap=$('roundFormatControl');
-      if(!select||!wrap)return;
-      wrap.classList.toggle('hidden',!currentTournament||!['owner','professor'].includes(currentRole));
-      select.value=getRoundFormat();
-      const locked=firstRoundPlayerCount()>0;
-      // The player count is locked, but staff may correct a wrongly selected format.
-      select.disabled=false;
-      $('roundFormatHint').textContent=locked?'Round 1 field locked at '+firstRoundPlayerCount()+' players. You may correct Swiss Only vs Top Cut without changing saved pairings.':'Rounds lock after Round 1 pairings are saved.';
-    }
-    if($('roundFormatSelect'))$('roundFormatSelect').onchange=()=>{
-      if(firstRoundPlayerCount() && !confirm('Correct the tournament format? The original Round 1 player count stays locked and saved pairings will not change.')){updateRoundFormatControl();return;}
-      try{localStorage.setItem(roundFormatKey(),$('roundFormatSelect').value);}catch(e){}
-      renderPairings();
-    };
-
     async function readTdfPayload(file){
       if(!file) throw new Error('Choose a .tdf file first.');
       const buf=await file.arrayBuffer();
@@ -2599,7 +2582,6 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
     async function renderPairings(){
       await fetchJudgePairingOutcomes();
       if(!$('roundButtons')) return;
-      updateRoundFormatControl();
       const n=entries.length, lockedCount=firstRoundPlayerCount();
       const rounds=swissRoundCount(lockedCount||n,getRoundFormat()==='topcut');
       $('pairingRoundSummary').textContent=n+' Registered • '+(lockedCount?lockedCount+' at Round 1 • ':'')+rounds+' Swiss Round'+(rounds===1?'':'s')+(lockedCount?' • Locked':'');
