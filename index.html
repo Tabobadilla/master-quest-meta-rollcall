@@ -2387,7 +2387,10 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
     }
     function firstRoundPlayerCount(){
       const rows=savedPairingsByRound[1]||[];
-      return rows.reduce((total,p)=>total+1+(p.player2_name&&p.player2_name!=='BYE'?1:0),0);
+      // Count distinct names; late players added to later rounds must not change the original field.
+      const names=new Set();
+      rows.forEach(p=>{for(const name of [p.player1_name,p.player2_name]){const key=String(name||'').trim().toLowerCase();if(key&&key!=='bye')names.add(key);}});
+      return names.size;
     }
     function updateRoundFormatControl(){
       const select=$('roundFormatSelect'),wrap=$('roundFormatControl');
@@ -2587,7 +2590,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       updateRoundFormatControl();
       const n=entries.length, lockedCount=firstRoundPlayerCount();
       const rounds=swissRoundCount(lockedCount||n,getRoundFormat()==='topcut');
-      $('pairingRoundSummary').textContent=n+' Players • '+rounds+' Swiss Round'+(rounds===1?'':'s')+(lockedCount?' • Locked':'');
+      $('pairingRoundSummary').textContent=n+' Registered • '+(lockedCount?lockedCount+' at Round 1 • ':'')+rounds+' Swiss Round'+(rounds===1?'':'s')+(lockedCount?' • Locked':'');
       if(!rounds){
         $('roundButtons').innerHTML='<div class="muted">At least 4 players are needed to calculate Swiss rounds.</div>';
         $('roundWorkspace').innerHTML='<div class="muted">Add players first.</div>'; return;
