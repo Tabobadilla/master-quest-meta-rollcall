@@ -2398,11 +2398,12 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       wrap.classList.toggle('hidden',!currentTournament||!['owner','professor'].includes(currentRole));
       select.value=getRoundFormat();
       const locked=firstRoundPlayerCount()>0;
-      select.disabled=locked;
-      $('roundFormatHint').textContent=locked?'Rounds locked from Round 1 pairings ('+firstRoundPlayerCount()+' players). Late additions will not increase rounds.':'Rounds lock after Round 1 pairings are saved.';
+      // The player count is locked, but staff may correct a wrongly selected format.
+      select.disabled=false;
+      $('roundFormatHint').textContent=locked?'Round 1 field locked at '+firstRoundPlayerCount()+' players. You may correct Swiss Only vs Top Cut without changing saved pairings.':'Rounds lock after Round 1 pairings are saved.';
     }
     if($('roundFormatSelect'))$('roundFormatSelect').onchange=()=>{
-      if(firstRoundPlayerCount())return updateRoundFormatControl();
+      if(firstRoundPlayerCount() && !confirm('Correct the tournament format? The original Round 1 player count stays locked and saved pairings will not change.')){updateRoundFormatControl();return;}
       try{localStorage.setItem(roundFormatKey(),$('roundFormatSelect').value);}catch(e){}
       renderPairings();
     };
