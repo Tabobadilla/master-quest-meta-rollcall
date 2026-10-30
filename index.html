@@ -3448,13 +3448,22 @@ $('addPlayer').onclick = async () => {
       standingsSaving=true;
       $('saveStandings').disabled=true;
       try{
+      // Clear previous standings first so rank swaps do not collide with the
+      // unique (tournament_id, standing) constraint during sequential updates.
+      // If a write fails, leave the form intact and report the database error.
+      const cleared=await sb.from('entries').update({standing:null}).eq('tournament_id',currentTournament.id);
+      if(cleared.error)return showMsg('standingMsg',cleared.error.message,'bad');
       for(const s of sels){
         const id=s.dataset.entry;
         const wins=Number(document.querySelector('.result-win[data-entry="'+id+'"]').value||0);
         const losses=Number(document.querySelector('.result-loss[data-entry="'+id+'"]').value||0);
         const ties=Number(document.querySelector('.result-tie[data-entry="'+id+'"]').value||0);
-        const {error}=await sb.from('entries').update({standing:Number(s.value),wins,losses,ties}).eq('id',id);
-        if(error) return showMsg('standingMsg',error.message,'bad');
+        const {error}=await sb.from('entries').update({standing:Number(s.value),wins,losses,ties}).eq('id',id).eq('tournament_id',currentTournament.id);
+        if(error){
+          // Best-effort rollback for ranks still missing after a partial save.
+          showMsg('standingMsg','Save interrupted: '+error.message+'. Refresh standings before retrying.','bad');
+          return;
+        }
       }
       await sb.from('tournaments').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',currentTournament.id);
       standingsDirty=false;
