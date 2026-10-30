@@ -458,7 +458,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           <button class="prof-nav-btn" type="button" data-prof-tab="pairings"><span class="prof-icon">⚔</span><span class="prof-nav-label">Pairings</span></button>
           <button class="prof-nav-btn" type="button" data-prof-tab="standings"><span class="prof-icon">▥</span><span class="prof-nav-label">Standings</span></button>
           <button class="prof-nav-btn" type="button" data-prof-tab="judge"><span class="prof-icon">⚑</span><span class="prof-nav-label">Judge Tools &amp; Timer</span></button>
-          <button class="prof-nav-btn staff-only hidden" type="button" data-prof-tab="discord"><span class="prof-icon">☷</span><span class="prof-nav-label">Discord Output</span></button>
+          <button class="prof-nav-btn owner-only hidden" type="button" data-prof-tab="discord"><span class="prof-icon">☷</span><span class="prof-nav-label">Discord Output</span></button>
           <button class="prof-nav-btn master owner-only hidden" type="button" data-prof-master="hub"><span class="prof-icon">♛</span><span class="prof-nav-label">Master Access</span></button>
         </nav>
         <div class="prof-sidebar-footer"><button class="prof-nav-btn" id="profSidebarCollapse" type="button"><span class="prof-icon">⇤</span><span class="prof-nav-label">Collapse sidebar</span></button></div>
@@ -561,7 +561,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       </section>
 
 
-      <section class="card"><div class="tabs" style="grid-template-columns:repeat(5,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="judge">Judge Tools</button><button type="button" data-tab="discord" class="staff-only hidden">Discord</button></div></section>
+      <section class="card"><div class="tabs" style="grid-template-columns:repeat(5,minmax(0,1fr))"><button type="button" data-tab="entry" class="on">Player Entry</button><button type="button" data-tab="pairings">Pairings</button><button type="button" data-tab="standings">Standings</button><button type="button" data-tab="judge">Judge Tools</button><button type="button" data-tab="discord" class="owner-only hidden">Discord</button></div></section>
       <section id="globalRoundTimerCard" class="card staff-only">
         <div style="text-align:center">
           <div style="font-weight:900">Round Timer</div>
@@ -698,7 +698,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       </section>
 
       <div id="judgeCallModal" class="judge-modal hidden"><div class="judge-modal-box"><div class="head"><div><h3 id="judgeModalTitle" style="margin:0">Judge Call</h3><div id="judgeModalMatch" class="muted"></div></div><button id="judgeModalClose" class="btn alt" type="button" style="width:auto">×</button></div><div class="field"><label>Applies To</label><select id="judgeTarget"></select></div><div class="field"><label>Penalty / Ruling Type</label><input id="judgePenaltyType" placeholder="Optional"></div><div class="field"><label>Rule Reference</label><input id="judgeRuleReference" placeholder="Optional rule or policy reference"></div><div class="field"><label>Notes</label><input id="judgeNotes" placeholder="What happened / ruling given"></div><div class="field"><label>Time Extension (minutes)</label><input id="judgeExtension" type="number" min="0" max="120" value="0"></div><div id="judgeCallMsg"></div><div class="judge-modal-actions"><button id="judgeModalCancel" class="btn alt" type="button">Cancel</button><button id="judgeSaveCall" class="btn" type="button">Save Judge Call</button></div></div></div>
-      <section id="discordTab" class="card hidden">
+      <section id="discordTab" class="card owner-only hidden">
         <h3 style="margin-top:0">Discord Output</h3>
         <div class="muted" style="margin-bottom:12px">Manage your store's default banner and a separate banner for each tournament. Publish final standings directly to Discord.</div>
         <div class="field"><label>Store Default Banner (PNG, JPG or WebP, max 5 MB)</label><input id="discordStoreFile" type="file" accept="image/png,image/jpeg,image/webp"><img id="discordStoreImage" alt="Store default banner" style="display:none;max-width:100%;max-height:180px;object-fit:contain;border-radius:8px"><button id="discordStoreClear" class="btn alt" type="button">Remove Store Default Banner</button></div>
@@ -3813,6 +3813,7 @@ $('addPlayer').onclick = async () => {
     if($('scanFinalStandings')) $('scanFinalStandings').onclick=()=>scanStandingsPhoto('standings');
 
     async function discordCall(body){
+      if(currentRole!=='owner')throw Error('Owner access required for Discord Output.');
       const {data:{session}}=await sb.auth.getSession();
       if(!session)throw Error('Sign in again.');
       const res=await fetch(SUPABASE_URL+'/functions/v1/discord-standings',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_KEY},body:JSON.stringify({tournament_id:currentTournament?.id,...body})});
