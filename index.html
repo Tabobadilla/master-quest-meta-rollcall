@@ -462,7 +462,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
         </nav>
         <div class="prof-sidebar-footer"><button class="prof-nav-btn" id="profSidebarCollapse" type="button"><span class="prof-icon">⇤</span><span class="prof-nav-label">Collapse sidebar</span></button></div>
       </aside>
-      <section class="card">
+      <section id="tournamentDashboardCard" class="card">
         <div class="head">
           <div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -3957,9 +3957,10 @@ $('addPlayer').onclick = async () => {
       showMsg('optionMsg',editId?'Option updated.':'Option added.','good');
     };
 
-    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='judge') await loadJudgeTools(); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
+    function showTournamentDashboard(visible){if($('tournamentDashboardCard'))$('tournamentDashboardCard').classList.toggle('hidden',!visible);}
+    document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{ showTournamentDashboard(b.dataset.tab==='entry'); document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ['entry','pairings','standings','judge','discord'].forEach(t=>{ const el=$(t+'Tab'); if(el) el.classList.toggle('hidden',t!==b.dataset.tab); }); if(b.dataset.tab==='judge') await loadJudgeTools(); if($('addedPlayersCard')) $('addedPlayersCard').classList.toggle('hidden',b.dataset.tab!=='entry'); if($('hubTab')) $('hubTab').classList.add('hidden'); document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); });
 
-    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ 
+    document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=async()=>{ showTournamentDashboard(false); 
       if(currentRole!=='owner') return;
       document.querySelectorAll('[data-admin-tab]').forEach(x=>x.classList.remove('on')); 
       b.classList.add('on'); 
