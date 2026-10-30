@@ -3435,11 +3435,19 @@ $('addPlayer').onclick = async () => {
       }
     };
 
+    let standingsSaving=false;
+    let standingsDirty=false;
+    $('standings').addEventListener('input',()=>{standingsDirty=true;});
+    $('standings').addEventListener('change',()=>{standingsDirty=true;});
     $('saveStandings').onclick = async () => {
       showMsg('standingMsg','');
+      if(standingsSaving)return;
       const sels=[...document.querySelectorAll('.stand')], vals=sels.map(s=>s.value).filter(Boolean);
       if(vals.length!==entries.length) return showMsg('standingMsg','Assign a standing to every player.','bad');
       if(new Set(vals).size!==vals.length) return showMsg('standingMsg','Each finishing position can only be used once.','bad');
+      standingsSaving=true;
+      $('saveStandings').disabled=true;
+      try{
       for(const s of sels){
         const id=s.dataset.entry;
         const wins=Number(document.querySelector('.result-win[data-entry="'+id+'"]').value||0);
@@ -3449,8 +3457,10 @@ $('addPlayer').onclick = async () => {
         if(error) return showMsg('standingMsg',error.message,'bad');
       }
       await sb.from('tournaments').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',currentTournament.id);
-      showMsg('standingMsg','Final standings and match records saved.','good');
+      standingsDirty=false;
       await loadEntries();
+      showMsg('standingMsg','Final standings and match records saved.','good');
+      }finally{standingsSaving=false;$('saveStandings').disabled=false;}
     };
 
     function cleanCellText(s){
@@ -3974,7 +3984,9 @@ $('addPlayer').onclick = async () => {
 // Tournex: safe background data refresh (15 seconds).
 let tournexRefreshBusy = false;
 async function tournexRefreshTick(){
-  if(tournexRefreshBusy || document.hidden || !navigator.onLine) return;
+  if(tournexRefreshBusy || document.hidden || !navigator.onLine || standingsSaving || standingsDirty) return;
+  // Never rebuild an open standings editor during background synchronization.
+  if($('standingsTab') && !$('standingsTab').classList.contains('hidden')) return;
   const focused = document.activeElement;
   if(focused && (focused.matches('input,textarea,select,[contenteditable="true"]') || focused.closest('[role="dialog"]'))) return;
   tournexRefreshBusy = true;
