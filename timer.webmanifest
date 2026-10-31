@@ -1,0 +1,18 @@
+{
+  "name": "Master Quest Tournex Timer",
+  "short_name": "Tournex Timer",
+  "description": "Synchronized tournament round countdown",
+  "start_url": "timer.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071c16",
+  "theme_color": "#073d2c",
+  "icons": [
+    {
+      "src": "tournex-timer-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
