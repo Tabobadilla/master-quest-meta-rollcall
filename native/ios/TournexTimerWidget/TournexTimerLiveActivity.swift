@@ -2,17 +2,6 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
-struct TournexTimerAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
-        var eventName: String
-        var status: String
-        var deadline: Date?
-        var pausedSeconds: Int
-    }
-    var store: String
-    var tournamentID: String
-}
-
 struct TournexTimerLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TournexTimerAttributes.self) { context in
