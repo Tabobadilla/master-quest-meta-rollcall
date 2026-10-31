@@ -306,6 +306,11 @@ function buildTabs(){
 
 function finalStandingSprite(option){
   if(!option)return '';
+  // These two library emoji URLs are mismapped; use canonical Mega-form sprites
+  // until the underlying Discord emoji assets can be corrected.
+  const normalized=String(option.name||'').toLowerCase().replace(/[^a-z]/g,'');
+  if(normalized==='megaaudino')return 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/10069.png';
+  if(normalized==='megaabsol')return 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/10057.png';
   const match=String(option.discord_emoji_code||'').match(/<a?:[^:>]+:(\d+)>/);
   if(match)return 'https://cdn.discordapp.com/emojis/'+match[1]+'.png?size=64&quality=lossless';
   return option.sprite_url||'';
