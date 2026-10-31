@@ -123,7 +123,6 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
     <div id="publicTimer" class="public-timer" role="timer" aria-label="Synchronized tournament round timer">
       <div class="public-timer-top"><span>ROUND TIMER</span><span class="public-timer-status" id="publicTimerStatus">Loading…</span></div>
       <div class="public-timer-time" id="publicTimerTime">--:--</div>
-      <div style="margin-top:10px"><a id="openLiveTimer" href="timer.html" style="color:inherit;font-weight:700">Open fullscreen synchronized timer ↗</a></div>
       
     </div>
     <div id="searchMsg"></div>
@@ -257,7 +256,6 @@ async function load(){
   }
 
   tournament=t;
-  $('openLiveTimer').href='timer.html?store='+encodeURIComponent(storeName);
   await refreshPublicTimer();
   $('eventName').textContent=t.event_name||'Tournament';
   $('eventInfo').textContent=[t.store_name,t.event_date].filter(Boolean).join(' • ');
