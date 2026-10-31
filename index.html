@@ -685,6 +685,11 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
             <div class="field"><label>Round Length (minutes)</label><input id="judgeTimerMinutes" type="number" min="1" max="180" value="50"></div>
             <div class="judge-controls"><button id="judgeTimerStart" class="btn" type="button">Start</button><button id="judgeTimerPause" class="btn alt" type="button">Pause</button><button id="judgeTimerResume" class="btn alt" type="button">Resume</button><button id="judgeTimerReset" class="btn danger" type="button">Reset</button><button id="judgeAlarmStop" class="btn danger hidden" type="button">Stop Alarm</button></div>
             <div id="judgeTimeUp" class="judge-timeup hidden">ROUND TIME!</div>
+            <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+              <button id="judgeOpenLiveTimer" type="button" class="btn alt">Open Fullscreen Timer</button>
+              <button id="judgeCopyLiveTimer" type="button" class="btn alt">Copy Timer Link</button>
+            </div>
+            <div class="muted" style="margin-top:8px">View the synchronized countdown on another device. Start, pause, resume, and reset remain here in Judge Tools.</div>
             <div id="judgeTimerMsg"></div>
           </div>
           <div class="judge-panel">
@@ -2843,6 +2848,21 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       const {data,error}=await sb.from('judge_timers').upsert(row,{onConflict:'tournament_id'}).select().single();
       if(error) return showMsg('judgeTimerMsg',error.message,'bad'); judgeTimerState=data; renderJudgeTimer(); showMsg('judgeTimerMsg','Timer updated for all Professor devices.','good');
     }
+    function judgeLiveTimerUrl(){
+      if(!currentTournament?.store_name)return '';
+      return new URL('timer.html?store='+encodeURIComponent(currentTournament.store_name),window.location.href).href;
+    }
+    $('judgeOpenLiveTimer').onclick=()=>{
+      const url=judgeLiveTimerUrl();
+      if(!url)return showMsg('judgeTimerMsg','Select a tournament first.','bad');
+      window.open(url,'_blank','noopener');
+    };
+    $('judgeCopyLiveTimer').onclick=async()=>{
+      const url=judgeLiveTimerUrl();
+      if(!url)return showMsg('judgeTimerMsg','Select a tournament first.','bad');
+      try{await navigator.clipboard.writeText(url);showMsg('judgeTimerMsg','Timer link copied.','good');}
+      catch(e){window.prompt('Copy timer link:',url);}
+    };
     function judgeMatches(){ return savedPairingsByRound[judgeCurrentRound()]||[]; }
     function renderJudgeLookup(){
       if(!$('judgeLookupResults')) return; const q=String($('judgeLookup')?.value||'').trim().toLowerCase();
