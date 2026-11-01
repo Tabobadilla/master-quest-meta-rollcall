@@ -415,6 +415,382 @@ Example:
       $('eventFactType').textContent=t?.tournament_type||'Not specified';
       $('eventFactFormat').textContent=t?.game_format||'Not specified';
       $('eventFactFee').textContent=t?.entry_fee!=null?'
+    $('jumpToSubmission').onclick=()=>$('formCard').scrollIntoView({behavior:'smooth'});
+    $('copyEventLink').onclick=async()=>{
+      const url=new URL(location.href);
+      if(activeTournament)url.searchParams.set('tournament',activeTournament.id);
+      try{await navigator.clipboard.writeText(url.href);$('copyEventLink').textContent='Link copied';}
+      catch(e){window.prompt('Copy event link:',url.href);}
+    };
+
+    async function loadData(){
+      if(!storeName){
+        $('storeTournamentCard').className='msg bad';
+        $('storeTournamentCard').textContent='This decklist link is missing its store. Please scan the QR code or use the Decklist Submission link provided by the store.';
+        $('submitBtn').disabled=true;
+        return;
+      }
+
+      const [
+        {data:tours,error:tErr},
+        {data:opts,error:oErr},
+        {data:arch,error:aErr}
+      ] = await Promise.all([
+        sb.rpc('list_open_tournament_details'),
+        sb.rpc('list_public_deck_options'),
+        sb.rpc('list_public_archetypes')
+      ]);
+      options=oErr?[]:(opts||[]);
+      archetypes=aErr?[]:(arch||[]);
+      if(aErr) console.error('Unable to load Tournex Archetype Library:',aErr);
+
+      if(tErr){
+        $('storeTournamentCard').className='msg bad';
+        $('storeTournamentCard').textContent='Unable to load this store’s tournaments: '+tErr.message;
+        $('submitBtn').disabled=true;
+        analyze();
+        return;
+      }
+
+      storeTournaments=(tours||[]).filter(x=>
+        String(x.store_name||'').trim().toLowerCase()===String(storeName).trim().toLowerCase()
+      ).sort((a,b)=>{
+        const ad=String(a.event_date||''), bd=String(b.event_date||'');
+        if(ad!==bd) return ad.localeCompare(bd);
+        return String(a.event_name||'').localeCompare(String(b.event_name||''));
+      });
+
+      const sel=$('tournament');
+      sel.innerHTML='<option value="">Choose tournament...</option>';
+      storeTournaments.forEach(x=>{
+        const o=document.createElement('option');
+        o.value=x.id;
+        o.textContent=(x.event_date?x.event_date+' — ':'')+(x.event_name||'Tournament');
+        sel.appendChild(o);
+      });
+
+      activeTournament=null;
+      if(!storeTournaments.length){
+        $('storeTournamentCard').className='msg warn';
+        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>No tournaments at this store are currently accepting decklist submissions.';
+        sel.disabled=true;
+        $('submitBtn').disabled=true;
+      }else{
+        $('storeTournamentCard').className='msg good';
+        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>Choose the tournament you are entering. Only events for this store are shown.';
+        sel.disabled=false;
+        $('submitBtn').disabled=true;
+      }
+      const requested=requestedTournamentId;
+      if(requested && storeTournaments.some(t=>t.id===requested)){
+        sel.value=requested;
+        selectTournament();
+      }else if(requested){
+        $('storeTournamentCard').className='msg bad';
+        $('storeTournamentCard').textContent='This tournament is not currently accepting decklists or does not belong to this store.';
+        $('submitBtn').disabled=true;
+      }else if(storeTournaments.length){
+        sel.value=storeTournaments[0].id;
+        selectTournament();
+      }
+      refreshSubmissionDeadline();
+      renderEventDetails();
+      analyze();
+    }
+
+    async function submit(){
+      showMsg('');
+      const tournament_id=$('tournament').value||'';
+      const trainer_name=$('trainerName').value.trim();
+      const player_id=$('playerId').value.trim();
+      const birthYear=$('birthYear').value.trim();
+      const division=divisionFromBirthYear(birthYear);
+      // Database/RPC currently expects a date, so only the year is collected from the player.
+      const birthdate=birthYear ? birthYear+'-01-01' : null;
+      const format='Standard';
+      const decklist_text=$('decklist').value.trim();
+      const card_total=countCards(decklist_text);
+
+      if(!tournament_id){
+        showMsg('This store does not currently have a tournament accepting decklist submissions.','bad');
+        return;
+      }
+
+      const deadlineState=tournamentDeadlineState(activeTournament);
+      if(deadlineState.closed){
+        showMsg('Decklist submissions are closed for this tournament. Please contact a Professor.','bad');
+        refreshSubmissionDeadline();
+        return;
+      }
+
+      if(!trainer_name || !player_id || !birthdate || !division || !decklist_text){
+        showMsg('Please complete Player Name, Player ID, Birth Year, and Decklist.','bad');
+        return;
+      }
+
+      $('submitBtn').disabled=true;
+      $('submitBtn').textContent='Submitting...';
+
+      try{
+        const confidence=detectedMain ? (detectedSupport ? 85 : 70) : 0;
+        const {error}=await sb.rpc('submit_public_decklist',{
+          p_tournament_id:tournament_id,
+          p_trainer_name:trainer_name,
+          p_player_id:player_id,
+          p_birthdate:birthdate,
+          p_division:division,
+          p_format:format,
+          p_decklist_text:decklist_text,
+          p_card_total:card_total,
+          p_main_option_id:detectedMain?.id||null,
+          p_support_option_id:detectedSupport?.id||null,
+          p_parser_confidence:confidence
+        });
+        if(error) throw error;
+
+        $('formCard').classList.add('hidden');
+        $('successCard').classList.remove('hidden');
+        window.scrollTo({top:0,behavior:'smooth'});
+      }catch(err){
+        showMsg(err.message||String(err),'bad');
+      }finally{
+        $('submitBtn').disabled=false;
+        $('submitBtn').textContent='Submit / Replace Decklist';
+        refreshSubmissionDeadline();
+      }
+    }
+
+    function resetForm(){
+      $('trainerName').value='';
+      $('playerId').value='';
+      $('birthYear').value='';
+      $('division').value='';
+      updateDivision();
+      $('decklist').value='';
+      detectedArchetype=null;
+      detectedMain=null;
+      detectedSupport=null;
+      analyze();
+      $('successCard').classList.add('hidden');
+      $('formCard').classList.remove('hidden');
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+
+    $('decklist').addEventListener('input',analyze);
+    $('submitBtn').onclick=submit;
+    $('submitAnother').onclick=resetForm;
+
+    $('tournament').addEventListener('change',selectTournament);
+    $('birthYear').addEventListener('input',updateDivision);
+    updateDivision();
+    loadData();
+  
+
+// Tournex: safe background data refresh (15 seconds).
+let tournexRefreshBusy = false;
+async function tournexRefreshTick(){
+  if(tournexRefreshBusy || document.hidden || !navigator.onLine) return;
+  const focused = document.activeElement;
+  if(focused && (focused.matches('input,textarea,select,[contenteditable="true"]') || focused.closest('[role="dialog"]'))) return;
+  tournexRefreshBusy = true;
+  try {
+    if(typeof refreshSubmissionDeadline==='function') await refreshSubmissionDeadline();
+  } catch(err) { console.warn('Tournex background refresh:', err); }
+  finally { tournexRefreshBusy = false; }
+}
+setInterval(tournexRefreshTick, 15000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) tournexRefreshTick(); });
+
+</script>
+</body>
+</html>
++Number(t.entry_fee).toFixed(2):'Not specified';
+      $('eventFactTime').textContent=t?.start_time?new Date('2000-01-01T'+t.start_time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'Not specified';
+    }
+    $('jumpToSubmission').onclick=()=>$('formCard').scrollIntoView({behavior:'smooth'});
+    $('copyEventLink').onclick=async()=>{
+      const url=new URL(location.href);
+      if(activeTournament)url.searchParams.set('tournament',activeTournament.id);
+      try{await navigator.clipboard.writeText(url.href);$('copyEventLink').textContent='Link copied';}
+      catch(e){window.prompt('Copy event link:',url.href);}
+    };
+
+    async function loadData(){
+      if(!storeName){
+        $('storeTournamentCard').className='msg bad';
+        $('storeTournamentCard').textContent='This decklist link is missing its store. Please scan the QR code or use the Decklist Submission link provided by the store.';
+        $('submitBtn').disabled=true;
+        return;
+      }
+
+      const [
+        {data:tours,error:tErr},
+        {data:opts,error:oErr},
+        {data:arch,error:aErr}
+      ] = await Promise.all([
+        sb.rpc('list_open_tournament_details'),
+        sb.rpc('list_public_deck_options'),
+        sb.rpc('list_public_archetypes')
+      ]);
+      options=oErr?[]:(opts||[]);
+      archetypes=aErr?[]:(arch||[]);
+      if(aErr) console.error('Unable to load Tournex Archetype Library:',aErr);
+
+      if(tErr){
+        $('storeTournamentCard').className='msg bad';
+        $('storeTournamentCard').textContent='Unable to load this store’s tournaments: '+tErr.message;
+        $('submitBtn').disabled=true;
+        analyze();
+        return;
+      }
+
+      storeTournaments=(tours||[]).filter(x=>
+        String(x.store_name||'').trim().toLowerCase()===String(storeName).trim().toLowerCase()
+      ).sort((a,b)=>{
+        const ad=String(a.event_date||''), bd=String(b.event_date||'');
+        if(ad!==bd) return ad.localeCompare(bd);
+        return String(a.event_name||'').localeCompare(String(b.event_name||''));
+      });
+
+      const sel=$('tournament');
+      sel.innerHTML='<option value="">Choose tournament...</option>';
+      storeTournaments.forEach(x=>{
+        const o=document.createElement('option');
+        o.value=x.id;
+        o.textContent=(x.event_date?x.event_date+' — ':'')+(x.event_name||'Tournament');
+        sel.appendChild(o);
+      });
+
+      activeTournament=null;
+      if(!storeTournaments.length){
+        $('storeTournamentCard').className='msg warn';
+        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>No tournaments at this store are currently accepting decklist submissions.';
+        sel.disabled=true;
+        $('submitBtn').disabled=true;
+      }else{
+        $('storeTournamentCard').className='msg good';
+        $('storeTournamentCard').innerHTML='<b>'+esc(storeName)+'</b><br>Choose the tournament you are entering. Only events for this store are shown.';
+        sel.disabled=false;
+        $('submitBtn').disabled=true;
+      }
+      const requested=new URLSearchParams(location.search).get('tournament');
+      if(requested && storeTournaments.some(t=>t.id===requested)){
+        sel.value=requested;
+        selectTournament();
+      }
+      refreshSubmissionDeadline();
+      renderEventDetails();
+      analyze();
+    }
+
+    async function submit(){
+      showMsg('');
+      const tournament_id=$('tournament').value||'';
+      const trainer_name=$('trainerName').value.trim();
+      const player_id=$('playerId').value.trim();
+      const birthYear=$('birthYear').value.trim();
+      const division=divisionFromBirthYear(birthYear);
+      // Database/RPC currently expects a date, so only the year is collected from the player.
+      const birthdate=birthYear ? birthYear+'-01-01' : null;
+      const format='Standard';
+      const decklist_text=$('decklist').value.trim();
+      const card_total=countCards(decklist_text);
+
+      if(!tournament_id){
+        showMsg('This store does not currently have a tournament accepting decklist submissions.','bad');
+        return;
+      }
+
+      const deadlineState=tournamentDeadlineState(activeTournament);
+      if(deadlineState.closed){
+        showMsg('Decklist submissions are closed for this tournament. Please contact a Professor.','bad');
+        refreshSubmissionDeadline();
+        return;
+      }
+
+      if(!trainer_name || !player_id || !birthdate || !division || !decklist_text){
+        showMsg('Please complete Player Name, Player ID, Birth Year, and Decklist.','bad');
+        return;
+      }
+
+      $('submitBtn').disabled=true;
+      $('submitBtn').textContent='Submitting...';
+
+      try{
+        const confidence=detectedMain ? (detectedSupport ? 85 : 70) : 0;
+        const {error}=await sb.rpc('submit_public_decklist',{
+          p_tournament_id:tournament_id,
+          p_trainer_name:trainer_name,
+          p_player_id:player_id,
+          p_birthdate:birthdate,
+          p_division:division,
+          p_format:format,
+          p_decklist_text:decklist_text,
+          p_card_total:card_total,
+          p_main_option_id:detectedMain?.id||null,
+          p_support_option_id:detectedSupport?.id||null,
+          p_parser_confidence:confidence
+        });
+        if(error) throw error;
+
+        $('formCard').classList.add('hidden');
+        $('successCard').classList.remove('hidden');
+        window.scrollTo({top:0,behavior:'smooth'});
+      }catch(err){
+        showMsg(err.message||String(err),'bad');
+      }finally{
+        $('submitBtn').disabled=false;
+        $('submitBtn').textContent='Submit / Replace Decklist';
+        refreshSubmissionDeadline();
+      }
+    }
+
+    function resetForm(){
+      $('trainerName').value='';
+      $('playerId').value='';
+      $('birthYear').value='';
+      $('division').value='';
+      updateDivision();
+      $('decklist').value='';
+      detectedArchetype=null;
+      detectedMain=null;
+      detectedSupport=null;
+      analyze();
+      $('successCard').classList.add('hidden');
+      $('formCard').classList.remove('hidden');
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+
+    $('decklist').addEventListener('input',analyze);
+    $('submitBtn').onclick=submit;
+    $('submitAnother').onclick=resetForm;
+
+    $('tournament').addEventListener('change',selectTournament);
+    $('birthYear').addEventListener('input',updateDivision);
+    updateDivision();
+    loadData();
+  
+
+// Tournex: safe background data refresh (15 seconds).
+let tournexRefreshBusy = false;
+async function tournexRefreshTick(){
+  if(tournexRefreshBusy || document.hidden || !navigator.onLine) return;
+  const focused = document.activeElement;
+  if(focused && (focused.matches('input,textarea,select,[contenteditable="true"]') || focused.closest('[role="dialog"]'))) return;
+  tournexRefreshBusy = true;
+  try {
+    if(typeof refreshSubmissionDeadline==='function') await refreshSubmissionDeadline();
+  } catch(err) { console.warn('Tournex background refresh:', err); }
+  finally { tournexRefreshBusy = false; }
+}
+setInterval(tournexRefreshTick, 15000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) tournexRefreshTick(); });
+
+</script>
+</body>
+</html>
++Number(t.entry_fee).toFixed(2):'Not specified';
+      $('eventFactTime').textContent=t?.start_time?new Date('2000-01-01T'+t.start_time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'Not specified';
     }
     $('jumpToSubmission').onclick=()=>$('formCard').scrollIntoView({behavior:'smooth'});
     $('copyEventLink').onclick=async()=>{
