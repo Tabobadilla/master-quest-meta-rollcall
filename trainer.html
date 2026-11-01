@@ -233,7 +233,9 @@ Example:
     let detectedArchetype = null;
     let detectedMain = null;
     let detectedSupport = null;
-    const storeName = new URLSearchParams(location.search).get('store');
+    const pageParams=new URLSearchParams(location.search);
+    const storeName=pageParams.get('store');
+    const requestedTournamentId=pageParams.get('tournament');
     let activeTournament = null;
     let storeTournaments = [];
 
@@ -480,10 +482,14 @@ Example:
         sel.disabled=false;
         $('submitBtn').disabled=true;
       }
-      const requested=new URLSearchParams(location.search).get('tournament');
+      const requested=requestedTournamentId;
       if(requested && storeTournaments.some(t=>t.id===requested)){
         sel.value=requested;
         selectTournament();
+      }else if(requested){
+        $('storeTournamentCard').className='msg bad';
+        $('storeTournamentCard').textContent='This tournament is not currently accepting decklists or does not belong to this store.';
+        $('submitBtn').disabled=true;
       }else if(storeTournaments.length){
         sel.value=storeTournaments[0].id;
         selectTournament();
