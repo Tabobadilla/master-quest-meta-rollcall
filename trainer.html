@@ -632,7 +632,7 @@ Example:
     }
     $('lookupPlayerBtn').onclick=()=>{
       const id=$('lookupPlayerId').value.trim();
-      if(!/^\\d{4,20}$/.test(id)){$('playerAccessMsg').textContent='Enter a valid numeric Player ID.';return}
+      if(!/^[0-9]{4,20}$/.test(id)){$('playerAccessMsg').textContent='Enter a valid numeric Player ID.';return}
       activePlayerId=id;
       $('playerId').value=id;
       $('playerAccessMsg').textContent='Player ID ready. Choose Sign Up or My Registration.';
