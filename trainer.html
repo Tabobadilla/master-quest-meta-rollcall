@@ -407,7 +407,7 @@ Example:
       const t=activeTournament;
       $('eventHeroTitle').textContent=t?.event_name||'Tournament Registration & Decklists';
       $('eventAvailability').textContent=t?(tournamentDeadlineState(t).closed?'Decklist submission closed':'Decklist submission open'):'Select an event';
-      $('eventHeroDetails').textContent=t?[t.event_date,t.location||t.store_name].filter(Boolean).join(' · '):'Choose a tournament below to see its details and submit your decklist.';
+      $('eventHeroDetails').textContent=t?[t.event_date,t.location||t.store_name,t.id?'ID '+String(t.id).slice(0,8).toUpperCase():null].filter(Boolean).join(' · '):'Choose a tournament below to see its details and submit your decklist.';
       $('eventFactName').textContent=t?.event_name||'Choose tournament';
       $('eventFactDate').textContent=t?.event_date||'—';
       $('eventFactLocation').textContent=t?.location||t?.store_name||'—';
