@@ -153,6 +153,9 @@ body:has(#app:not(.hidden)) .wrap{max-width:1540px;padding:18px 22px}
 
 /* Never reveal owner navigation or hub outside the verified owner role. */
 body:not([data-role="owner"]) [data-prof-master],body:not([data-role="owner"]) #adminNavCard,body:not([data-role="owner"]) #hubTab{display:none!important}
+  #newTournament:not(.hidden){position:fixed;inset:0;z-index:9999;background:#071c16ad;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto}
+  #newTournament .new-tournament-dialog{background:var(--card,#fff);color:var(--ink,#143326);border-radius:18px;padding:24px;width:min(100%,680px);max-height:calc(100dvh - 32px);overflow-y:auto;box-shadow:0 24px 70px #0005}
+  @media(max-width:620px){#newTournament .new-tournament-dialog{padding:16px}}
 </style>
 
 <style>
@@ -484,7 +487,17 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
           <button id="deleteCurrentTournament" class="btn danger owner-only hidden" style="width:auto;padding-left:16px;padding-right:16px">Delete Tournament</button>
         </div>
-        <div id="newTournament" class="hidden">
+        <div id="newTournament" class="hidden" role="dialog" aria-modal="true" aria-labelledby="newTournamentTitle">
+          <div class="new-tournament-dialog">
+          <div class="head" style="align-items:center"><h2 id="newTournamentTitle" style="margin:0">Create New Tournament</h2><button type="button" id="closeNewTournament" class="btn alt" style="width:auto">Cancel ✕</button></div>
+          <div class="row">
+            <div class="field"><label for="newTournamentType">What type of tournament?</label><select id="newTournamentType"><option value="League Play">League Play</option><option value="League Challenge">League Challenge</option><option value="League Cup">League Cup</option></select></div>
+            <div class="field"><label for="newGameFormat">What format?</label><select id="newGameFormat"><option value="Standard">Standard</option><option value="GLC">GLC</option><option value="Expanded">Expanded</option></select></div>
+          </div>
+          <div class="row">
+            <div class="field"><label for="newEntryFee">Entry price ($)</label><input id="newEntryFee" type="number" min="0" step="0.01" value="0" required></div>
+            <div class="field"><label for="newStartTime">Tournament start time</label><input id="newStartTime" type="time" required></div>
+          </div>
           <div class="row">
             <div class="field"><label>Tournament Name</label><input id="eventName" placeholder="League Cup"></div>
             <div class="field"><label>Store</label><select id="tournamentStoreSelect"><option value="">Choose store...</option></select></div>
@@ -493,10 +506,11 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           <div class="field"><label for="newRoundFormat">Tournament Format</label><select id="newRoundFormat"><option value="swiss">Swiss Only (No Top Cut)</option><option value="topcut">Swiss + Top Cut</option></select></div>
           <div class="field">
             <label>Decklist Submission Deadline</label>
-            <input id="decklistDeadline" type="datetime-local">
+            <input id="decklistDeadline" type="datetime-local" disabled>
             <div class="muted">Players can submit or replace their decklist until this time. Professors can still review decklists afterward.</div>
           </div>
           <button id="createTournament" class="btn full">Create Tournament</button>
+          </div>
         </div>
       </section>
 
@@ -3016,16 +3030,32 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       alert(value ? 'Decklist deadline saved.' : 'Decklist deadline cleared.');
     };
 
-    $('newTournamentToggle').onclick = () => $('newTournament').classList.toggle('hidden');
+    function closeNewTournament(){ $('newTournament').classList.add('hidden'); }
+    function syncNewTournamentType(){
+      const competitive=['League Cup','League Challenge'].includes($('newTournamentType').value);
+      $('decklistDeadline').disabled=!competitive;
+      if(!competitive) $('decklistDeadline').value='';
+    }
+    $('newTournamentToggle').onclick=()=>{syncNewTournamentType();$('newTournament').classList.remove('hidden');$('eventName').focus();};
+    $('closeNewTournament').onclick=closeNewTournament;
+    $('newTournamentType').onchange=syncNewTournamentType;
+    $('newTournament').addEventListener('click',e=>{if(e.target===$('newTournament'))closeNewTournament();});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('newTournament').classList.contains('hidden'))closeNewTournament();});
     $('createTournament').onclick = async () => {
       const event_name=$('eventName').value.trim();
       const event_date=$('eventDate').value;
       const location=$('location').value.trim();
-      const deadlineLocal=$('decklistDeadline').value;
+      const tournament_type=$('newTournamentType').value;
+      const game_format=$('newGameFormat').value;
+      const entry_fee=Number($('newEntryFee').value);
+      const start_time=$('newStartTime').value;
+      const deadlineLocal=$('decklistDeadline').disabled?'':$('decklistDeadline').value;
       const decklist_deadline=deadlineLocal ? new Date(deadlineLocal).toISOString() : null;
       const store=selectedStoreRecord();
 
       if(!event_name || !event_date) return alert('Enter tournament name and date.');
+      if(!start_time) return alert('Enter the tournament start time.');
+      if(!Number.isFinite(entry_fee)||entry_fee<0) return alert('Enter a valid tournament entry price.');
       if(!store) return alert('Choose a store.');
 
       if(currentRole==='professor' && store.id!==currentStoreId){
@@ -3043,7 +3073,11 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
         status:'registration',
         created_by:user?.id||null,
         public_pairings_enabled:true,
-        decklist_deadline
+        decklist_deadline,
+        tournament_type,
+        game_format,
+        entry_fee,
+        start_time
       }).select('id').single();
 
       if(error) return alert(error.message);
@@ -3061,6 +3095,11 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       $('eventDate').value='';
       $('location').value='';
       $('decklistDeadline').value='';
+      $('newEntryFee').value='0';
+      $('newStartTime').value='';
+      $('newTournamentType').value='League Play';
+      $('newGameFormat').value='Standard';
+      syncNewTournamentType();
       await loadTournaments();
 
       if(currentRole==='owner') await loadMasterHub();
