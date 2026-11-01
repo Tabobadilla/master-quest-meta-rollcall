@@ -131,6 +131,30 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       <details><summary>Registration and check-in</summary><p class="muted">Your name and Player ID identify your decklist submission. A decklist submission alone does not confirm your tournament registration or check-in. Please follow the organizer's registration instructions.</p></details>
       <details><summary>Play details and tournament format</summary><p class="muted">Refer to the event organizer for the tournament format, round start time, and entry fee.</p></details>
     </section>
+    <section class="card" id="playerAccess">
+      <div class="event-eyebrow" style="color:var(--muted)">PLAYER ACCESS</div>
+      <h2>Online registration</h2>
+      <p class="muted">Start with your Player ID. No account or password needed.</p>
+      <div class="row">
+        <div class="field"><label for="lookupPlayerId">Your Player ID</label><input id="lookupPlayerId" inputmode="numeric" autocomplete="off" placeholder="Pokémon Player ID"></div>
+        <div class="field" style="align-self:end"><button class="btn" id="lookupPlayerBtn" type="button">Continue</button></div>
+      </div>
+      <div id="playerAccessMsg" class="muted" aria-live="polite"></div>
+      <div class="event-actions" style="margin-top:14px">
+        <button class="btn alt" type="button" id="registrationTab">Sign Up</button>
+        <button class="btn alt" type="button" id="myRegistrationTab">My Registration</button>
+      </div>
+      <div id="registrationView" class="hidden">
+        <h3>Sign up for this event</h3>
+        <p class="muted">Enter your name in the decklist form below. You can submit your decklist now, or return later. In-person check-in is separate.</p>
+        <button type="button" class="btn" id="continueToDecklist">Continue to decklist form</button>
+      </div>
+      <div id="myRegistrationView" class="hidden">
+        <h3>My registration</h3>
+        <div id="registrationReceipt" class="msg warn">Enter your Player ID to look up your saved submission on this device.</div>
+        <button type="button" class="btn" id="editSavedDecklist">Change my decklist</button>
+      </div>
+    </section>
     <section id="formCard" class="card">
       <h2>Player Decklist Submission</h2>
       <div class="muted" style="margin-top:6px">
@@ -549,7 +573,14 @@ Example:
           p_parser_confidence:confidence
         });
         if(error) throw error;
-
+        try{
+          localStorage.setItem(receiptKey(player_id),JSON.stringify({
+            name:trainer_name,decklist:decklist_text,birthYear,submittedAt:new Date().toISOString()
+          }));
+          activePlayerId=player_id;
+          $('lookupPlayerId').value=player_id;
+          showRegistrationReceipt();
+        }catch(e){console.warn('Local registration receipt unavailable',e)}
         $('formCard').classList.add('hidden');
         $('successCard').classList.remove('hidden');
         window.scrollTo({top:0,behavior:'smooth'});
@@ -578,6 +609,47 @@ Example:
       window.scrollTo({top:0,behavior:'smooth'});
     }
 
+    // Local player receipt: never expose another player's decklist by Player ID alone.
+    const receiptKey=(id)=>'tournex-player-receipt:'+String(activeTournament?.id||'')+':'+String(id||'').trim();
+    let activePlayerId='';
+    function showRegistrationReceipt(){
+      const id=activePlayerId||$('lookupPlayerId').value.trim();
+      const saved=id?localStorage.getItem(receiptKey(id)):null;
+      const box=$('registrationReceipt');
+      box.replaceChildren();
+      if(!saved){
+        box.textContent='No saved submission on this device for this Player ID and tournament. For privacy, Player ID alone cannot retrieve another device’s decklist. You can still submit a decklist below.';
+        return;
+      }
+      try{
+        const data=JSON.parse(saved);
+        const name=document.createElement('strong');name.textContent=data.name||'Player';
+        const detail=document.createElement('p');detail.textContent='Player ID: '+id+' · Submitted: '+new Date(data.submittedAt).toLocaleString();
+        const heading=document.createElement('strong');heading.textContent='Your submitted decklist';
+        const pre=document.createElement('pre');pre.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere';pre.textContent=data.decklist||'';
+        box.append(name,detail,heading,pre);
+      }catch(e){box.textContent='Saved submission could not be opened.'}
+    }
+    $('lookupPlayerBtn').onclick=()=>{
+      const id=$('lookupPlayerId').value.trim();
+      if(!/^\\d{4,20}$/.test(id)){$('playerAccessMsg').textContent='Enter a valid numeric Player ID.';return}
+      activePlayerId=id;
+      $('playerId').value=id;
+      $('playerAccessMsg').textContent='Player ID ready. Choose Sign Up or My Registration.';
+      showRegistrationReceipt();
+      $('myRegistrationView').classList.remove('hidden');
+      $('registrationView').classList.add('hidden');
+    };
+    $('registrationTab').onclick=()=>{$('registrationView').classList.remove('hidden');$('myRegistrationView').classList.add('hidden')};
+    $('myRegistrationTab').onclick=()=>{$('myRegistrationView').classList.remove('hidden');$('registrationView').classList.add('hidden');showRegistrationReceipt()};
+    $('continueToDecklist').onclick=()=>$('formCard').scrollIntoView({behavior:'smooth'});
+    $('editSavedDecklist').onclick=()=>{
+      const id=activePlayerId||$('lookupPlayerId').value.trim();
+      if(id)$('playerId').value=id;
+      const saved=id?localStorage.getItem(receiptKey(id)):null;
+      if(saved){try{const data=JSON.parse(saved);$('trainerName').value=data.name||'';$('decklist').value=data.decklist||'';if(data.birthYear)$('birthYear').value=data.birthYear;updateDivision();analyze()}catch(e){}}
+      $('formCard').scrollIntoView({behavior:'smooth'});
+    };
     $('decklist').addEventListener('input',analyze);
     $('submitBtn').onclick=submit;
     $('submitAnother').onclick=resetForm;
