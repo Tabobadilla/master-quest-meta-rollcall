@@ -483,8 +483,8 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           </div>
           <div id="decklistDeadlineStatus" class="muted"></div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
-          <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px">
+          <button id="newTournamentToggle" class="btn alt full staff-only">+ New Tournament</button><button id="editTournamentToggle" type="button" class="btn alt staff-only" style="width:auto;min-width:140px">Edit Tournament</button>
           <button id="deleteCurrentTournament" class="btn danger owner-only hidden" style="width:auto;padding-left:16px;padding-right:16px">Delete Tournament</button>
         </div>
         <div id="newTournament" class="hidden" role="dialog" aria-modal="true" aria-labelledby="newTournamentTitle">
@@ -3030,13 +3030,42 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       alert(value ? 'Decklist deadline saved.' : 'Decklist deadline cleared.');
     };
 
-    function closeNewTournament(){ $('newTournament').classList.add('hidden'); }
+    let editingTournamentId=null;
+    function closeNewTournament(){ $('newTournament').classList.add('hidden'); editingTournamentId=null; }
     function syncNewTournamentType(){
       const competitive=['League Cup','League Challenge'].includes($('newTournamentType').value);
       $('decklistDeadline').disabled=!competitive;
       if(!competitive) $('decklistDeadline').value='';
     }
-    $('newTournamentToggle').onclick=()=>{syncNewTournamentType();$('newTournament').classList.remove('hidden');$('eventName').focus();};
+    $('newTournamentToggle').onclick=()=>{
+      editingTournamentId=null;
+      $('newTournamentTitle').textContent='Create New Tournament';
+      $('createTournament').textContent='Create Tournament';
+      $('eventName').value='';$('eventDate').value='';$('location').value='';
+      $('newTournamentType').value='League Play';$('newGameFormat').value='Standard';
+      $('newEntryFee').value='0';$('newStartTime').value='';$('decklistDeadline').value='';
+      syncNewTournamentType();$('newTournament').classList.remove('hidden');$('eventName').focus();
+    };
+    $('editTournamentToggle').onclick=()=>{
+      if(!currentTournament)return alert('Select a tournament first.');
+      const t=currentTournament;
+      if(currentRole==='professor' && t.store_id!==currentStoreId)return alert('You can only edit tournaments for your assigned store.');
+      editingTournamentId=t.id;
+      $('newTournamentTitle').textContent='Edit Tournament';
+      $('createTournament').textContent='Save Tournament Changes';
+      $('eventName').value=t.event_name||'';
+      $('eventDate').value=t.event_date||'';
+      $('location').value=t.location||'';
+      $('tournamentStoreSelect').value=t.store_id||'';
+      $('newTournamentType').value=t.tournament_type||'League Play';
+      $('newGameFormat').value=t.game_format||'Standard';
+      $('newEntryFee').value=t.entry_fee??0;
+      $('newStartTime').value=(t.start_time||'').slice(0,5);
+      syncNewTournamentType();
+      $('decklistDeadline').value=toLocalDateTimeInput(t.decklist_deadline);
+      $('newRoundFormat').value=localStorage.getItem('tournex-round-format-'+t.id)||'swiss';
+      $('newTournament').classList.remove('hidden');$('eventName').focus();
+    };
     $('closeNewTournament').onclick=closeNewTournament;
     $('newTournamentType').onchange=syncNewTournamentType;
     $('newTournament').addEventListener('click',e=>{if(e.target===$('newTournament'))closeNewTournament();});
@@ -3063,34 +3092,40 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       }
 
       const {data:{user}}=await sb.auth.getUser();
-
-      const {data:newTournament,error}=await sb.from('tournaments').insert({
+      const payload={
         event_name,
         store_id:store.id,
         store_name:store.name,
         event_date,
         location,
         status:'registration',
-        created_by:user?.id||null,
-        public_pairings_enabled:true,
         decklist_deadline,
         tournament_type,
         game_format,
         entry_fee,
         start_time
-      }).select('id').single();
-
-      if(error) return alert(error.message);
+      };
+      let newTournament,error;
+      if(editingTournamentId){
+        const response=await sb.from('tournaments').update(payload).eq('id',editingTournamentId).select('id').single();
+        newTournament=response.data;error=response.error;
+      }else{
+        const response=await sb.from('tournaments').insert({...payload,created_by:user?.id||null,public_pairings_enabled:true}).select('id').single();
+        newTournament=response.data;error=response.error;
+      }
+      if(error)return alert(error.message);
       try{localStorage.setItem('tournex-round-format-'+newTournament.id,$('newRoundFormat').value);}catch(e){}
 
       // One public tournament per store. The newest created tournament takes precedence.
-      const disableOld=await sb.from('tournaments')
-        .update({public_pairings_enabled:false})
-        .eq('store_id',store.id)
-        .neq('id',newTournament.id);
-      if(disableOld.error) console.warn('Could not disable older public tournaments:',disableOld.error.message);
+      if(!editingTournamentId){
+        const disableOld=await sb.from('tournaments')
+          .update({public_pairings_enabled:false})
+          .eq('store_id',store.id)
+          .neq('id',newTournament.id);
+        if(disableOld.error) console.warn('Could not disable older public tournaments:',disableOld.error.message);
+      }
 
-      $('newTournament').classList.add('hidden');
+      closeNewTournament();
       $('eventName').value='';
       $('eventDate').value='';
       $('location').value='';
