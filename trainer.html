@@ -70,6 +70,21 @@ html,body,button,input,select,textarea,option,table,th,td,pre,code,[contentedita
       .wrap{max-width:none;padding:0}
       .card{border:0}
     }
+    .event-hero{background:linear-gradient(125deg,#073b2b,#0a6945);color:#fff;padding:28px}
+    .event-eyebrow{font-size:11px;font-weight:800;letter-spacing:.15em;opacity:.8}
+    .event-hero h1{font-size:clamp(26px,5vw,38px);margin:14px 0}
+    .event-chip{display:inline-block;margin-top:16px;background:#ffffff26;border:1px solid #ffffff45;border-radius:99px;padding:6px 12px;font-size:12px;font-weight:800}
+    .event-hero-details{opacity:.85;font-size:14px}
+    .event-actions{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+    .event-actions .btn{width:auto;min-width:160px}
+    .event-actions .btn.alt{background:#ffffff24;color:white;border:1px solid #ffffff55}
+    .event-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .event-facts span{display:block;font-size:11px;font-weight:800;color:var(--muted);margin-bottom:6px}
+    .event-facts strong{display:block;font-size:13px;overflow-wrap:anywhere}
+    .event-about details{border-top:1px solid var(--line);padding:14px 0}
+    .event-about details:first-of-type{margin-top:12px}
+    .event-about summary{cursor:pointer;font-weight:800}
+    @media(max-width:620px){.event-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.event-hero{padding:20px}.event-actions .btn{width:100%}}
   </style>
 <style id="tournex-font-final">
 /* Last stylesheet wins: all application UI uses Space Grotesk, except the round timer. */
@@ -89,8 +104,31 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
   </header>
 
   <main class="wrap">
+    <section class="event-hero card" aria-label="Tournament event information">
+      <div class="event-eyebrow">MASTER QUEST · TOURNEX EVENTS</div>
+      <div class="event-chip" id="eventAvailability">Select an event</div>
+      <h1 id="eventHeroTitle">Tournament Registration & Decklists</h1>
+      <div class="event-hero-details" id="eventHeroDetails">Choose a tournament below to see its details and submit your decklist.</div>
+      <div class="event-actions">
+        <button type="button" class="btn" id="jumpToSubmission">Submit / Change Decklist</button>
+        <button type="button" class="btn alt" id="copyEventLink">Copy Event Link</button>
+      </div>
+    </section>
+    <section class="event-facts card" aria-label="Event details">
+      <div><span>EVENT</span><strong id="eventFactName">Choose tournament</strong></div>
+      <div><span>DATE</span><strong id="eventFactDate">—</strong></div>
+      <div><span>LOCATION</span><strong id="eventFactLocation">—</strong></div>
+      <div><span>DECKLIST DEADLINE</span><strong id="eventFactDeadline">—</strong></div>
+    </section>
+    <section class="card event-about">
+      <h2>About this event</h2>
+      <p class="muted">Submit your decklist online before the tournament deadline. Submission does not count as in-person check-in; confirm attendance with the Professor or organizer at the event.</p>
+      <details open><summary>Decklists and changes</summary><p class="muted">Already submitted? Use the same Player ID and tournament to replace your decklist before the deadline. Tournex preserves its existing decklist replacement and Professor review process.</p></details>
+      <details><summary>Registration and check-in</summary><p class="muted">Your name and Player ID identify your decklist submission. A decklist submission alone does not confirm your tournament registration or check-in. Please follow the organizer's registration instructions.</p></details>
+      <details><summary>Play details and tournament format</summary><p class="muted">Refer to the event organizer for the tournament format, round start time, and entry fee.</p></details>
+    </section>
     <section id="formCard" class="card">
-      <h2>Submit Your Decklist</h2>
+      <h2>Player Decklist Submission</h2>
       <div class="muted" style="margin-top:6px">
         Complete all required player information and paste your full tournament decklist below.
         Your decklist should total 60 cards.
@@ -356,7 +394,26 @@ Example:
       const id=$('tournament').value;
       activeTournament=storeTournaments.find(x=>String(x.id)===String(id))||null;
       refreshSubmissionDeadline();
+      renderEventDetails();
     }
+
+    function renderEventDetails(){
+      const t=activeTournament;
+      $('eventHeroTitle').textContent=t?.event_name||'Tournament Registration & Decklists';
+      $('eventAvailability').textContent=t?(tournamentDeadlineState(t).closed?'Decklist submission closed':'Decklist submission open'):'Select an event';
+      $('eventHeroDetails').textContent=t?[t.event_date,t.location||t.store_name].filter(Boolean).join(' · '):'Choose a tournament below to see its details and submit your decklist.';
+      $('eventFactName').textContent=t?.event_name||'Choose tournament';
+      $('eventFactDate').textContent=t?.event_date||'—';
+      $('eventFactLocation').textContent=t?.location||t?.store_name||'—';
+      $('eventFactDeadline').textContent=t?.decklist_deadline?new Date(t.decklist_deadline).toLocaleString():'Not posted';
+    }
+    $('jumpToSubmission').onclick=()=>$('formCard').scrollIntoView({behavior:'smooth'});
+    $('copyEventLink').onclick=async()=>{
+      const url=new URL(location.href);
+      if(activeTournament)url.searchParams.set('tournament',activeTournament.id);
+      try{await navigator.clipboard.writeText(url.href);$('copyEventLink').textContent='Link copied';}
+      catch(e){window.prompt('Copy event link:',url.href);}
+    };
 
     async function loadData(){
       if(!storeName){
@@ -416,7 +473,13 @@ Example:
         sel.disabled=false;
         $('submitBtn').disabled=true;
       }
+      const requested=new URLSearchParams(location.search).get('tournament');
+      if(requested && storeTournaments.some(t=>t.id===requested)){
+        sel.value=requested;
+        selectTournament();
+      }
       refreshSubmissionDeadline();
+      renderEventDetails();
       analyze();
     }
 
