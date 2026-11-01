@@ -2995,7 +2995,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
         $('tournamentSelect').value=d[0].id;
         currentTournament=d[0];
         refreshDeadlineUI();
-        if($('eventSummary')) $('eventSummary').textContent=(d[0].store_name||'Unassigned Store')+' — '+d[0].event_name+' — '+d[0].event_date;
+        if($('eventSummary')) $('eventSummary').textContent=(d[0].store_name||'Unassigned Store')+' — '+d[0].event_name+' — '+d[0].event_date+tournamentSignature(d[0]);
         await loadEntries();
       }else{
         currentTournament=null;
@@ -3017,7 +3017,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       currentTournament=data;
       refreshDeadlineUI();
       if($('eventSummary')) $('eventSummary').textContent=
-        (data.store_name||'Unassigned Store')+' — '+data.event_name+' — '+data.event_date;
+        (data.store_name||'Unassigned Store')+' — '+data.event_name+' — '+data.event_date+tournamentSignature(data);
       await loadEntries();
     };
     $('saveDecklistDeadline').onclick = async () => {
@@ -3271,7 +3271,8 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       return year>=2015?'Junior':year>=2011?'Senior':'Master';
     }
 
-    function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s');
+    function tournamentSignature(t){return t?.id?' • ID '+String(t.id).slice(0,8).toUpperCase():'';}
+    function renderEntries(){ $('eventSummary').textContent=currentTournament ? currentTournament.event_name+' • '+currentTournament.event_date+tournamentSignature(currentTournament)+(currentTournament.location?' • '+currentTournament.location:'') : 'Select or create an event'; $('playerCount').textContent=entries.length+' Player'+(entries.length===1?'':'s');
       if($('addedPlayerCount')) $('addedPlayerCount').textContent=entries.length+' Players'; $('standingCount').textContent=$('playerCount').textContent;
       const visibleEntries=filteredTournamentEntries();
       if($('playerSearchStatus')){
