@@ -462,10 +462,20 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           <button class="prof-nav-btn" type="button" data-prof-tab="standings"><span class="prof-icon">▥</span><span class="prof-nav-label">Standings</span></button>
           <button class="prof-nav-btn" type="button" data-prof-tab="judge"><span class="prof-icon">⚑</span><span class="prof-nav-label">Judge Tools &amp; Timer</span></button>
           <button class="prof-nav-btn owner-only hidden" type="button" data-prof-tab="discord"><span class="prof-icon">☷</span><span class="prof-nav-label">Discord Output</span></button>
+          <button class="prof-nav-btn owner-only hidden" type="button" id="onlineTournamentNav"><span class="prof-icon">▦</span><span class="prof-nav-label">Online Tournament</span></button>
           <button class="prof-nav-btn master owner-only hidden" type="button" data-prof-master="hub"><span class="prof-icon">♛</span><span class="prof-nav-label">Master Access</span></button>
         </nav>
         <div class="prof-sidebar-footer"><button class="prof-nav-btn" id="profSidebarCollapse" type="button"><span class="prof-icon">⇤</span><span class="prof-nav-label">Collapse sidebar</span></button></div>
       </aside>
+      <section id="onlineTournamentOwnerPanel" class="card hidden" style="margin-bottom:18px" aria-label="Owner online tournament management">
+        <div class="head"><div><h2 style="margin:0">Online Tournament</h2><div class="muted">Owner workspace · double-elimination events</div></div><button class="btn alt" type="button" id="onlineTournamentClose">Return to dashboard</button></div>
+        <div class="msg warn"><b>Setup in progress:</b> Online tournament registration, bracket pairing, check-in, match reporting, and payment verification are not enabled yet. Existing in-person tournaments are unaffected.</div>
+        <div class="row">
+          <div class="card"><h3>Registration &amp; payment</h3><p class="muted">Track submitted decklists, paid / unpaid status, and check-in once the dedicated online event database is connected.</p></div>
+          <div class="card"><h3>Double elimination</h3><p class="muted">Randomized winners and losers brackets, synchronized 30-minute round timers, and disputed result review are planned for this mode.</p></div>
+        </div>
+        <p class="muted">Venmo checkout is not connected. Do not collect tournament payments through a personal Venmo account without the appropriate merchant authorization.</p>
+      </section>
       <section id="tournamentDashboardCard" class="card">
         <div class="head">
           <div><div style="font-weight:900;font-size:18px">Tournament</div><div id="eventSummary" class="muted">Select or create an event</div></div>
@@ -4531,6 +4541,22 @@ setTimeout(loadPickerOptions, 600);
    sidebar.classList.remove('mobile-open');
    if(mobile)mobile.setAttribute('aria-expanded','false');
  }
+ const onlineNav=document.getElementById('onlineTournamentNav');
+ const onlinePanel=document.getElementById('onlineTournamentOwnerPanel');
+ const dashboard=document.getElementById('tournamentDashboardCard');
+ const closeOnline=document.getElementById('onlineTournamentClose');
+ function toggleOnline(show){
+   const owner=document.body.dataset.role==='owner';
+   if(!owner || !onlinePanel)return;
+   onlinePanel.classList.toggle('hidden',!show);
+   if(dashboard)dashboard.classList.toggle('hidden',show);
+   if(show)markActive('online',false);
+ }
+ if(onlineNav)onlineNav.addEventListener('click',()=>toggleOnline(true));
+ if(closeOnline)closeOnline.addEventListener('click',()=>toggleOnline(false));
+ document.addEventListener('click',e=>{
+   if(e.target.closest('.tabs [data-tab],#adminNavCard [data-admin-tab]') && !onlinePanel?.classList.contains('hidden'))toggleOnline(false);
+ });
  sidebar.querySelectorAll('[data-prof-tab]').forEach(b=>b.addEventListener('click',()=>{
    const original=document.querySelector('.tabs [data-tab="'+b.dataset.profTab+'"]');
    if(original){original.click();markActive(b.dataset.profTab,false);}
