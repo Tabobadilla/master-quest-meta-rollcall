@@ -414,7 +414,9 @@ Example:
       $('eventFactDeadline').textContent=t?.decklist_deadline?new Date(t.decklist_deadline).toLocaleString():'Not posted';
       $('eventFactType').textContent=t?.tournament_type||'Not specified';
       $('eventFactFormat').textContent=t?.game_format||'Not specified';
-      $('eventFactFee').textContent=t?.entry_fee!=null?'
+      $('eventFactFee').textContent=t?.entry_fee!=null?'$'+Number(t.entry_fee).toFixed(2):'Not specified';
+      $('eventFactTime').textContent=t?.start_time?new Date('2000-01-01T'+t.start_time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'Not specified';
+    }
     $('jumpToSubmission').onclick=()=>$('formCard').scrollIntoView({behavior:'smooth'});
     $('copyEventLink').onclick=async()=>{
       const url=new URL(location.href);
