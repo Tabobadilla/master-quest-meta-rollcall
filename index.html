@@ -2951,6 +2951,7 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       if($('storeDecklistName')) $('storeDecklistName').textContent=storeName;
       const url=new URL('trainer.html',window.location.href);
       url.searchParams.set('store',storeName);
+      url.searchParams.set('tournament',currentTournament.id);
       const text=url.toString();
       if($('storeDecklistUrl')) $('storeDecklistUrl').textContent=text;
       if($('storeDecklistQr')){
