@@ -786,7 +786,13 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
           <option value="month">This Month</option>
           <option value="30">Last 30 Days</option>
           <option value="all">All Time</option>
+          <option value="specific">Choose Month...</option>
         </select>
+      </div>
+
+      <div class="field" id="hubMetaMonthField" style="display:none">
+        <label>Month</label>
+        <input id="hubMetaMonth" type="month" />
       </div>
 
       <div class="field">
@@ -1642,6 +1648,10 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       if(!$('hubMetaDateRange')) return true;
       const mode=$('hubMetaDateRange').value;
       if(mode==='all') return true;
+      if(mode==='specific'){
+        const selected=$('hubMetaMonth')?.value||'';
+        return !!selected && String(dateStr||'').slice(0,7)===selected;
+      }
 
       const d=new Date(dateStr+'T00:00:00');
       const now=new Date();
@@ -1723,7 +1733,9 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
             : 'Choose a tournament to view its meta.';
         }else if(scope==='store'){
           const store=$('hubMetaStore')?.value||'';
-          const label=$('hubMetaDateRange')?.selectedOptions?.[0]?.textContent||'Selected Range';
+          const label=$('hubMetaDateRange')?.value==='specific'
+            ? ($('hubMetaMonth')?.value||'Choose Month')
+            : ($('hubMetaDateRange')?.selectedOptions?.[0]?.textContent||'Selected Range');
           $('hubMetaScopeLabel').textContent=store
             ? 'Showing all tournaments at '+store+' — '+label+'.'
             : 'Choose a store to view its tournaments.';
@@ -2295,7 +2307,15 @@ html,body,body *,button,input,select,textarea,option,table,th,td,pre,code,[conte
       renderHubMetaFromFilters();
     };
 
-    if($('hubMetaDateRange')) $('hubMetaDateRange').onchange=renderHubMetaFromFilters;
+    if($('hubMetaDateRange')) $('hubMetaDateRange').onchange=()=>{
+      if($('hubMetaMonthField')) $('hubMetaMonthField').style.display=$('hubMetaDateRange').value==='specific'?'':'none';
+      if($('hubMetaDateRange').value==='specific' && !$('hubMetaMonth').value){
+        const now=new Date();
+        $('hubMetaMonth').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+      }
+      renderHubMetaFromFilters();
+    };
+    if($('hubMetaMonth')) $('hubMetaMonth').onchange=renderHubMetaFromFilters;
     if($('hubMetaTournament')) $('hubMetaTournament').onchange=renderHubMetaFromFilters;
     if($('hubMetaStore')) $('hubMetaStore').onchange=renderHubMetaFromFilters;
     document.querySelectorAll('[data-hub-view]').forEach(b=>b.onclick=async()=>{
