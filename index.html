@@ -4562,7 +4562,7 @@ setTimeout(loadPickerOptions, 600);
      markActive('online',false);
    }
  }
- if(onlineNav)onlineNav.addEventListener('click',()=>toggleOnline(true));
+ if(onlineNav)onlineNav.addEventListener('click',()=>{if(document.body.dataset.role==='owner')window.location.href='./online-owner.html';});
  if(closeOnline)closeOnline.addEventListener('click',()=>{toggleOnline(false);const entry=document.querySelector('.tabs [data-tab="entry"]');if(entry)entry.click();});
  document.addEventListener('click',e=>{
    if(e.target.closest('.tabs [data-tab],#adminNavCard [data-admin-tab]') && !onlinePanel?.classList.contains('hidden'))toggleOnline(false);
